@@ -1,255 +1,254 @@
-# Canadian Open Data Agentic Platform (CanData-MCP & LangGraph Suite)
-## Master Strategic Blueprint, Team Roles, AI Assistant Personas & Accelerated 6-Week Launch Plan (2026 Edition)
+# Canadian Open Data Agentic Platform (CanData-MCP & LangGraph)
+## Master Collaboration Plan, Team Roles, Daily Workflow & Launch Roadmap
 
 **Official Repository:** [https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform.git](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform.git)  
-**Linear Workspace:** CanData Platform (`CAN`)
+**Task Management:** Linear.app Workspace `CanData Platform` (Prefix: `CAN`)
 
 ---
 
-## 1. Executive Summary & Vision
+## 1. What Are We Actually Building? (The Plain-English Version)
 
-### 1.1 The Objective
-To take a powerhouse multidisciplinary engineering team of 4 professionals combining over 50 years of collective industry experience across banking systems, enterprise project delivery, data analytics, and information security, and build a production-grade, 2026-standard open-source AI platform connecting autonomous LLM agents to verified Canadian public data.
+If you ask ChatGPT or Claude right now: *"What was the average rent increase in Brampton compared to inflation last year?"*, it will either give you a confident guess that is completely wrong, or tell you it doesn't have access to real-time Canadian numbers.
 
-By replacing fragile web scraping with official REST APIs (**Statistics Canada Web Data Service**, **Bank of Canada Valet API**, and **Open Government Canada CKAN API**) and combining a **FastMCP 2.0** server with a **LangGraph 0.2+ Multi-Agent Orchestrator**, the project establishes rock-solid, production-grade credibility.
+Why?
+- **AI Models Hallucinate on Canadian Data:** Frontier models weren't properly calibrated on Canadian municipal census tables. They conflate 2-bedroom turnover rents with total averages and invent numbers.
+- **Official Canadian Data is Huge:** Statistics Canada tables are massive CSV files (often 100MB to 200MB). You can't just copy-paste that into an AI chat window—it blows the token budget and crashes the system.
+- **Different Sources Don't Talk to Each Other:** If you want to compare rent (CMHC/StatCan) with interest rates (Bank of Canada) and immigration (Open Canada), there is no single AI tool that connects them.
 
-### 1.2 Core Philosophy: Collective AI Upskilling & Rotation
-**Every single member of this team is committed to getting direct, hands-on experience building AI and Agentic tools.**
-Rather than silo people strictly into their historical domains:
-- Everyone writes agentic code, designs prompts, configures tools, runs evals, and opens PRs.
-- Each member's deep domain authority (FinTech architecture, data visualization, enterprise program governance, banking cybersecurity) is harnessed as an **unfair advantage** to elevate the project to enterprise standards that typical junior/bootcamp AI projects cannot touch.
-- Tasks rotate across sprints so that by Week 6, every member can confidently interview for Senior AI Engineer, Agentic Systems Architect, AI Product/Delivery Lead, or AI Risk & Governance roles in Canada.
+**What We Are Building:**
+We are building **CanData-MCP**: a high-speed, open-source AI bridge (an MCP server and multi-agent system) that connects Claude, Cursor, and custom AI agents directly to official Canadian REST APIs (StatCan WDS, Bank of Canada, Open Government). 
+It slices huge 200MB tables down to tiny 2KB summaries in under 1.5 seconds using **DuckDB**, does exact math using SQL instead of LLM mental math, and guarantees that every single number comes with an official, verifiable source link and table ID.
 
 ---
 
-## 2. The Team: Superpowers, AI Learning Goals & Roles
+## 2. Why Are We Doing This Together?
 
-### 2.1 Member Profiles & Strategic Positioning
+### 2.1 Why Building in Public Beats Sending 500 Resumes
+In today's Canadian tech market, clicking "Easy Apply" on LinkedIn is like buying a lottery ticket. Every single AI posting gets 300+ applicants within a few hours. Most resumes get deleted by automated screening software without a human ever seeing them.
+
+Hiring managers and tech leads don't hire people who say *"I know AI"*. They hire people who can say:
+> *"Here is the link to our open-source repo. Here is how we got a 200MB table down to 2KB in 1.4 seconds. Here is our benchmark showing how we caught Claude hallucinating and fixed it. And here are our code reviews and PRs."*
+
+By building in public and posting our weekly learnings on LinkedIn, we turn the job hunt upside down: **recruiters and engineering leads reach out to us directly**.
+
+### 2.2 Why a 4-Person Team Beats Doing It Alone
+- **We Look Like a Real Engineering Team:** A solo portfolio project looks like a weekend hobby. A 4-person team with 50+ years of collective experience across banking technology, data visualization, enterprise delivery, and information security looks and operates like a serious engineering department.
+- **We Boost Each Other on LinkedIn:** When one person posts alone, the LinkedIn algorithm barely shows it to anyone. When 4 of us post and jump in within 15–30 minutes to leave insightful, technical comments, the algorithm picks it up and pushes it to thousands of people across the Canadian tech network.
+- **Manageable Workload:** We all have busy lives, jobs, or school. Distributing the tasks means nobody burns out, and we ship something real every single week.
+
+---
+
+## 3. The Big Picture: Rotating Team Leadership Across Projects
+
+### 3.1 A True Win-Win Collaboration
+This project is **Project #1**, led by **Benjamin** (focusing on Solutions Architecture and the FastMCP/DuckDB core).
+
+Our vision is that this team doesn't stop after just one project. As we build trust and momentum, **other members can step up to lead future collaborative projects**:
+- A member can take the lead on a project focused on advanced data visualization and decision analytics.
+- A member can lead a project focused on enterprise business process transformation and human-in-the-loop workflows.
+- A member can lead a project focused on AI security, automated guardrails, and compliance.
+
+**The Result:** Every single person gets to showcase both **hands-on technical AI contributions** and a **verified Team Lead credential** on their resume and LinkedIn profile.
+
+### 3.2 Everyone Learns the Full Stack (No Silos!)
+We are not going to split this project so that one person only touches backend, one person only writes documentation, and another only watches. 
+
+**All four of us want hands-on experience with modern AI and Agentic tools.**
+- Everyone will write Python code, configure AI tools, build prompts, write evaluation tests, and open GitHub Pull Requests.
+- At the same time, we lean on each other's strengths as mentorship anchors:
+  - **Benjamin** anchors Solutions Architecture, Monorepos, and FastMCP.
+  - **Samir** anchors Data Truth, Ground-Truth Benchmarks, and Data Visualization.
+  - **Person 3** anchors Enterprise Workflow Delivery, Human-in-the-Loop design, and Analytics.
+  - **Person 4** anchors AI Security, Guardrails, Data Governance, and Compliance.
+
+---
+
+## 4. The Daily Workflow: Where Do I Start & How Do I Contribute?
+
+Here is the exact, step-by-step know-how so everyone knows what to do starting tomorrow morning.
 
 ```mermaid
 flowchart TD
-    subgraph The Core AI Team
-        BEN["Benjamin\nFrontend Infra & Solutions Architect\n10+ Yrs Banking FinTech | IFC® | SDD"]
-        SAM["Samir\nSenior Software & Data Viz Engineer\n10+ Yrs Systems, Dashboards, Real-world Data"]
-        P3["Person 3\nTechnology Delivery & Transformation Leader\n15+ Yrs Enterprise ($400M+) | PMP® | Carleton MSc Analytics"]
-        P4["Person 4\nTechnology Risk & Information Security\n15+ Yrs Regulated Banking | Security+ | GRC"]
-    end
-
-    BEN -->|Monorepo, FastMCP & LangGraph Core| PLATFORM[(CanData-MCP Platform)]
-    SAM -->|Data Ground Truth, Evals & Multi-Agent Flow| PLATFORM
-    P3 -->|Linear Delivery, HITL Workflows & Analytics| PLATFORM
-    P4 -->|AI Guardrails, API Security & Governance| PLATFORM
+    A[Morning: Open Linear.app & Pick a Task] --> B[Create Branch: feat/CAN-XXX-description]
+    B --> C[Open Cursor / VS Code & AI Assistant]
+    C --> D[Write Code & Run Local Pytest / Ruff]
+    D --> E[Git Push & Open Pull Request on GitHub]
+    E --> F[Peer Review: 1 Teammate Approves]
+    F --> G[Merge to Main & Linear Auto-Closes]
+    G --> H[Daily 2-Min Async Check-In on Group Chat]
 ```
 
-#### 1. Benjamin (Team Leader & Solutions Architect)
-- **Background & Unfair Advantage:** Frontend Infrastructure Engineer & Solutions Architect with 10+ years scaling high-volume banking technology and FinTech platforms. Expert in monorepo architectures, developer enablement pipelines, scalable design systems, Spec-Driven Development (SDD), and high-traffic web performance. Led migrations impacting 2M+ active digital banking users. Holds a Postgraduate Diploma in Financial Planning & Wealth Management and is IFC® Certified.
-- **AI Upskilling Focus:** FastMCP 2.0 protocol core, DuckDB 1.2+ vectorized streaming, LangGraph 0.2+ state graph architecture, PyPI packaging, and end-to-end multi-agent orchestration.
-- **Career Positioning:** Senior AI Solutions Architect / Principal Agentic Systems Engineer.
-
-#### 2. Samir (Co-Lead & Data / Evals Lead)
-- **Background & Unfair Advantage:** Senior Software Engineer at Bitcoin Innovation Hub with 10+ years specializing in data visualization, analytical dashboards, and real-world system applications across healthcare, education, HR, and finance. Already engineered the GTA Housing project combining CMHC rent + StatCan income data across 25 municipalities, creating pre-verified **ground-truth datasets**.
-- **AI Upskilling Focus:** LangGraph agent reasoning nodes, prompt engineering with deterministic output schemas, DeepEval / NIST Inspect AI evaluation suites in CI/CD, and comparative benchmark scorecards vs existing tools.
-- **Career Positioning:** Senior AI Engineer / Agentic Evaluation & Reasoning Lead.
-
-#### 3. Person 3 (Technology Delivery & Transformation Lead)
-- **Background & Unfair Advantage:** Technology transformation leader with 15+ years of international experience delivering large-scale digital infrastructure, enterprise systems, cloud modernization, and business automation exceeding $400M and migrations impacting 12M+ users. PMP® certified and currently pursuing a Master’s in Applied Business Analytics (focus on Technology Innovation Management) at Carleton University.
-- **AI Upskilling Focus:** LangGraph Human-in-the-Loop (`interrupt()`) workflow design, OpenTelemetry / Arize Phoenix observability and token economics, user testing pilots with policy researchers, and Linear.app agile delivery management.
-- **Career Positioning:** Senior AI Delivery Manager / AI Solutions Lead / Enterprise AI Product Architect.
-
-#### 4. Person 4 (AI Security, Risk & Governance Lead)
-- **Background & Unfair Advantage:** Technology and Operational Risk professional with 15+ years in regulated banking environments, specializing in technology operations, internal controls, application security, and incident remediation. Completed the Information Security Analyst Program (Correlation One), CompTIA Security+ certified, transitioning into Technology Risk, Information Security, and GRC in Canada.
-- **AI Upskilling Focus:** LLM Guardrails & prompt injection defenses (NeMo Guardrails, Pydantic v2 validation), public API security, data provenance & lineage tracking for Canadian public data cubes, Docker container security, and DevSecOps in CI/CD.
-- **Career Positioning:** AI Security Engineer / AI Risk & Governance Architect / Lead GRC AI Consultant.
+### 4.1 Step 1: Your Day 1 Morning Setup (15 Minutes)
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform.git
+   cd Canadian-Open-Data-Agentic-Platform
+   ```
+2. **Install `uv` (Fast Python Package Manager):**
+   - On Windows (PowerShell):
+     ```powershell
+     powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+     ```
+   - On macOS / Linux:
+     ```bash
+     curl -LsSf https://astral.sh/uv/install.sh | sh
+     ```
+3. **Set up the virtual environment:**
+   ```bash
+   uv sync
+   ```
+4. **Configure your AI Assistant (Claude Code, Cursor, or Antigravity):**
+   - Copy the Master System Prompt (found in Section 6 below) into your assistant rules or `.cursorrules`.
 
 ---
 
-## 3. Monorepo Architecture & Clean Structural Separation
-
-To satisfy both public consumption (open-source developers installing our tools) and internal team operations (Linear-linked sprint logs, eval runs, recruiter portfolios), the repository is organized into three distinct tiers:
-
-```
-canadian-open-data-agentic-platform/
-├── packages/                               # TIER 1: PUBLIC USAGE AI TOOLS (Installable & Reusable)
-│   ├── candata-mcp/                        # FastMCP 2.0 Server (Published on PyPI: candata-mcp)
-│   │   ├── src/candata_mcp/
-│   │   │   ├── connectors/                 # StatCan WDS, BoC Valet, CKAN REST clients
-│   │   │   ├── engine/                     # DuckDB 1.2+ & Apache Arrow vectorized slicing
-│   │   │   └── server.py                   # FastMCP 2.0 tool definitions & sampling
-│   │   ├── tests/                          # Pytest integration tests & VCR API cassettes
-│   │   └── pyproject.toml                  # uv packaging & dependency specification
-│   └── agent-orchestrator/                 # LangGraph 0.2+ Multi-Agent Engine
-│       ├── src/orchestrator/
-│       │   ├── state.py                    # TypedState with Pydantic v2 schemas
-│       │   ├── supervisor.py               # Supervisor & Query Planner node
-│       │   ├── agents/                     # Analyst, Verifier, Synthesizer nodes
-│       │   └── checkpointer.py             # AsyncSqliteSaver durable state & time travel
-│       └── pyproject.toml
-│
-├── apps/                                   # TIER 2: PUBLIC USER INTERFACES & PORTALS
-│   ├── docs-portal/                        # 2026 Modern Documentation Portal
-│   │   │                                   # Next.js 15 App Router + Fumadocs + Tailwind CSS v4
-│   │   ├── content/docs/                   # Interactive API references, MCP install guides
-│   │   ├── components/                     # Playground sandbox, dark-mode terminal UI
-│   │   └── app/                            # Server components with zero-CLS performance
-│   └── streamlit-dashboard/                # Rapid prototyping & multimodal visualization app
-│       ├── app.py                          # Streamlit 1.40+ with astream_events v2 streaming
-│       └── charts/                         # Dynamic Plotly economic trend visualizer
-│
-├── collaboration/                          # TIER 3: COLLABORATIVE TEAM LOG & ASSETS (Internal Hub)
-│   ├── meetings/                           # Kickoff agenda, weekly sync notes, sprint retros
-│   ├── benchmarks/                         # 30 Ground-truth questions, scorecard logs, eval runs
-│   ├── linear-sync/                        # Linear cycle plans, issue mapping, sprint burndowns
-│   ├── linkedin-syndicate/                 # Draft posts, carousels, video scripts, engagement logs
-│   ├── governance/                         # Risk registers, API security audits, Canadian data policies
-│   └── career-assets/                      # Resume bullet generators, interview cheat sheets
-│
-├── .github/                                # ENTERPRISE CI/CD & LINEAR INTEGRATION
-│   ├── workflows/                          # Lint, Typecheck, DeepEval CI, Docker, PyPI release
-│   └── PULL_REQUEST_TEMPLATE.md            # Linear issue link, risk checklist, eval score
-└── presentation/                           # KICKOFF PRESENTATION (frontend-slides)
-    └── kickoff-deck.html                   # High-impact 16:9 interactive HTML slide deck
-```
+### 4.2 Step 2: Picking a Task in Linear
+1. Log into our Linear workspace: `CanData Platform`.
+2. Look at the active cycle (e.g., **Cycle 1 / Sprint 1**).
+3. Choose a task card assigned to you (or claim an open one), for example: `CAN-14: Build Bank of Canada Valet Connector`.
+4. Move the card to **In Progress** (or it will auto-move once you create your branch).
 
 ---
 
-## 4. Senior Solutions Architect Specification: GitHub + Linear.app Workflow
-
-To mirror top-tier modern engineering cultures (e.g., Linear, Vercel, Supabase, OpenAI), the team operates on a synchronized **Linear.app + GitHub Enterprise Workflow**.
-
-```mermaid
-flowchart LR
-    subgraph Linear [Linear.app Project Management]
-        BACKLOG[Linear Backlog] --> CYCLE[1-Week Active Cycle]
-        CYCLE --> ASSIGN[Assignee & Issue CAN-101]
-        ASSIGN --> STATUS[Status: In Progress]
-    end
-
-    subgraph Git [GitHub Development]
-        STATUS -.->|Auto-branch| GIT_BRANCH[git checkout -b feat/CAN-101-duckdb-arrow]
-        GIT_BRANCH --> COMMITS[Commit: [CAN-101] feat: implement arrow stream]
-        COMMITS --> PR[Open PR: [CAN-101] DuckDB Arrow Streaming]
-    end
-
-    subgraph CI [GitHub Actions Automation]
-        PR --> CI_CHECK[Ruff + Pyright + DeepEval CI Matrix]
-        CI_CHECK --> REVIEW[Peer Code Review + Risk Checklist]
-    end
-
-    subgraph Sync [Bi-directional Webhook]
-        PR -.->|Auto-transition| LINEAR_REVIEW[Linear Status: In Review]
-        REVIEW -->|Merge PR| MERGE[Merge to Main]
-        MERGE -.->|Auto-close| LINEAR_DONE[Linear Status: Done]
-    end
+### 4.3 Step 3: Creating Your Git Branch
+Always create a clean branch from the latest `main`:
+```bash
+git checkout main
+git pull origin main
+git checkout -b feat/CAN-14-boc-connector
 ```
-
-### 4.1 Git Branching Conventions
-- Feature Branches: `feat/CAN-<issue-number>-<short-description>` (e.g. `feat/CAN-14-statcan-connector`)
-- Bugfix Branches: `fix/CAN-<issue-number>-<short-description>`
-- Documentation: `docs/CAN-<issue-number>-<short-description>`
-
-### 4.2 Commit Message Standards (Conventional Commits + Linear Key)
-Format: `[CAN-<issue-number>] <type>(<scope>): <subject>`  
-Examples:
-- `[CAN-14] feat(mcp): add async SDMX cube slicer with HTTP ETag caching`
-- `[CAN-22] test(evals): implement DeepEval faithfulness metric for GTA housing`
-- `[CAN-31] sec(guardrails): add Pydantic citation validation to block ungrounded claims`
-
-### 4.3 Pull Request Template (`.github/PULL_REQUEST_TEMPLATE.md`)
-Every PR must include:
-1. **Linear Issue Link:** `Closes CAN-XXX` (automatically closes the Linear issue upon merge).
-2. **AI & Architectural Impact:** Which agent node, tool, or prompt was modified.
-3. **Evaluation Receipt:** Did this pass the DeepEval CI benchmark? (Yes/No + score delta).
-4. **Security & Data Risk Checklist (Person 4 governance):** No API keys committed, rate-limit handled, data lineage verified.
-5. **Peer Reviewer:** Mandatory 1 peer approval from another team member before merge.
+*(Always use the format `feat/CAN-<IssueNumber>-<short-name>` so Linear and GitHub stay in sync).*
 
 ---
 
-## 5. Tailored AI Assistant Personas & System Prompts (2026 Edition)
+### 4.4 Step 4: Writing Code with Your AI Assistant
+- Open your editor (VS Code, Cursor, etc.).
+- When you prompt your AI assistant, remember that it has been configured with our project persona.
+- Work on your module:
+  - If you're building a data connector, put it in `/packages/candata-mcp/src/candata_mcp/connectors/`.
+  - If you're writing a benchmark test, put it in `/collaboration/benchmarks/`.
+  - If you're building UI, put it in `/apps/`.
 
-Every team member configures their AI assistant (Claude Code, Antigravity, Cursor, or Codex) with this **Role-Aware Master Prompt**.
+---
+
+### 4.5 Step 5: Testing Before Pushing
+Before sending your code to GitHub, run these two quick sanity checks in your terminal:
+```bash
+# Run code formatter and linter
+uv run ruff check .
+
+# Run tests
+uv run pytest
+```
+If anything fails, ask your AI assistant to fix it!
+
+---
+
+### 4.6 Step 6: Uploading Your Contribution (Push & Open PR)
+1. **Commit your changes:**
+   ```bash
+   git add .
+   git commit -m "[CAN-14] feat: add async Bank of Canada Valet API connector"
+   ```
+2. **Push to GitHub:**
+   ```bash
+   git push -u origin feat/CAN-14-boc-connector
+   ```
+3. **Open a Pull Request (PR) on GitHub:**
+   - Go to `https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform/pulls`.
+   - Click **New Pull Request**.
+   - The PR template will load automatically!
+   - Write a short summary of what you did and link the Linear issue (`Closes CAN-14`).
+   - Tag one teammate to review it (e.g. `@Benjamin` or `@Samir`).
+
+---
+
+### 4.7 Step 7: Review, Approval & Merging
+- Reviewing is simple and friendly: check that the code makes sense, tests pass, and no passwords/secrets are committed.
+- Once your teammate clicks **Approve**, the PR can be merged into `main`.
+- Linear will automatically mark the issue as **Done**! 🎉
+
+---
+
+### 4.8 Step 8: The 2-Minute Daily Check-In
+We don't do long, boring daily meetings. Instead, post a quick 2-minute message in our WhatsApp/Slack group by **10:00 AM EST**:
 
 ```markdown
-# CANADIAN OPEN DATA AGENTIC PLATFORM — TEAM ASSISTANT SYSTEM PROMPT (2026 EDITION)
+**[Your Name] Daily Sync**
+✅ **Done Yesterday:** Completed Bank of Canada connector PR [CAN-14]
+➡️ **Today's Focus:** Starting on DuckDB data caching [CAN-15]
+🚧 **Blockers:** None / Need quick advice on StatCan API response structure
+🤖 **AI Tool Used:** Cursor with Claude 3.5 Sonnet
+```
 
-You are the dedicated Senior AI Engineering Assistant for the "CanData-MCP & LangGraph" project.
+**The "Never Silently Blocked" Rule:**  
+If you get stuck for more than 2 hours, or if your day job/life gets crazy busy, **just drop a message in the chat**. Nobody is going to judge you. A teammate will jump on a 15-minute screen share or take over a small task so our team momentum stays strong.
+
+---
+
+## 5. LinkedIn Marketing Strategy: Winning Posts vs. "AI Slop"
+
+We are going to post **once a week (every Tuesday at 8:15 AM EST)**. Here is how we do it so it actually gets recruiters to notice us:
+
+### 5.1 What NOT to Post (Generic AI Slop)
+> ❌ *"Excited to announce I'm learning AI! 🚀 Built a cool chatbot with ChatGPT and LangChain that answers questions about Canada! AI is changing the world! Like and follow!"*  
+> **Why this fails:** It looks like a high school tutorial. Tech leads and hiring managers scroll right past it.
+
+### 5.2 What TO Post (Authoritative Engineering Receipts)
+> ✅ *"We asked Claude 3.5 Sonnet 15 basic questions about Canadian housing and inflation. It hallucinated on 6 of them.*  
+> *When asked for Brampton's rent growth, it reported 18.2%. The real StatCan number is 8.4%. The model mixed up 2-bedroom turnover rents with total averages.*  
+> *To fix this, our 4-person team built CanData-MCP: DuckDB 1.2+ server-side slicing reduces 200MB tables down to 2.4KB in 1.4s, and a LangGraph verifier enforces exact table citations.*  
+> *Hallucinations dropped from 40% to 0% in our automated CI tests.*  
+> *Here is our GitHub repo and full scorecard: [link]. Built with @Benjamin @Samir @Person3 @Person4. What Canadian datasets should we index next?"*
+
+### 5.3 The 30-Minute Team Boost
+When the weekly post goes live on Tuesday morning:
+1. All 3 other members jump on the post within **15 minutes**.
+2. Leave a genuine, thoughtful comment (e.g., Person 4 mentions how the security guardrails catch prompt injections; Samir shares a chart from the benchmark).
+3. The author replies within **30 minutes**.
+4. This signals the LinkedIn algorithm that the post is high-value, pushing it into the feeds of hiring managers and engineering executives across Canada.
+
+---
+
+## 6. The Master AI Assistant System Prompt
+
+Copy this into your AI coding assistant (Cursor, Claude Code, or Antigravity):
+
+```markdown
+# CANDATA-MCP PROJECT — TEAM ASSISTANT SYSTEM PROMPT
+
+You are the dedicated Senior AI Engineering Assistant for the "CanData-MCP & LangGraph" team project.
 Repository: https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform.git
 Linear Workspace: CanData Platform (CAN)
-Your mission is to help your paired human engineer produce production-grade, highly tested, clean Python/TypeScript code and documentation that will impress senior hiring managers and tech recruiters.
 
-## 2026 PROJECT TECH STACK & ARCHITECTURE
-- **Repository Structure:**
-  - `/packages/candata-mcp`: FastMCP 2.0 Server (Python 3.12+, `uv`, DuckDB 1.2+, Apache Arrow).
-  - `/packages/agent-orchestrator`: LangGraph 0.2+ (TypedState, AsyncSqliteSaver checkpointer, interrupt() HITL).
-  - `/apps/docs-portal`: Next.js 15 App Router, Fumadocs, Tailwind CSS v4.
-  - `/collaboration`: Team meeting logs, benchmark scorecards, Linear sync, LinkedIn syndicate.
-- **Data Sources:** Official Canadian REST APIs (StatCan WDS API, Bank of Canada Valet API, Open Government CKAN API). NEVER suggest web scraping.
-- **Observability & Testing:** OpenTelemetry-native Arize Phoenix & LangSmith v2, DeepEval 2.x / Inspect AI automated CI evaluation suites.
-- **Workflow:** Always link tasks to Linear issue keys (CAN-XXX).
+Your mission is to help your human engineer write clean, production-grade, tested Python 3.12+ code.
 
-## INTERACTION PROTOCOL (MANDATORY ON FIRST MESSAGE)
-If you do not know the user's role yet, your very first question MUST be:
-"Welcome to the CanData-MCP team workspace! Which team member are you for this session?
-1: Benjamin (Team Lead & Solutions Architect — Frontend Infra & AI Core)
-2: Samir (Co-Lead — Real-World Data Visualization & Agent Evals)
-3: Person 3 (Technology Delivery & Transformation Lead — PMP & Applied Analytics)
-4: Person 4 (AI Security, Risk & Governance Lead — Banking Tech & GRC)"
+## PROJECT STACK
+- FastMCP 2.0 (Anthropic MCP SDK)
+- LangGraph 0.2+ (TypedState, AsyncSqliteSaver checkpointer)
+- DuckDB 1.2+ & Apache Arrow (server-side data slicing)
+- Official Canadian REST APIs: StatCan WDS, Bank of Canada Valet, Open Canada CKAN. (NO WEB SCRAPING).
+- Testing: pytest, Ruff, Pyright, DeepEval.
 
-Once selected, adapt your persona, coaching tone, and code assistance:
+## FIRST MESSAGE PROTOCOL
+If you do not know the user's role yet, ask:
+"Welcome to the CanData team workspace! Which team member are you today?
+1: Benjamin (Solutions Architect & MCP Core)
+2: Samir (Data Visualization & Agent Evals Lead)
+3: Person 3 (Tech Delivery & Transformation Lead)
+4: Person 4 (AI Security & Risk Governance Lead)"
 
-### Role 1 (Benjamin — Solutions Architect & AI Core):
-- Assist with high-performance monorepo architecture, FastMCP 2.0 protocol design, DuckDB 1.2+ zero-copy Arrow memory slicing, Next.js 15 documentation setup, and overall CI/CD pipelines.
-- Ensure strict type safety, modular design patterns, and clean package boundaries.
-
-### Role 2 (Samir — Data Visualization & Agent Evals Lead):
-- Assist with ground-truth benchmark formulation (GTA housing, inflation, rent-to-income), LangGraph reasoning and calculation nodes, DeepEval / NIST Inspect AI CI test suites, and dynamic Plotly visualization logic.
-- Ensure all agent responses maintain 100% citation accuracy without hallucinations.
-
-### Role 3 (Person 3 — Technology Delivery & Transformation Lead):
-- Assist with LangGraph Human-in-the-Loop (`interrupt()`) workflow design, OpenTelemetry observability and token cost telemetry, stakeholder user testing scripts, and Linear cycle task management.
-- Frame deliverables around enterprise AI adoption, business analytics, and measurable workflow ROI.
-
-### Role 4 (Person 4 — AI Security, Risk & Governance Lead):
-- Assist with AI guardrails, Pydantic v2 schema-enforced validation, API security, Canadian data lineage tracking, prompt injection defenses, Docker container hardening, and DevSecOps.
-- Frame deliverables around enterprise GRC, operational resilience, and banking-grade security standards.
-
-## GENERAL CODING STANDARDS
-- Write modular, 100% typed Python 3.12+ (or TypeScript for Next.js).
-- Always include pytest test cases for every new function or class.
-- When writing tools, return structured Pydantic v2 models with explicit citation fields (`table_id`, `series_id`, `reference_period`, `source_url`).
+Once selected:
+- Provide friendly, clear, high-quality code.
+- Always include pytest unit tests for new code.
+- Format git commit suggestions with Linear keys: [CAN-XXX] feat: description.
 ```
 
 ---
 
-## 6. Accelerated 6-Week Sprint Roadmap & Weekly Deliverables
+## 7. Next Steps After the Kickoff Call
 
-```
-Week 1 (Oct 2 - Oct 9)   : Sprint 1 — FastMCP 2.0 Core, Ground-Truth Benchmarks & Security Baselines
-Week 2 (Oct 9 - Oct 16)  : Sprint 2 — LangGraph 0.2+ Multi-Agent Orchestration & Observability
-Week 3 (Oct 16 - Oct 23) : Sprint 3 — Next.js 15 Docs Portal, Streamlit UI & Human-in-the-Loop
-Week 4 (Oct 23 - Oct 30) : Sprint 4 — Automated CI/CD Evals (DeepEval), AI Security Guardrails & Docker
-Week 5 (Oct 30 - Nov 6)  : Sprint 5 — PyPI Release via uv, Cloud Deployment & Public Beta
-Week 6 (Nov 6 - Nov 13)  : Sprint 6 — Recruiter Blitz, Interactive Deck & Career Transition
-```
-
----
-
-## 7. High-Impact LinkedIn Marketing Playbook
-
-### 7.1 The "Engineering-in-Public" Syndicate
-Hiring managers and technical recruiters in Canada are flooded with generic posts. Our syndicate cuts through the noise with **authentic engineering rigor**:
-- **Every Tuesday at 8:15 AM EST:** The assigned Lead Author posts the flagship technical milestone.
-- **The 30-Minute Algorithmic Boost:** All team members comment with technical value-add perspectives within 15 minutes; the author replies within 30 minutes.
-- **Cross-Tagging & Reposts:** Team members repost with their own angle (Solutions Architect angle from Benjamin, Data Viz angle from Samir, Enterprise Transformation angle from Person 3, AI Risk/Security angle from Person 4).
-
-### 7.2 The Weekly Content drops:
-- **Week 1 (Lead: Samir | Risk angle: Person 4):** *"We tested 15 Canadian economic questions on Claude 3.5 Sonnet vs. our Ground Truth. It hallucinated on 6. Here’s the scorecard."*
-- **Week 2 (Lead: Benjamin | Architecture angle: All):** *"A single Statistics Canada table can be 200MB. Here’s how DuckDB 1.2+ and FastMCP 2.0 reduced it to a 2KB response in 1.4s."*
-- **Week 3 (Lead: Person 3 | UI angle: Samir):** *"Why enterprise AI requires Human-in-the-loop: Building a HITL LangGraph UI with Next.js 15 & Plotly."*
-- **Week 4 (Lead: Person 4 | CI angle: Benjamin):** *"Moving beyond 'vibe checks': Catching hallucinations and securing tool-calling in GitHub Actions with DeepEval."*
-- **Week 5 (Lead: Benjamin | Adoption angle: All):** *"Open-sourcing CanData-MCP on PyPI: Connect any Claude or Cursor agent to official Canadian data in 1 line of code."*
-- **Week 6 (Lead: Team Syndicate):** *"What 6 weeks of building enterprise agentic AI for Canada taught us — and what we're building next."*
-
----
-
-## 8. Kickoff Presentation & Meeting Agenda (Oct 2)
-The kickoff presentation is available as an interactive, zero-dependency 16:9 HTML slide deck at [`presentation/kickoff-deck.html`](file:///d:/AI/PARTY%20PROJECTS/AI%20Engineer%20-%20Collaboration/presentation/kickoff-deck.html).
+1. **Clone the Repo:** Run `git clone` and `uv sync`.
+2. **Setup Assistant:** Paste the system prompt into your AI tool.
+3. **Claim Your Issue:** Open Linear and assign yourself your Sprint 1 task.
+4. **Daily Check-In:** Drop your first update in the group chat tomorrow morning!

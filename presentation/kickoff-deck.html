@@ -5,32 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CanData Platform — Team Kickoff Deck</title>
 
-    <!-- Distinctive Typography: Cabinet Grotesk & JetBrains Mono -->
+    <!-- Distinctive Typography: Cabinet Grotesk & Plus Jakarta Sans & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@500;700;800;900&family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@600;700;800;900&family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
         /* ===========================================
-           THEME VARIABLES & VISUAL IDENTITY
-           Authoritative Dark FinTech / Cyber Systems
+           THEME & STYLES (WARM, SLEEK, CASUAL TECH)
            =========================================== */
         :root {
-            --stage-bg: #04070D;
-            --slide-bg: #070B14;
-            --panel-bg: #0D1424;
-            --panel-bg-elevated: #121B30;
-            --border-subtle: #18243B;
-            --border-highlight: #22375C;
+            --stage-bg: #060911;
+            --slide-bg: #090E1A;
+            --panel-bg: #10182B;
+            --panel-bg-elevated: #16223D;
+            --border-subtle: #1C2B4A;
+            --border-highlight: #283E6B;
 
             --text-primary: #F8FAFC;
             --text-secondary: #94A3B8;
             --text-muted: #64748B;
 
             --accent-cyan: #00F0FF;
-            --accent-cyan-glow: rgba(0, 240, 255, 0.25);
             --accent-amber: #FFB800;
-            --accent-amber-glow: rgba(255, 184, 0, 0.2);
             --accent-emerald: #10B981;
             --accent-rose: #F43F5E;
 
@@ -42,9 +39,7 @@
             --duration-normal: 0.5s;
         }
 
-        /* ===========================================
-           FIXED 16:9 STAGE: MANDATORY BASE STYLES
-           =========================================== */
+        /* Fixed 16:9 Stage Base Rules */
         html, body {
             width: 100%;
             height: 100%;
@@ -60,7 +55,7 @@
             position: fixed;
             inset: 0;
             overflow: hidden;
-            background: radial-gradient(circle at 50% 10%, #0D1629 0%, #04070D 80%);
+            background: radial-gradient(circle at 50% 15%, #0F192E 0%, #050810 80%);
         }
 
         .deck-stage {
@@ -86,7 +81,7 @@
             opacity: 0;
             pointer-events: none;
             background: var(--slide-bg);
-            padding: 80px 100px;
+            padding: 70px 90px;
             box-sizing: border-box;
             background-image: 
                 radial-gradient(circle at 100% 0%, rgba(0, 240, 255, 0.05) 0%, transparent 40%),
@@ -103,12 +98,10 @@
             z-index: 1;
         }
 
-        /* ===========================================
-           SLIDE ANIMATIONS & REVEALS
-           =========================================== */
+        /* Animations */
         .reveal {
             opacity: 0;
-            transform: translateY(24px);
+            transform: translateY(18px);
             transition: opacity var(--duration-normal) var(--ease-out-expo),
                         transform var(--duration-normal) var(--ease-out-expo);
         }
@@ -124,11 +117,9 @@
         .slide.visible .reveal:nth-child(4) { transition-delay: 0.28s; }
         .slide.visible .reveal:nth-child(5) { transition-delay: 0.36s; }
 
-        /* ===========================================
-           HEADER & LAYOUT COMPONENTS
-           =========================================== */
+        /* Typography & Layout */
         .slide-header {
-            margin-bottom: 44px;
+            margin-bottom: 34px;
         }
 
         .tagline {
@@ -136,16 +127,16 @@
             align-items: center;
             gap: 10px;
             font-family: var(--font-mono);
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 600;
-            letter-spacing: 2px;
+            letter-spacing: 1.5px;
             text-transform: uppercase;
             color: var(--accent-cyan);
             background: rgba(0, 240, 255, 0.08);
             border: 1px solid rgba(0, 240, 255, 0.25);
-            padding: 6px 14px;
+            padding: 5px 12px;
             border-radius: 6px;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
         }
 
         .tagline-dot {
@@ -158,19 +149,19 @@
 
         .slide-title {
             font-family: var(--font-display);
-            font-size: 58px;
+            font-size: 52px;
             font-weight: 800;
-            line-height: 1.1;
-            letter-spacing: -1.5px;
+            line-height: 1.12;
+            letter-spacing: -1px;
             color: var(--text-primary);
-            margin: 0 0 10px 0;
+            margin: 0 0 8px 0;
         }
 
         .slide-subtitle {
-            font-size: 22px;
+            font-size: 21px;
             color: var(--text-secondary);
             font-weight: 400;
-            line-height: 1.4;
+            line-height: 1.45;
             max-width: 1200px;
             margin: 0;
         }
@@ -178,111 +169,105 @@
         .grid-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 32px;
+            gap: 28px;
         }
 
         .grid-3 {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 28px;
+            gap: 24px;
         }
 
         .grid-4 {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 24px;
+            gap: 20px;
         }
 
         .card {
             background: var(--panel-bg);
             border: 1px solid var(--border-subtle);
             border-radius: 14px;
-            padding: 28px;
+            padding: 24px;
             position: relative;
             overflow: hidden;
         }
 
-        .card-highlight {
-            border-color: rgba(0, 240, 255, 0.4);
-            box-shadow: 0 8px 30px rgba(0, 240, 255, 0.08);
-        }
-
         .card-title {
             font-family: var(--font-display);
-            font-size: 24px;
+            font-size: 22px;
             font-weight: 700;
             color: var(--text-primary);
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
 
         .card-p {
-            font-size: 16px;
+            font-size: 15px;
             line-height: 1.55;
             color: var(--text-secondary);
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
         .card-badge {
             display: inline-block;
             font-family: var(--font-mono);
-            font-size: 12px;
-            padding: 4px 10px;
+            font-size: 11px;
+            padding: 3px 8px;
             border-radius: 4px;
             background: var(--border-subtle);
             color: var(--accent-cyan);
-            margin-bottom: 14px;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
         }
 
-        /* Specific Component Styles */
-        .stat-huge {
-            font-family: var(--font-display);
-            font-size: 72px;
-            font-weight: 900;
-            color: var(--accent-cyan);
-            line-height: 1;
-            margin-bottom: 8px;
+        /* Post Deconstruction Box */
+        .post-box {
+            padding: 18px 22px;
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.6;
         }
 
-        .stat-label {
-            font-size: 16px;
+        .post-bad {
+            background: rgba(244, 63, 94, 0.06);
+            border: 1px solid rgba(244, 63, 94, 0.25);
+            color: #FECDD3;
+        }
+
+        .post-good {
+            background: rgba(16, 185, 129, 0.06);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            color: #D1FAE5;
+        }
+
+        /* Step Card Styling */
+        .step-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: var(--accent-cyan);
+            color: #000;
+            font-weight: 800;
             font-family: var(--font-mono);
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            border-radius: 8px;
+            margin-bottom: 12px;
         }
 
-        .pill-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 14px;
-        }
-
-        .pill {
-            font-size: 13px;
-            font-family: var(--font-mono);
-            padding: 4px 10px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 6px;
-            color: #CBD5E1;
-        }
-
-        /* ===========================================
-           SLIDE CHROME & CONTROLS
-           =========================================== */
+        /* Deck Controls */
         .deck-controls {
             position: fixed;
             left: 50%;
-            bottom: 24px;
+            bottom: 22px;
             transform: translateX(-50%);
             display: flex;
             align-items: center;
             gap: 16px;
-            background: rgba(13, 20, 36, 0.85);
+            background: rgba(16, 24, 43, 0.85);
             border: 1px solid var(--border-highlight);
             backdrop-filter: blur(12px);
             padding: 8px 18px;
@@ -295,7 +280,7 @@
             background: transparent;
             border: none;
             color: var(--text-secondary);
-            font-size: 16px;
+            font-size: 15px;
             cursor: pointer;
             padding: 4px 8px;
             border-radius: 4px;
@@ -341,7 +326,7 @@
         }
         .edit-toggle {
             position: fixed; top: 16px; left: 16px;
-            background: rgba(13, 20, 36, 0.9);
+            background: rgba(16, 24, 43, 0.9);
             border: 1px solid var(--border-highlight);
             color: var(--text-secondary);
             font-size: 14px; padding: 6px 12px; border-radius: 8px;
@@ -364,7 +349,7 @@
         <main class="deck-stage" id="deckStage">
 
             <!-- ==========================================
-                 SLIDE 1: TITLE & LAUNCHPAD
+                 SLIDE 1: WELCOME & THE BIG IDEA
                  ========================================== -->
             <section class="slide active">
                 <div style="height: 100%; display: flex; flex-direction: column; justify-content: center; max-width: 1400px;">
@@ -374,33 +359,33 @@
                             Team Kickoff · October 2, 2026
                         </div>
                     </div>
-                    <h1 class="reveal" style="font-family: var(--font-display); font-size: 88px; font-weight: 900; line-height: 1.05; letter-spacing: -2.5px; margin: 16px 0 24px 0;">
+                    <h1 class="reveal" style="font-family: var(--font-display); font-size: 80px; font-weight: 900; line-height: 1.05; letter-spacing: -2px; margin: 12px 0 18px 0;">
                         Canadian Open Data <br>
-                        <span style="background: linear-gradient(90deg, var(--accent-cyan), #38BDF8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Agentic AI Platform</span>
+                        <span style="background: linear-gradient(90deg, var(--accent-cyan), #38BDF8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Agent Platform</span>
                     </h1>
-                    <p class="reveal" style="font-size: 28px; line-height: 1.45; color: var(--text-secondary); margin-bottom: 48px; max-width: 1100px;">
-                        Building production-grade FastMCP 2.0 & LangGraph multi-agent infrastructure for Canadian public data — engineered to launch our careers as Senior AI & Agentic Systems Leaders.
+                    <p class="reveal" style="font-size: 26px; line-height: 1.45; color: var(--text-secondary); margin-bottom: 38px; max-width: 1100px;">
+                        Four smart colleagues, 6 weeks, and one concrete project: connecting AI directly to real Canadian numbers to build something real and get noticed by recruiters.
                     </p>
-                    <div class="reveal" style="display: flex; gap: 24px; align-items: center;">
-                        <div class="card" style="padding: 16px 28px; border-color: rgba(0, 240, 255, 0.3); background: rgba(0, 240, 255, 0.05); display: flex; gap: 16px; align-items: center;">
+                    <div class="reveal" style="display: flex; gap: 20px; align-items: center;">
+                        <div class="card" style="padding: 14px 24px; border-color: rgba(0, 240, 255, 0.3); background: rgba(0, 240, 255, 0.05); display: flex; gap: 14px; align-items: center;">
                             <span style="font-size: 24px;">🇨🇦</span>
                             <div>
-                                <div style="font-size: 14px; font-family: var(--font-mono); color: var(--accent-cyan);">OFFICIAL DATA STACK</div>
-                                <div style="font-size: 16px; font-weight: 700; color: #FFF;">StatCan WDS · Bank of Canada · OpenGov CKAN</div>
+                                <div style="font-size: 13px; font-family: var(--font-mono); color: var(--accent-cyan);">REAL CANADIAN DATA</div>
+                                <div style="font-size: 15px; font-weight: 700; color: #FFF;">StatCan · Bank of Canada · OpenGov</div>
                             </div>
                         </div>
-                        <div class="card" style="padding: 16px 28px; border-color: rgba(255, 184, 0, 0.3); background: rgba(255, 184, 0, 0.05); display: flex; gap: 16px; align-items: center;">
+                        <div class="card" style="padding: 14px 24px; border-color: rgba(255, 184, 0, 0.3); background: rgba(255, 184, 0, 0.05); display: flex; gap: 14px; align-items: center;">
                             <span style="font-size: 24px;">⚡</span>
                             <div>
-                                <div style="font-size: 14px; font-family: var(--font-mono); color: var(--accent-amber);">ACCELERATED SPRINT</div>
-                                <div style="font-size: 16px; font-weight: 700; color: #FFF;">6 Weeks: Oct 2 → Nov 13, 2026</div>
+                                <div style="font-size: 13px; font-family: var(--font-mono); color: var(--accent-amber);">THE TIMELINE</div>
+                                <div style="font-size: 15px; font-weight: 700; color: #FFF;">6 Weeks: Oct 2 → Mid-November</div>
                             </div>
                         </div>
-                        <div class="card" style="padding: 16px 28px; border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.05); display: flex; gap: 16px; align-items: center;">
+                        <div class="card" style="padding: 14px 24px; border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.05); display: flex; gap: 14px; align-items: center;">
                             <span style="font-size: 24px;">💼</span>
                             <div>
-                                <div style="font-size: 14px; font-family: var(--font-mono); color: var(--accent-emerald);">CAREER OUTCOME</div>
-                                <div style="font-size: 16px; font-weight: 700; color: #FFF;">Senior AI Engineering & Leadership Hires</div>
+                                <div style="font-size: 13px; font-family: var(--font-mono); color: var(--accent-emerald);">THE REAL GOAL</div>
+                                <div style="font-size: 15px; font-weight: 700; color: #FFF;">Inbound Senior AI Job Interviews</div>
                             </div>
                         </div>
                     </div>
@@ -408,95 +393,127 @@
             </section>
 
             <!-- ==========================================
-                 SLIDE 2: THE PROBLEM & OPPORTUNITY
+                 SLIDE 2: THE SIMPLE PROBLEM
                  ========================================== -->
             <section class="slide">
                 <div class="slide-header">
-                    <div class="reveal tagline"><span class="tagline-dot"></span>The Industry Opportunity</div>
-                    <h2 class="reveal slide-title">Why Canadian Data Breaks Frontier LLMs</h2>
-                    <p class="reveal slide-subtitle">Frontier models hallucinate on Canadian socioeconomic data, choke on massive data cubes, and lack official citations. Here is the market vacuum we are filling.</p>
+                    <div class="reveal tagline"><span class="tagline-dot"></span>The Problem in Plain English</div>
+                    <h2 class="reveal slide-title">Why ChatGPT & Claude Guess on Canadian Data</h2>
+                    <p class="reveal slide-subtitle">If you ask an AI model about Canadian rent, inflation, or housing, it either makes up a number or throws an error. Here's why:</p>
                 </div>
                 <div class="grid-3">
                     <div class="reveal card" style="border-top: 3px solid var(--accent-rose);">
-                        <div class="card-badge">THE HALLUCINATION GAP</div>
-                        <h3 class="card-title">Blind Guesses vs. Real Stats</h3>
-                        <p class="card-p">Vanilla Claude and ChatGPT hallucinate on 40% of granular Canadian municipal questions (e.g. GTA rent growth vs inflation) because training weights conflate census years with annual surveys.</p>
-                        <div style="background: rgba(244, 63, 94, 0.1); padding: 12px; border-radius: 8px; border: 1px solid rgba(244, 63, 94, 0.2); font-family: var(--font-mono); font-size: 14px; color: #FDA4AF;">
-                            ❌ "Vanilla Claude: Brampton rent grew 18% in 2023"<br>
-                            ✅ Ground Truth (CMHC): 8.4% (Conflated 2BR with total)
+                        <div class="card-badge">THE GUESSWORK</div>
+                        <h3 class="card-title">Models Confidently Invent Numbers</h3>
+                        <p class="card-p">Ask Claude about Brampton's rent growth vs inflation. It will confidently tell you 18.2% because it mixes up 2-bedroom turnover rents with total census averages.</p>
+                        <div style="background: rgba(244, 63, 94, 0.08); padding: 12px; border-radius: 8px; border: 1px solid rgba(244, 63, 94, 0.2); font-family: var(--font-mono); font-size: 13px; color: #FDA4AF;">
+                            ❌ Claude Guess: 18.2% rent hike<br>
+                            ✅ StatCan Fact: 8.4% official average
                         </div>
                     </div>
 
                     <div class="reveal card" style="border-top: 3px solid var(--accent-amber);">
-                        <div class="card-badge">THE PAYLOAD BOTTLENECK</div>
-                        <h3 class="card-title">200MB Cubes vs. Context Limits</h3>
-                        <p class="card-p">StatCan tables often exceed 200MB. Traditional LLM tools try to feed raw JSON into context windows, blowing token limits ($12/query) and triggering HTTP timeouts.</p>
-                        <div style="background: rgba(255, 184, 0, 0.1); padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 184, 0, 0.2); font-family: var(--font-mono); font-size: 14px; color: #FDE68A;">
-                            ⚡ Our Solution: Server-side DuckDB 1.2+ slicing reduces 200MB to 2.4KB in 1.2s.
+                        <div class="card-badge">THE FILE SIZE PROBLEM</div>
+                        <h3 class="card-title">Canadian Tables are 200MB Beasts</h3>
+                        <p class="card-p">Statistics Canada tables are huge CSVs. You can't just feed a 200MB file into an AI prompt—it costs $12 per question and crashes the chat.</p>
+                        <div style="background: rgba(255, 184, 0, 0.08); padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 184, 0, 0.2); font-family: var(--font-mono); font-size: 13px; color: #FDE68A;">
+                            ⚡ What we do: DuckDB slices 200MB down to a clean 2KB summary in 1.4 seconds.
                         </div>
                     </div>
 
                     <div class="reveal card" style="border-top: 3px solid var(--accent-cyan);">
-                        <div class="card-badge">THE ENTERPRISE STANDARD</div>
-                        <h3 class="card-title">Zero Auditability & Citations</h3>
-                        <p class="card-p">Canadian enterprises, banks, and government analysts cannot use AI without deterministic citations, verified survey table IDs, reference periods, and bilingual compliance.</p>
-                        <div style="background: rgba(0, 240, 255, 0.1); padding: 12px; border-radius: 8px; border: 1px solid rgba(0, 240, 255, 0.2); font-family: var(--font-mono); font-size: 14px; color: #BAE6FD;">
-                            🎯 CanData Guarantee: Mandatory Table ID + Series Vector + Source URL on every token.
+                        <div class="card-badge">NO CITATIONS</div>
+                        <h3 class="card-title">Nobody Trusts AI Without Receipts</h3>
+                        <p class="card-p">Canadian banks, analysts, and companies cannot use AI if it doesn't tell them exactly which official government table the number came from.</p>
+                        <div style="background: rgba(0, 240, 255, 0.08); padding: 12px; border-radius: 8px; border: 1px solid rgba(0, 240, 255, 0.2); font-family: var(--font-mono); font-size: 13px; color: #BAE6FD;">
+                            🎯 CanData Guarantee: Every single answer includes the exact StatCan Table ID and link.
                         </div>
                     </div>
                 </div>
             </section>
 
             <!-- ==========================================
-                 SLIDE 3: MEET THE TEAM (4 PILLARS)
+                 SLIDE 3: WHY DO THIS TOGETHER?
                  ========================================== -->
             <section class="slide">
                 <div class="slide-header">
-                    <div class="reveal tagline"><span class="tagline-dot"></span>The Powerhouse Collective</div>
-                    <h2 class="reveal slide-title">4 Pillars: 50+ Years Experience, One Shared Goal</h2>
-                    <p class="reveal slide-subtitle">We bring deep domain authority from Banking, FinTech, Transformation, and Risk — while rotating to master hands-on AI & Agentic engineering.</p>
+                    <div class="reveal tagline"><span class="tagline-dot"></span>The Job Search Reality</div>
+                    <h2 class="reveal slide-title">Why Building Together Beats Sending 500 Resumes</h2>
+                    <p class="reveal slide-subtitle">Applying blindly on LinkedIn is broken. Building something real in public turns the job search upside down.</p>
+                </div>
+                <div class="grid-2">
+                    <div class="reveal card" style="border-left: 4px solid var(--accent-rose);">
+                        <div class="card-badge" style="color: var(--accent-rose);">THE COLD APPLICATION TRAP</div>
+                        <h3 class="card-title">Easy Apply Resumes Go Into a Black Hole</h3>
+                        <div style="display: flex; flex-direction: column; gap: 12px; font-size: 15px; color: var(--text-secondary); line-height: 1.5; margin-top: 10px;">
+                            <div>• <strong>300+ Resumes in 4 Hours:</strong> Every AI job gets flooded with people claiming "experienced with ChatGPT and prompts".</div>
+                            <div>• <strong>Automated ATS Filters:</strong> Computer screeners delete 90% of resumes before any hiring manager looks at them.</div>
+                            <div>• <strong>No Proof of Work:</strong> A resume bullet point doesn't prove you know how to build real software.</div>
+                        </div>
+                    </div>
+
+                    <div class="reveal card" style="border-left: 4px solid var(--accent-emerald);">
+                        <div class="card-badge" style="color: var(--accent-emerald);">THE TEAM SYNDICATE ADVANTAGE</div>
+                        <h3 class="card-title">Making Recruiters Come to Us</h3>
+                        <div style="display: flex; flex-direction: column; gap: 12px; font-size: 15px; color: var(--text-secondary); line-height: 1.5; margin-top: 10px;">
+                            <div>• <strong>Real Working Code:</strong> We share working demos, benchmarks, and GitHub Pull Requests directly on LinkedIn.</div>
+                            <div>• <strong>The 4-Person Boost:</strong> When one of us posts, all 4 jump in to comment. The LinkedIn algorithm pushes the post to thousands of Canadian tech leads.</div>
+                            <div>• <strong>Inbound Interviews:</strong> Managers reach out directly: <em>"Saw your Canadian data project—we need someone who builds like this."</em></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 4: THE TEAM
+                 ========================================== -->
+            <section class="slide">
+                <div class="slide-header">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>Our Collective Strengths</div>
+                    <h2 class="reveal slide-title">Four Real Backgrounds, One Shared Goal</h2>
+                    <p class="reveal slide-subtitle">We each bring serious industry experience to the table, and we're all here to learn hands-on AI engineering.</p>
                 </div>
                 <div class="grid-4">
                     <div class="reveal card">
-                        <div style="font-size: 32px; margin-bottom: 8px;">🏛️</div>
-                        <h3 style="font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Benjamin</h3>
-                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 12px;">Team Lead · Solutions Architect</div>
-                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">10+ Yrs scaling high-volume banking technology (2M+ users), FinTech platforms, monorepos, and SDD pipelines. IFC® Certified.</p>
-                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
-                            <div style="font-size: 12px; font-family: var(--font-mono); color: var(--accent-amber);">AI UPSKILLING FOCUS</div>
-                            <div style="font-size: 13px; color: #E2E8F0;">FastMCP 2.0, DuckDB Arrow Engine, LangGraph State Graphs.</div>
+                        <div style="font-size: 28px; margin-bottom: 6px;">🏛️</div>
+                        <h3 style="font-family: var(--font-display); font-size: 21px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Benjamin</h3>
+                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 10px;">Solutions Architect · FinTech</div>
+                        <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.45;">10+ Yrs scaling banking tech platforms (2M+ users), monorepos, and pipelines. IFC® Certified.</p>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle);">
+                            <div style="font-size: 11px; font-family: var(--font-mono); color: var(--accent-amber);">AI FOCUS</div>
+                            <div style="font-size: 13px; color: #E2E8F0;">FastMCP Core, DuckDB Engine, LangGraph Architecture.</div>
                         </div>
                     </div>
 
                     <div class="reveal card">
-                        <div style="font-size: 32px; margin-bottom: 8px;">📊</div>
-                        <h3 style="font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Samir</h3>
-                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 12px;">Co-Lead · Data & Evals Lead</div>
-                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Senior Software Engineer (Bitcoin Innovation Hub), 10+ Yrs data visualization & analytics. Creator of GTA Housing benchmark dataset.</p>
-                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
-                            <div style="font-size: 12px; font-family: var(--font-mono); color: var(--accent-amber);">AI UPSKILLING FOCUS</div>
-                            <div style="font-size: 13px; color: #E2E8F0;">LangGraph Agent Nodes, DeepEval CI harness, Dynamic Plotly UI.</div>
+                        <div style="font-size: 28px; margin-bottom: 6px;">📊</div>
+                        <h3 style="font-family: var(--font-display); font-size: 21px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Samir</h3>
+                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 10px;">Senior Software · Data Viz</div>
+                        <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.45;">10+ Yrs building dashboards & analytics (Bitcoin Innovation Hub). Built the GTA Housing dataset.</p>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle);">
+                            <div style="font-size: 11px; font-family: var(--font-mono); color: var(--accent-amber);">AI FOCUS</div>
+                            <div style="font-size: 13px; color: #E2E8F0;">Agent Reasoning Nodes, Benchmark Tests, Dynamic Plotly UI.</div>
                         </div>
                     </div>
 
                     <div class="reveal card">
-                        <div style="font-size: 32px; margin-bottom: 8px;">🚀</div>
-                        <h3 style="font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Person 3</h3>
-                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 12px;">Tech Delivery & Transformation</div>
-                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">15+ Yrs leading large-scale programs ($400M+, 12M+ users), PMP®, Carleton MSc Candidate in Applied Business Analytics.</p>
-                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
-                            <div style="font-size: 12px; font-family: var(--font-mono); color: var(--accent-amber);">AI UPSKILLING FOCUS</div>
-                            <div style="font-size: 13px; color: #E2E8F0;">Human-in-the-Loop (`interrupt()`), Linear delivery, Token ROI.</div>
+                        <div style="font-size: 28px; margin-bottom: 6px;">🚀</div>
+                        <h3 style="font-family: var(--font-display); font-size: 21px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Person 3</h3>
+                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 10px;">Tech Delivery · Transformation</div>
+                        <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.45;">15+ Yrs leading large-scale programs ($400M+, 12M+ users), PMP®, Carleton MSc Analytics Candidate.</p>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle);">
+                            <div style="font-size: 11px; font-family: var(--font-mono); color: var(--accent-amber);">AI FOCUS</div>
+                            <div style="font-size: 13px; color: #E2E8F0;">Human-in-the-Loop AI, Linear Delivery, Token Cost ROI.</div>
                         </div>
                     </div>
 
                     <div class="reveal card">
-                        <div style="font-size: 32px; margin-bottom: 8px;">🛡️</div>
-                        <h3 style="font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Person 4</h3>
-                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 12px;">AI Security, Risk & Governance</div>
-                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">15+ Yrs regulated banking technology operations, CompTIA Security+, internal controls, incident remediation, and GRC.</p>
-                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
-                            <div style="font-size: 12px; font-family: var(--font-mono); color: var(--accent-amber);">AI UPSKILLING FOCUS</div>
+                        <div style="font-size: 28px; margin-bottom: 6px;">🛡️</div>
+                        <h3 style="font-family: var(--font-display); font-size: 21px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Person 4</h3>
+                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 10px;">AI Security · Risk & Governance</div>
+                        <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.45;">15+ Yrs in regulated banking tech, internal controls, CompTIA Security+, application security, and GRC.</p>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle);">
+                            <div style="font-size: 11px; font-family: var(--font-mono); color: var(--accent-amber);">AI FOCUS</div>
                             <div style="font-size: 13px; color: #E2E8F0;">AI Guardrails, API Security, Data Lineage & Docker hardening.</div>
                         </div>
                     </div>
@@ -504,144 +521,110 @@
             </section>
 
             <!-- ==========================================
-                 SLIDE 4: ARCHITECTURE (2026 STATE-OF-THE-ART)
+                 SLIDE 5: THE BIG PICTURE (ROTATING LEADERSHIP)
                  ========================================== -->
             <section class="slide">
                 <div class="slide-header">
-                    <div class="reveal tagline"><span class="tagline-dot"></span>2026 Production Architecture</div>
-                    <h2 class="reveal slide-title">Enterprise Full-Stack Agentic Architecture</h2>
-                    <p class="reveal slide-subtitle">Built with FastMCP 2.0, DuckDB 1.2+ Arrow streaming, and LangGraph 0.2+ durable checkpointers.</p>
+                    <div class="reveal tagline"><span class="tagline-dot"></span>The Big Picture</div>
+                    <h2 class="reveal slide-title">A True Win-Win: Rotating Leadership on Future Projects</h2>
+                    <p class="reveal slide-subtitle">CanData-MCP is our first launch. Our vision is to keep this team together and rotate leaders so everyone shines.</p>
                 </div>
                 <div class="grid-2">
-                    <div class="reveal card" style="background: rgba(13, 20, 36, 0.95);">
-                        <div class="card-badge">THE THREE-TIER PIPELINE</div>
-                        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
-                            <div style="padding: 12px 16px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 8px;">
-                                <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-cyan);">1. OFFICIAL CANADIAN DATA LAYER</div>
-                                <div style="font-size: 15px; font-weight: 600; color: #FFF;">Async HTTPX adapters for StatCan WDS, BoC Valet, and OpenGov CKAN with HTTP ETag caching. Zero brittle scraping.</div>
+                    <div class="reveal card">
+                        <div class="card-badge">THE COLLABORATIVE VISION</div>
+                        <h3 class="card-title">Project #1 is Just the Beginning</h3>
+                        <p class="card-p">We start with CanData-MCP led by Benjamin to establish our core foundation. Once we ship and post our results:</p>
+                        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 12px; font-size: 15px; color: #CBD5E1;">
+                            <div style="padding: 10px; background: rgba(0,240,255,0.06); border-radius: 8px;">
+                                <strong>Project #1 (Now):</strong> CanData-MCP · Led by Benjamin
                             </div>
-                            <div style="padding: 12px 16px; background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px;">
-                                <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-cyan);">2. FASTMCP 2.0 & DUCKDB 1.2+ SLICING</div>
-                                <div style="font-size: 15px; font-weight: 600; color: #FFF;">Zero-copy Apache Arrow memory buffers execute exact SQL math. Tool annotations (`readOnly`, `idempotent`) & sampling.</div>
-                            </div>
-                            <div style="padding: 12px 16px; background: rgba(255, 184, 0, 0.05); border: 1px solid rgba(255, 184, 0, 0.2); border-radius: 8px;">
-                                <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-amber);">3. LANGGRAPH 0.2+ MULTI-AGENT ORCHESTRATION</div>
-                                <div style="font-size: 15px; font-weight: 600; color: #FFF;">Supervisor decomposes queries $\rightarrow$ Analyst $\rightarrow$ Citation Verifier $\rightarrow$ Synthesizer with `interrupt()` HITL breakpoints.</div>
+                            <div style="padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                                <strong>Future Projects:</strong> Other members can pitch and lead future projects (visual analytics, enterprise transformation, AI security).
                             </div>
                         </div>
                     </div>
 
-                    <div class="reveal card" style="background: rgba(13, 20, 36, 0.95);">
-                        <div class="card-badge">ENTERPRISE ASSURANCE & TELEMETRY</div>
-                        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
-                            <div style="padding: 14px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 8px;">
-                                <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-emerald);">AUTOMATED DEEPEVAL REGRESSION CI</div>
-                                <div style="font-size: 15px; color: #E2E8F0;">30 ground-truth questions scored in GitHub Actions on every Pull Request. Blocks hallucinations from merging.</div>
-                            </div>
-                            <div style="padding: 14px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px;">
-                                <div style="font-family: var(--font-mono); font-size: 13px; color: #38BDF8;">OPENTELEMETRY TRACING (ARcallbacks/PHOENIX)</div>
-                                <div style="font-size: 15px; color: #E2E8F0;">Full execution span tree with per-sub-agent token cost attribution and latency breakdowns.</div>
-                            </div>
-                            <div style="padding: 14px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.2); border-radius: 8px;">
-                                <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-rose);">PYDANTIC V2 CITATION ENFORCEMENT</div>
-                                <div style="font-size: 15px; color: #E2E8F0;">Deterministic schema validation forbids LLMs from answering without citing official Table IDs and reference periods.</div>
-                            </div>
+                    <div class="reveal card">
+                        <div class="card-badge">WHAT EVERYONE WALKS AWAY WITH</div>
+                        <h3 class="card-title">Real Career Benefits for All 4 of Us</h3>
+                        <div style="display: flex; flex-direction: column; gap: 14px; font-size: 15px; color: var(--text-secondary); line-height: 1.5; margin-top: 10px;">
+                            <div>• <strong>Full-Stack Code Commits:</strong> Everyone writes real agent code, so you can speak to every part of the architecture in interviews.</div>
+                            <div>• <strong>Team Leader Experience:</strong> By rotating project leadership, everyone gets a verified Team Lead credential on their resume.</div>
+                            <div>• <strong>Mutual Support:</strong> We review each other's code, boost each other's posts, and celebrate each other's job offers.</div>
                         </div>
                     </div>
                 </div>
             </section>
 
             <!-- ==========================================
-                 SLIDE 5: MONOREPO STRUCTURE
+                 SLIDE 6: NO SILOS, EVERYONE CODES
                  ========================================== -->
             <section class="slide">
                 <div class="slide-header">
-                    <div class="reveal tagline"><span class="tagline-dot"></span>Repository Organization</div>
-                    <h2 class="reveal slide-title">Clean Separation: Public Tools vs. Docs vs. Team Hub</h2>
-                    <p class="reveal slide-subtitle">A high-performance monorepo designed for both open-source public adoption and structured team collaboration.</p>
+                    <div class="reveal tagline"><span class="tagline-dot"></span>Hands-On Learning</div>
+                    <h2 class="reveal slide-title">How We Work: No Silos, Everyone Writes Code</h2>
+                    <p class="reveal slide-subtitle">We are not splitting this up where one person codes and others just watch. Everyone learns modern AI tools.</p>
                 </div>
                 <div class="grid-3">
                     <div class="reveal card">
-                        <div class="card-badge" style="color: var(--accent-cyan);">/PACKAGES (PUBLIC AI TOOLS)</div>
-                        <h3 class="card-title">Production Packages</h3>
-                        <p class="card-p">What external developers install via PyPI or connect via Claude Desktop & Cursor.</p>
-                        <ul style="font-family: var(--font-mono); font-size: 14px; color: #CBD5E1; line-height: 1.8; padding-left: 20px;">
-                            <li><code>candata-mcp/</code> (FastMCP 2.0 server)</li>
-                            <li><code>connectors/</code> (StatCan, BoC, CKAN)</li>
-                            <li><code>engine/</code> (DuckDB Arrow pipelines)</li>
-                            <li><code>agent-orchestrator/</code> (LangGraph)</li>
-                        </ul>
+                        <div class="card-badge">THE OLD WAY</div>
+                        <h3 class="card-title" style="color: var(--accent-rose);">Silos Don't Work ❌</h3>
+                        <p class="card-p">In traditional projects, one person writes the backend, someone writes docs, someone makes slides. In the interview, only one person can answer technical questions.</p>
                     </div>
 
                     <div class="reveal card">
-                        <div class="card-badge" style="color: var(--accent-amber);">/APPS (PUBLIC INTERFACES)</div>
-                        <h3 class="card-title">Modern Documentation & UI</h3>
-                        <p class="card-p">Public-facing interactive documentation portal and multimodal analytics playground.</p>
-                        <ul style="font-family: var(--font-mono); font-size: 14px; color: #CBD5E1; line-height: 1.8; padding-left: 20px;">
-                            <li><code>docs-portal/</code> (Next.js 15 App Router)</li>
-                            <li>Fumadocs + Tailwind CSS v4</li>
-                            <li>Interactive API Sandbox & Terminal</li>
-                            <li><code>streamlit-dashboard/</code> (Plotly Charts)</li>
-                        </ul>
+                        <div class="card-badge">THE CAN-DATA WAY</div>
+                        <h3 class="card-title" style="color: var(--accent-emerald);">Rotating Code Ownership ✅</h3>
+                        <p class="card-p">We rotate activities each sprint across MCP tools, agent logic, tests, and UI. Everyone opens PRs and commits real Python code.</p>
                     </div>
 
                     <div class="reveal card">
-                        <div class="card-badge" style="color: var(--accent-emerald);">/COLLABORATION (TEAM HUB)</div>
-                        <h3 class="card-title">Internal Team Log & Assets</h3>
-                        <p class="card-p">The centralized hub tracking sprint logs, ground-truth benchmarks, and hiring portfolio proofs.</p>
-                        <ul style="font-family: var(--font-mono); font-size: 14px; color: #CBD5E1; line-height: 1.8; padding-left: 20px;">
-                            <li><code>benchmarks/</code> (Ground Truth & Evals)</li>
-                            <li><code>linear-sync/</code> (Cycle Burndowns)</li>
-                            <li><code>linkedin-syndicate/</code> (Post Drafts)</li>
-                            <li><code>career-assets/</code> (Interview Cheat Sheets)</li>
-                        </ul>
+                        <div class="card-badge">PEER SUPPORT</div>
+                        <h3 class="card-title" style="color: var(--accent-cyan);">Friendly Mentorship ⚡</h3>
+                        <p class="card-p">Each person acts as a friendly guide for their superpower (Benjamin on Architecture, Samir on Data Truth, Person 3 on Delivery, Person 4 on Security).</p>
                     </div>
                 </div>
             </section>
 
             <!-- ==========================================
-                 SLIDE 6: LINEAR.APP + GITHUB WORKFLOW
+                 SLIDE 7: THE TECH STACK IN PLAIN ENGLISH
                  ========================================== -->
             <section class="slide">
                 <div class="slide-header">
-                    <div class="reveal tagline"><span class="tagline-dot"></span>Engineering Discipline</div>
-                    <h2 class="reveal slide-title">Enterprise Delivery: GitHub Linked to Linear.app</h2>
-                    <p class="reveal slide-subtitle">Operating with the rigor of top-tier Silicon Valley and Canadian scale-ups (Vercel, Supabase, Linear).</p>
+                    <div class="reveal tagline"><span class="tagline-dot"></span>The Technology</div>
+                    <h2 class="reveal slide-title">The Tech Stack: How It Actually Works</h2>
+                    <p class="reveal slide-subtitle">We keep it fast, simple, and reliable using four key pieces:</p>
                 </div>
                 <div class="grid-2">
                     <div class="reveal card">
-                        <div class="card-badge">THE LINEAR-DRIVEN LIFECYCLE</div>
-                        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
-                            <div style="font-size: 16px; color: #E2E8F0; line-height: 1.6;">
-                                <strong style="color: var(--accent-cyan);">1. One-Week Linear Cycles:</strong> Sprints map to Linear 1-week cycles with clear task estimations and assignees.
+                        <div class="card-badge">HOW DATA FLOWS</div>
+                        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+                            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                                <strong style="color: var(--accent-cyan);">1. Official Canadian APIs:</strong> Simple async web requests fetching official data from StatCan, Bank of Canada, and OpenGov.
                             </div>
-                            <div style="font-size: 16px; color: #E2E8F0; line-height: 1.6;">
-                                <strong style="color: var(--accent-cyan);">2. Strict Branch Naming:</strong> <code>feat/CAN-101-duckdb-connector</code> automatically transitions the Linear issue to <em>"In Progress"</em>.
+                            <div style="padding: 12px; background: rgba(0, 240, 255, 0.05); border-radius: 8px;">
+                                <strong style="color: var(--accent-cyan);">2. DuckDB (The Slicer):</strong> An ultra-fast in-memory database that filters 200MB tables down to tiny 2KB summaries in 1.4 seconds.
                             </div>
-                            <div style="font-size: 16px; color: #E2E8F0; line-height: 1.6;">
-                                <strong style="color: var(--accent-cyan);">3. Conventional PR Linking:</strong> Opening a PR with <code>[CAN-101] Feat: ...</code> automatically transitions the issue to <em>"In Review"</em>.
+                            <div style="padding: 12px; background: rgba(255, 184, 0, 0.05); border-radius: 8px;">
+                                <strong style="color: var(--accent-amber);">3. FastMCP 2.0 (The Bridge):</strong> Connects our data tools directly to Claude Desktop, Cursor, and custom agents.
                             </div>
-                            <div style="font-size: 16px; color: #E2E8F0; line-height: 1.6;">
-                                <strong style="color: var(--accent-cyan);">4. Automated Close on Merge:</strong> Merging the PR to main automatically marks the issue <em>"Done"</em>.
+                            <div style="padding: 12px; background: rgba(16, 185, 129, 0.05); border-radius: 8px;">
+                                <strong style="color: var(--accent-emerald);">4. LangGraph (The Brain):</strong> Coordinates specialized sub-agents (analyst, verifier) so the AI never guesses or makes math mistakes.
                             </div>
                         </div>
                     </div>
 
                     <div class="reveal card">
-                        <div class="card-badge">PULL REQUEST QUALITY GATES</div>
-                        <p class="card-p">Every Pull Request requires passing automated quality checks before merging:</p>
-                        <div style="display: flex; flex-direction: column; gap: 10px; font-family: var(--font-mono); font-size: 14px;">
-                            <div style="padding: 10px 14px; background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 6px; color: var(--accent-cyan);">
-                                [x] Ruff Lint & Formatting + Pyright Strict Typecheck
+                        <div class="card-badge">WHERE FILES LIVE (CLEAN REPO)</div>
+                        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+                            <div style="padding: 12px; background: rgba(0, 240, 255, 0.04); border-radius: 8px;">
+                                <strong style="color: var(--accent-cyan);">/packages:</strong> Public tools anyone can install via pip (`candata-mcp` and `agent-orchestrator`).
                             </div>
-                            <div style="padding: 10px 14px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; color: var(--accent-emerald);">
-                                [x] DeepEval Benchmark Suite (Zero Regression)
+                            <div style="padding: 12px; background: rgba(255, 184, 0, 0.04); border-radius: 8px;">
+                                <strong style="color: var(--accent-amber);">/apps:</strong> Public documentation website and interactive demo playground.
                             </div>
-                            <div style="padding: 10px 14px; background: rgba(255, 184, 0, 0.05); border: 1px solid rgba(255, 184, 0, 0.2); border-radius: 6px; color: var(--accent-amber);">
-                                [x] Security Audit: Zero hardcoded secrets & rate-limit handled
-                            </div>
-                            <div style="padding: 10px 14px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.2); border-radius: 6px; color: var(--accent-rose);">
-                                [x] Mandatory Peer Code Review Approval (1 Team Member)
+                            <div style="padding: 12px; background: rgba(16, 185, 129, 0.04); border-radius: 8px;">
+                                <strong style="color: var(--accent-emerald);">/collaboration:</strong> Our private team hub (meeting notes, benchmark scorecards, LinkedIn post drafts).
                             </div>
                         </div>
                     </div>
@@ -649,156 +632,114 @@
             </section>
 
             <!-- ==========================================
-                 SLIDE 7: 6-WEEK ACCELERATED ROADMAP
+                 SLIDE 8: LINKEDIN POSTS (GOOD VS BAD)
                  ========================================== -->
             <section class="slide">
                 <div class="slide-header">
-                    <div class="reveal tagline"><span class="tagline-dot"></span>The 6-Week Sprint</div>
-                    <h2 class="reveal slide-title">From Kickoff to Job Market Blitz (Oct 2 → Nov 13)</h2>
-                    <p class="reveal slide-subtitle">Accelerated milestones ensuring we finish and publish before year-end corporate hiring freezes.</p>
+                    <div class="reveal tagline"><span class="tagline-dot"></span>Getting Noticed</div>
+                    <h2 class="reveal slide-title">How to Post on LinkedIn (Good vs. Bad)</h2>
+                    <p class="reveal slide-subtitle">We post once a week on Tuesday mornings. Here is how we make hiring managers stop scrolling:</p>
+                </div>
+                <div class="grid-2">
+                    <div class="reveal card">
+                        <div class="card-badge" style="color: var(--accent-rose);">❌ THE BAD WAY (GENERIC HYPE)</div>
+                        <div class="post-box post-bad">
+                            "Excited to announce I'm learning AI! 🚀 Built a cool chatbot with ChatGPT and LangChain that answers questions about Canada! AI is changing everything. Like and follow for more! #AI #Tech"
+                        </div>
+                        <div style="font-size: 13.5px; color: var(--text-muted); margin-top: 10px; line-height: 1.45;">
+                            • Looks like a generic tutorial.<br>
+                            • No numbers, no architecture, no proof of skill.<br>
+                            • Hiring managers scroll right past it.
+                        </div>
+                    </div>
+
+                    <div class="reveal card">
+                        <div class="card-badge" style="color: var(--accent-emerald);">✅ THE GOOD WAY (REAL PROOFS)</div>
+                        <div class="post-box post-good">
+                            "We asked Claude 3.5 Sonnet 15 basic questions about Canadian housing. It hallucinated on 6. For Brampton rent growth, it said 18.2% (real StatCan number: 8.4%).<br><br>
+                            To fix this, our 4-person team built CanData-MCP: DuckDB slices 200MB tables down to 2.4KB in 1.4s, and LangGraph forces exact table citations. Hallucinations dropped from 40% to 0% in our automated tests."
+                        </div>
+                        <div style="font-size: 13.5px; color: var(--text-muted); margin-top: 10px; line-height: 1.45;">
+                            • Starts with a real problem & real numbers.<br>
+                            • Shows token savings, speed, and automated testing.<br>
+                            • Highlights collaboration and links directly to GitHub.
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 9: WHERE DO I START TOMORROW?
+                 ========================================== -->
+            <section class="slide">
+                <div class="slide-header">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>The Exact Playbook</div>
+                    <h2 class="reveal slide-title">Where Do I Start Tomorrow Morning?</h2>
+                    <p class="reveal slide-subtitle">Here is exactly what you do tomorrow morning to jump right in and upload your first contribution:</p>
                 </div>
                 <div class="grid-3" style="row-gap: 20px;">
                     <div class="reveal card">
-                        <div class="card-badge">WEEK 1 · OCT 2 – OCT 9</div>
-                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">FastMCP 2.0 Core & Ground Truth</h4>
-                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">StatCan + BoC connectors, DuckDB Arrow server, 15 ground-truth questions benchmarked vs Claude.</p>
+                        <div class="step-num">1</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 6px 0;">Clone & Setup (5 min)</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Clone the repo, install `uv`, and run `uv sync`. Everything is ready to go.</p>
                     </div>
 
                     <div class="reveal card">
-                        <div class="card-badge">WEEK 2 · OCT 9 – OCT 16</div>
-                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">LangGraph 0.2+ Orchestration</h4>
-                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Supervisor, Query Planner, Exact Calculation node, and OpenTelemetry Arize Phoenix tracing setup.</p>
+                        <div class="step-num">2</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 6px 0;">Pick a Task in Linear</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Open our Linear workspace (`CanData Platform`), look at Cycle 1, and claim a card.</p>
                     </div>
 
                     <div class="reveal card">
-                        <div class="card-badge">WEEK 3 · OCT 16 – OCT 23</div>
-                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">Next.js 15 Portal & HITL UI</h4>
-                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Next.js 15 docs portal, Streamlit interactive app with dynamic Plotly charts, and LangGraph `interrupt()` HITL.</p>
+                        <div class="step-num">3</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 6px 0;">Create Your Git Branch</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Run `git checkout -b feat/CAN-14-short-name`. Linear will automatically track your progress.</p>
                     </div>
 
                     <div class="reveal card">
-                        <div class="card-badge">WEEK 4 · OCT 23 – OCT 30</div>
-                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">DeepEval CI & AI Guardrails</h4>
-                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Automated regression evaluation pipeline in GitHub Actions, Pydantic guardrails, and Docker containers.</p>
+                        <div class="step-num">4</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 6px 0;">Code with AI Helper</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Open Cursor / Claude Code with our project prompt. Write code and run `uv run pytest`.</p>
                     </div>
 
                     <div class="reveal card">
-                        <div class="card-badge">WEEK 5 · OCT 30 – NOV 6</div>
-                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">PyPI Drop & Cloud Public Beta</h4>
-                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Publish `candata-mcp` to PyPI via `uv`, list on Smithery.ai catalog, live hosted demo, and bilingual docs.</p>
+                        <div class="step-num">5</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 6px 0;">Push & Open a PR</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Push to GitHub, open a PR, tag one teammate for a quick thumbs-up review, and merge!</p>
                     </div>
 
                     <div class="reveal card" style="border-color: rgba(0, 240, 255, 0.4); background: rgba(0, 240, 255, 0.05);">
-                        <div class="card-badge" style="background: var(--accent-cyan); color: #000;">WEEK 6 · NOV 6 – NOV 13</div>
-                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">Recruiter Blitz & Grand Finale</h4>
-                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Targeted outreach to 30 Canadian AI Engineering VPs, resume transformations, and team retrospective launch.</p>
+                        <div class="step-num" style="background: var(--accent-amber);">6</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 6px 0;">2-Min Daily Check-In</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Drop a 3-line update in chat before 10 AM. Stuck? Flag it early so a teammate can pair up.</p>
                     </div>
                 </div>
             </section>
 
             <!-- ==========================================
-                 SLIDE 8: LINKEDIN MARKETING SYNDICATE
-                 ========================================== -->
-            <section class="slide">
-                <div class="slide-header">
-                    <div class="reveal tagline"><span class="tagline-dot"></span>Social Impact Strategy</div>
-                    <h2 class="reveal slide-title">Engineering-in-Public: The LinkedIn Syndicate</h2>
-                    <p class="reveal slide-subtitle">How we convert technical milestones into viral recruiter reach using the 30-Minute Algorithmic Boost.</p>
-                </div>
-                <div class="grid-2">
-                    <div class="reveal card">
-                        <div class="card-badge">THE 30-MINUTE ENGAGEMENT PROTOCOL</div>
-                        <p class="card-p">LinkedIn's algorithm decides distribution velocity in the first 30–60 minutes. We win by moving as a synchronized unit:</p>
-                        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px;">
-                            <div style="font-size: 15px; color: #E2E8F0;">
-                                <strong style="color: var(--accent-cyan);">1. Tuesday 8:15 AM EST Drop:</strong> Scheduled during peak Canadian tech browsing.
-                            </div>
-                            <div style="font-size: 15px; color: #E2E8F0;">
-                                <strong style="color: var(--accent-cyan);">2. 15-Minute Value-Add Comments:</strong> All 3 team members leave in-depth technical comments (not "great post", but technical observations).
-                            </div>
-                            <div style="font-size: 15px; color: #E2E8F0;">
-                                <strong style="color: var(--accent-cyan);">3. 30-Minute Author Reply:</strong> Lead author responds immediately, unlocking 4x algorithmic reach.
-                            </div>
-                            <div style="font-size: 15px; color: #E2E8F0;">
-                                <strong style="color: var(--accent-cyan);">4. Rotated Narrative Angles:</strong> Benjamin reposts on architecture, Samir on data truth, Person 3 on transformation, Person 4 on risk.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="reveal card">
-                        <div class="card-badge">PROVEN TECHNICAL HOOKS</div>
-                        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
-                            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 14px; color: #CBD5E1;">
-                                <span style="color: var(--accent-amber); font-weight: 700;">Week 1:</span> "We asked Claude 3.5 Sonnet 15 basic questions about Canadian housing. It hallucinated on 6. Here’s the scorecard."
-                            </div>
-                            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 14px; color: #CBD5E1;">
-                                <span style="color: var(--accent-cyan); font-weight: 700;">Week 2:</span> "A single Statistics Canada table can be 200MB. Here’s how DuckDB 1.2+ got it down to a 2KB response in 1.4s."
-                            </div>
-                            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 14px; color: #CBD5E1;">
-                                <span style="color: var(--accent-emerald); font-weight: 700;">Week 4:</span> "How do you test an AI agent before merging a PR? You don't 'vibe check' it. You build automated evals in GitHub Actions."
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ==========================================
-                 SLIDE 9: AI ASSISTANT PERSONAS
-                 ========================================== -->
-            <section class="slide">
-                <div class="slide-header">
-                    <div class="reveal tagline"><span class="tagline-dot"></span>Developer Productivity</div>
-                    <h2 class="reveal slide-title">Tailored AI Assistants: 4 Roles, 1 Master Prompt</h2>
-                    <p class="reveal slide-subtitle">Every team member uses an AI coding assistant (Claude Code, Cursor, Antigravity) loaded with our project guidelines.</p>
-                </div>
-                <div class="grid-2">
-                    <div class="reveal card">
-                        <div class="card-badge">ROLE-AWARE DYNAMIC PROMPTING</div>
-                        <p class="card-p">On startup, your assistant asks you: <br><em>"Which team member are you for this session?"</em></p>
-                        <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); padding: 16px; border-radius: 8px; font-family: var(--font-mono); font-size: 14px; color: var(--accent-cyan); line-height: 1.6;">
-                            > Select Role:<br>
-                            1: Benjamin (Lead Architect & MCP Core)<br>
-                            2: Samir (Data Viz & Agent Evals Lead)<br>
-                            3: Person 3 (Tech Delivery & Transformation)<br>
-                            4: Person 4 (AI Security & Risk Governance)
-                        </div>
-                    </div>
-
-                    <div class="reveal card">
-                        <div class="card-badge">ENFORCED CODING STANDARDS</div>
-                        <ul style="font-family: var(--font-mono); font-size: 14px; color: #CBD5E1; line-height: 1.8; padding-left: 20px;">
-                            <li><strong>Python 3.12+ with `uv`:</strong> Instant dependency locking via <code>uv.lock</code>.</li>
-                            <li><strong>100% Strict Typing:</strong> Passes Pyright without ignore flags.</li>
-                            <li><strong>Mandatory Pytest:</strong> Every tool and node includes unit & VCR tests.</li>
-                            <li><strong>Pydantic v2 Models:</strong> Deterministic citation schemas on all tool outputs.</li>
-                            <li><strong>Linear Issue Linking:</strong> Auto-formats commits with <code>[CAN-XXX]</code>.</li>
-                        </ul>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ==========================================
-                 SLIDE 10: CALL TO ACTION / SPRINT 1
+                 SLIDE 10: LET'S BUILD IT TOGETHER
                  ========================================== -->
             <section class="slide">
                 <div style="height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; max-width: 1200px; margin: 0 auto;">
-                    <div class="reveal tagline"><span class="tagline-dot"></span>Kickoff Decision & Launch</div>
-                    <h2 class="reveal" style="font-family: var(--font-display); font-size: 72px; font-weight: 900; letter-spacing: -2px; margin: 16px 0 20px 0; color: #FFF;">
-                        Let’s Build Canada’s Premier <br>
-                        <span style="color: var(--accent-cyan);">Open Data Agent Platform</span>
+                    <div class="reveal tagline"><span class="tagline-dot"></span>Ready for Launch</div>
+                    <h2 class="reveal" style="font-family: var(--font-display); font-size: 72px; font-weight: 900; letter-spacing: -2px; margin: 12px 0 16px 0; color: #FFF;">
+                        Let’s Build Something Great Together!
                     </h2>
-                    <p class="reveal" style="font-size: 24px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 40px; max-width: 900px;">
-                        The repo is live, the architecture is locked, the roles are clear. Let's make our first commits and take the Canadian AI job market by storm.
+                    <p class="reveal" style="font-size: 24px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 34px; max-width: 900px;">
+                        The repo is ready, the tasks are laid out, and the team is set. Let's make our first commits and kick off Sprint 1!
                     </p>
-                    <div class="reveal" style="display: flex; gap: 20px;">
-                        <div class="card" style="padding: 20px 32px; border-color: var(--accent-cyan); background: rgba(0, 240, 255, 0.08);">
-                            <div style="font-family: var(--font-mono); font-size: 14px; color: var(--accent-cyan);">GITHUB REPOSITORY</div>
-                            <div style="font-size: 18px; font-weight: 700; color: #FFF;">neobenjax/Canadian-Open-Data-Agentic-Platform</div>
+                    <div class="reveal" style="display: flex; gap: 20px; margin-bottom: 30px;">
+                        <div class="card" style="padding: 18px 28px; border-color: rgba(0, 240, 255, 0.4); background: rgba(0, 240, 255, 0.08);">
+                            <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-cyan);">GITHUB REPOSITORY</div>
+                            <div style="font-size: 17px; font-weight: 700; color: #FFF;">neobenjax/Canadian-Open-Data-Agentic-Platform</div>
                         </div>
-                        <div class="card" style="padding: 20px 32px; border-color: var(--accent-amber); background: rgba(255, 184, 0, 0.08);">
-                            <div style="font-family: var(--font-mono); font-size: 14px; color: var(--accent-amber);">LINEAR WORKSPACE</div>
-                            <div style="font-size: 18px; font-weight: 700; color: #FFF;">CanData Platform (CAN)</div>
+                        <div class="card" style="padding: 18px 28px; border-color: rgba(255, 184, 0, 0.4); background: rgba(255, 184, 0, 0.08);">
+                            <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-amber);">LINEAR WORKSPACE</div>
+                            <div style="font-size: 17px; font-weight: 700; color: #FFF;">CanData Platform (`CAN`)</div>
                         </div>
+                    </div>
+                    <div class="reveal" style="font-family: var(--font-mono); font-size: 15px; color: var(--text-muted);">
+                        Friday syncs at 11:00 AM · Daily async check-ins by 10:00 AM · Never silently blocked. 🚀
                     </div>
                 </div>
             </section>
@@ -849,7 +790,6 @@
 
             setupKeyboardNav() {
                 document.addEventListener('keydown', (e) => {
-                    // Don't trigger when editing content
                     if (e.target.isContentEditable) return;
 
                     if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
@@ -916,7 +856,7 @@
                 });
                 const toggle = document.getElementById('editToggle');
                 toggle.textContent = editable ? "💾 Exit Edit Mode" : "✏️ Edit Deck";
-                toggle.style.background = editable ? "rgba(0, 240, 255, 0.2)" : "rgba(13, 20, 36, 0.9)";
+                toggle.style.background = editable ? "rgba(0, 240, 255, 0.2)" : "rgba(16, 24, 43, 0.9)";
             }
 
             next() {
