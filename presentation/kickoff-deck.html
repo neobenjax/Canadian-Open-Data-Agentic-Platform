@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CanData Platform — Team Kickoff Deck</title>
+
+    <!-- Distinctive Typography: Cabinet Grotesk & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@500;700;800;900&family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* ===========================================
+           THEME VARIABLES & VISUAL IDENTITY
+           Authoritative Dark FinTech / Cyber Systems
+           =========================================== */
+        :root {
+            --stage-bg: #04070D;
+            --slide-bg: #070B14;
+            --panel-bg: #0D1424;
+            --panel-bg-elevated: #121B30;
+            --border-subtle: #18243B;
+            --border-highlight: #22375C;
+
+            --text-primary: #F8FAFC;
+            --text-secondary: #94A3B8;
+            --text-muted: #64748B;
+
+            --accent-cyan: #00F0FF;
+            --accent-cyan-glow: rgba(0, 240, 255, 0.25);
+            --accent-amber: #FFB800;
+            --accent-amber-glow: rgba(255, 184, 0, 0.2);
+            --accent-emerald: #10B981;
+            --accent-rose: #F43F5E;
+
+            --font-display: 'Cabinet Grotesk', -apple-system, sans-serif;
+            --font-body: 'Plus Jakarta Sans', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+            --duration-normal: 0.5s;
+        }
+
+        /* ===========================================
+           FIXED 16:9 STAGE: MANDATORY BASE STYLES
+           =========================================== */
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: var(--stage-bg);
+            font-family: var(--font-body);
+            color: var(--text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .deck-viewport {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at 50% 10%, #0D1629 0%, #04070D 80%);
+        }
+
+        .deck-stage {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            transform-origin: 0 0;
+            background: var(--slide-bg);
+            box-shadow: 0 0 100px rgba(0, 0, 0, 0.8);
+        }
+
+        .slide {
+            position: absolute;
+            inset: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            display: block;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            background: var(--slide-bg);
+            padding: 80px 100px;
+            box-sizing: border-box;
+            background-image: 
+                radial-gradient(circle at 100% 0%, rgba(0, 240, 255, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 0% 100%, rgba(255, 184, 0, 0.03) 0%, transparent 40%),
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+        }
+
+        .slide.active, .slide.visible {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 1;
+        }
+
+        /* ===========================================
+           SLIDE ANIMATIONS & REVEALS
+           =========================================== */
+        .reveal {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity var(--duration-normal) var(--ease-out-expo),
+                        transform var(--duration-normal) var(--ease-out-expo);
+        }
+
+        .slide.visible .reveal {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .slide.visible .reveal:nth-child(1) { transition-delay: 0.05s; }
+        .slide.visible .reveal:nth-child(2) { transition-delay: 0.12s; }
+        .slide.visible .reveal:nth-child(3) { transition-delay: 0.20s; }
+        .slide.visible .reveal:nth-child(4) { transition-delay: 0.28s; }
+        .slide.visible .reveal:nth-child(5) { transition-delay: 0.36s; }
+
+        /* ===========================================
+           HEADER & LAYOUT COMPONENTS
+           =========================================== */
+        .slide-header {
+            margin-bottom: 44px;
+        }
+
+        .tagline {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--font-mono);
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent-cyan);
+            background: rgba(0, 240, 255, 0.08);
+            border: 1px solid rgba(0, 240, 255, 0.25);
+            padding: 6px 14px;
+            border-radius: 6px;
+            margin-bottom: 14px;
+        }
+
+        .tagline-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--accent-cyan);
+        }
+
+        .slide-title {
+            font-family: var(--font-display);
+            font-size: 58px;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            color: var(--text-primary);
+            margin: 0 0 10px 0;
+        }
+
+        .slide-subtitle {
+            font-size: 22px;
+            color: var(--text-secondary);
+            font-weight: 400;
+            line-height: 1.4;
+            max-width: 1200px;
+            margin: 0;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 28px;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+        }
+
+        .card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            padding: 28px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-highlight {
+            border-color: rgba(0, 240, 255, 0.4);
+            box-shadow: 0 8px 30px rgba(0, 240, 255, 0.08);
+        }
+
+        .card-title {
+            font-family: var(--font-display);
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .card-p {
+            font-size: 16px;
+            line-height: 1.55;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .card-badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: var(--border-subtle);
+            color: var(--accent-cyan);
+            margin-bottom: 14px;
+        }
+
+        /* Specific Component Styles */
+        .stat-huge {
+            font-family: var(--font-display);
+            font-size: 72px;
+            font-weight: 900;
+            color: var(--accent-cyan);
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 16px;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .pill-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .pill {
+            font-size: 13px;
+            font-family: var(--font-mono);
+            padding: 4px 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            color: #CBD5E1;
+        }
+
+        /* ===========================================
+           SLIDE CHROME & CONTROLS
+           =========================================== */
+        .deck-controls {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(13, 20, 36, 0.85);
+            border: 1px solid var(--border-highlight);
+            backdrop-filter: blur(12px);
+            padding: 8px 18px;
+            border-radius: 40px;
+            z-index: 1000;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .deck-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: color 0.2s, background 0.2s;
+        }
+
+        .deck-btn:hover {
+            color: var(--accent-cyan);
+            background: rgba(0, 240, 255, 0.1);
+        }
+
+        .slide-counter {
+            font-family: var(--font-mono);
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: 1px;
+        }
+
+        .progress-bar-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            z-index: 1000;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-amber));
+            transition: width 0.3s ease;
+        }
+
+        /* Inline edit affordance */
+        .edit-hotzone {
+            position: fixed; top: 0; left: 0;
+            width: 80px; height: 80px;
+            z-index: 10000;
+            cursor: pointer;
+        }
+        .edit-toggle {
+            position: fixed; top: 16px; left: 16px;
+            background: rgba(13, 20, 36, 0.9);
+            border: 1px solid var(--border-highlight);
+            color: var(--text-secondary);
+            font-size: 14px; padding: 6px 12px; border-radius: 8px;
+            cursor: pointer; opacity: 0; transition: opacity 0.3s;
+            z-index: 10001; pointer-events: none;
+        }
+        .edit-toggle.show { opacity: 1; pointer-events: auto; }
+        .edit-toggle:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+    </style>
+</head>
+<body>
+    <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="edit-hotzone" id="editHotzone"></div>
+    <button class="edit-toggle" id="editToggle" title="Toggle Edit Mode (E)">✏️ Edit Deck</button>
+
+    <div class="deck-viewport">
+        <main class="deck-stage" id="deckStage">
+
+            <!-- ==========================================
+                 SLIDE 1: TITLE & LAUNCHPAD
+                 ========================================== -->
+            <section class="slide active">
+                <div style="height: 100%; display: flex; flex-direction: column; justify-content: center; max-width: 1400px;">
+                    <div class="reveal">
+                        <div class="tagline">
+                            <span class="tagline-dot"></span>
+                            Team Kickoff · October 2, 2026
+                        </div>
+                    </div>
+                    <h1 class="reveal" style="font-family: var(--font-display); font-size: 88px; font-weight: 900; line-height: 1.05; letter-spacing: -2.5px; margin: 16px 0 24px 0;">
+                        Canadian Open Data <br>
+                        <span style="background: linear-gradient(90deg, var(--accent-cyan), #38BDF8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Agentic AI Platform</span>
+                    </h1>
+                    <p class="reveal" style="font-size: 28px; line-height: 1.45; color: var(--text-secondary); margin-bottom: 48px; max-width: 1100px;">
+                        Building production-grade FastMCP 2.0 & LangGraph multi-agent infrastructure for Canadian public data — engineered to launch our careers as Senior AI & Agentic Systems Leaders.
+                    </p>
+                    <div class="reveal" style="display: flex; gap: 24px; align-items: center;">
+                        <div class="card" style="padding: 16px 28px; border-color: rgba(0, 240, 255, 0.3); background: rgba(0, 240, 255, 0.05); display: flex; gap: 16px; align-items: center;">
+                            <span style="font-size: 24px;">🇨🇦</span>
+                            <div>
+                                <div style="font-size: 14px; font-family: var(--font-mono); color: var(--accent-cyan);">OFFICIAL DATA STACK</div>
+                                <div style="font-size: 16px; font-weight: 700; color: #FFF;">StatCan WDS · Bank of Canada · OpenGov CKAN</div>
+                            </div>
+                        </div>
+                        <div class="card" style="padding: 16px 28px; border-color: rgba(255, 184, 0, 0.3); background: rgba(255, 184, 0, 0.05); display: flex; gap: 16px; align-items: center;">
+                            <span style="font-size: 24px;">⚡</span>
+                            <div>
+                                <div style="font-size: 14px; font-family: var(--font-mono); color: var(--accent-amber);">ACCELERATED SPRINT</div>
+                                <div style="font-size: 16px; font-weight: 700; color: #FFF;">6 Weeks: Oct 2 → Nov 13, 2026</div>
+                            </div>
+                        </div>
+                        <div class="card" style="padding: 16px 28px; border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.05); display: flex; gap: 16px; align-items: center;">
+                            <span style="font-size: 24px;">💼</span>
+                            <div>
+                                <div style="font-size: 14px; font-family: var(--font-mono); color: var(--accent-emerald);">CAREER OUTCOME</div>
+                                <div style="font-size: 16px; font-weight: 700; color: #FFF;">Senior AI Engineering & Leadership Hires</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 2: THE PROBLEM & OPPORTUNITY
+                 ========================================== -->
+            <section class="slide">
+                <div class="slide-header">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>The Industry Opportunity</div>
+                    <h2 class="reveal slide-title">Why Canadian Data Breaks Frontier LLMs</h2>
+                    <p class="reveal slide-subtitle">Frontier models hallucinate on Canadian socioeconomic data, choke on massive data cubes, and lack official citations. Here is the market vacuum we are filling.</p>
+                </div>
+                <div class="grid-3">
+                    <div class="reveal card" style="border-top: 3px solid var(--accent-rose);">
+                        <div class="card-badge">THE HALLUCINATION GAP</div>
+                        <h3 class="card-title">Blind Guesses vs. Real Stats</h3>
+                        <p class="card-p">Vanilla Claude and ChatGPT hallucinate on 40% of granular Canadian municipal questions (e.g. GTA rent growth vs inflation) because training weights conflate census years with annual surveys.</p>
+                        <div style="background: rgba(244, 63, 94, 0.1); padding: 12px; border-radius: 8px; border: 1px solid rgba(244, 63, 94, 0.2); font-family: var(--font-mono); font-size: 14px; color: #FDA4AF;">
+                            ❌ "Vanilla Claude: Brampton rent grew 18% in 2023"<br>
+                            ✅ Ground Truth (CMHC): 8.4% (Conflated 2BR with total)
+                        </div>
+                    </div>
+
+                    <div class="reveal card" style="border-top: 3px solid var(--accent-amber);">
+                        <div class="card-badge">THE PAYLOAD BOTTLENECK</div>
+                        <h3 class="card-title">200MB Cubes vs. Context Limits</h3>
+                        <p class="card-p">StatCan tables often exceed 200MB. Traditional LLM tools try to feed raw JSON into context windows, blowing token limits ($12/query) and triggering HTTP timeouts.</p>
+                        <div style="background: rgba(255, 184, 0, 0.1); padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 184, 0, 0.2); font-family: var(--font-mono); font-size: 14px; color: #FDE68A;">
+                            ⚡ Our Solution: Server-side DuckDB 1.2+ slicing reduces 200MB to 2.4KB in 1.2s.
+                        </div>
+                    </div>
+
+                    <div class="reveal card" style="border-top: 3px solid var(--accent-cyan);">
+                        <div class="card-badge">THE ENTERPRISE STANDARD</div>
+                        <h3 class="card-title">Zero Auditability & Citations</h3>
+                        <p class="card-p">Canadian enterprises, banks, and government analysts cannot use AI without deterministic citations, verified survey table IDs, reference periods, and bilingual compliance.</p>
+                        <div style="background: rgba(0, 240, 255, 0.1); padding: 12px; border-radius: 8px; border: 1px solid rgba(0, 240, 255, 0.2); font-family: var(--font-mono); font-size: 14px; color: #BAE6FD;">
+                            🎯 CanData Guarantee: Mandatory Table ID + Series Vector + Source URL on every token.
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 3: MEET THE TEAM (4 PILLARS)
+                 ========================================== -->
+            <section class="slide">
+                <div class="slide-header">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>The Powerhouse Collective</div>
+                    <h2 class="reveal slide-title">4 Pillars: 50+ Years Experience, One Shared Goal</h2>
+                    <p class="reveal slide-subtitle">We bring deep domain authority from Banking, FinTech, Transformation, and Risk — while rotating to master hands-on AI & Agentic engineering.</p>
+                </div>
+                <div class="grid-4">
+                    <div class="reveal card">
+                        <div style="font-size: 32px; margin-bottom: 8px;">🏛️</div>
+                        <h3 style="font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Benjamin</h3>
+                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 12px;">Team Lead · Solutions Architect</div>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">10+ Yrs scaling high-volume banking technology (2M+ users), FinTech platforms, monorepos, and SDD pipelines. IFC® Certified.</p>
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
+                            <div style="font-size: 12px; font-family: var(--font-mono); color: var(--accent-amber);">AI UPSKILLING FOCUS</div>
+                            <div style="font-size: 13px; color: #E2E8F0;">FastMCP 2.0, DuckDB Arrow Engine, LangGraph State Graphs.</div>
+                        </div>
+                    </div>
+
+                    <div class="reveal card">
+                        <div style="font-size: 32px; margin-bottom: 8px;">📊</div>
+                        <h3 style="font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Samir</h3>
+                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 12px;">Co-Lead · Data & Evals Lead</div>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Senior Software Engineer (Bitcoin Innovation Hub), 10+ Yrs data visualization & analytics. Creator of GTA Housing benchmark dataset.</p>
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
+                            <div style="font-size: 12px; font-family: var(--font-mono); color: var(--accent-amber);">AI UPSKILLING FOCUS</div>
+                            <div style="font-size: 13px; color: #E2E8F0;">LangGraph Agent Nodes, DeepEval CI harness, Dynamic Plotly UI.</div>
+                        </div>
+                    </div>
+
+                    <div class="reveal card">
+                        <div style="font-size: 32px; margin-bottom: 8px;">🚀</div>
+                        <h3 style="font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Person 3</h3>
+                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 12px;">Tech Delivery & Transformation</div>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">15+ Yrs leading large-scale programs ($400M+, 12M+ users), PMP®, Carleton MSc Candidate in Applied Business Analytics.</p>
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
+                            <div style="font-size: 12px; font-family: var(--font-mono); color: var(--accent-amber);">AI UPSKILLING FOCUS</div>
+                            <div style="font-size: 13px; color: #E2E8F0;">Human-in-the-Loop (`interrupt()`), Linear delivery, Token ROI.</div>
+                        </div>
+                    </div>
+
+                    <div class="reveal card">
+                        <div style="font-size: 32px; margin-bottom: 8px;">🛡️</div>
+                        <h3 style="font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #FFF; margin: 0 0 4px 0;">Person 4</h3>
+                        <div style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); margin-bottom: 12px;">AI Security, Risk & Governance</div>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">15+ Yrs regulated banking technology operations, CompTIA Security+, internal controls, incident remediation, and GRC.</p>
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
+                            <div style="font-size: 12px; font-family: var(--font-mono); color: var(--accent-amber);">AI UPSKILLING FOCUS</div>
+                            <div style="font-size: 13px; color: #E2E8F0;">AI Guardrails, API Security, Data Lineage & Docker hardening.</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 4: ARCHITECTURE (2026 STATE-OF-THE-ART)
+                 ========================================== -->
+            <section class="slide">
+                <div class="slide-header">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>2026 Production Architecture</div>
+                    <h2 class="reveal slide-title">Enterprise Full-Stack Agentic Architecture</h2>
+                    <p class="reveal slide-subtitle">Built with FastMCP 2.0, DuckDB 1.2+ Arrow streaming, and LangGraph 0.2+ durable checkpointers.</p>
+                </div>
+                <div class="grid-2">
+                    <div class="reveal card" style="background: rgba(13, 20, 36, 0.95);">
+                        <div class="card-badge">THE THREE-TIER PIPELINE</div>
+                        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
+                            <div style="padding: 12px 16px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 8px;">
+                                <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-cyan);">1. OFFICIAL CANADIAN DATA LAYER</div>
+                                <div style="font-size: 15px; font-weight: 600; color: #FFF;">Async HTTPX adapters for StatCan WDS, BoC Valet, and OpenGov CKAN with HTTP ETag caching. Zero brittle scraping.</div>
+                            </div>
+                            <div style="padding: 12px 16px; background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px;">
+                                <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-cyan);">2. FASTMCP 2.0 & DUCKDB 1.2+ SLICING</div>
+                                <div style="font-size: 15px; font-weight: 600; color: #FFF;">Zero-copy Apache Arrow memory buffers execute exact SQL math. Tool annotations (`readOnly`, `idempotent`) & sampling.</div>
+                            </div>
+                            <div style="padding: 12px 16px; background: rgba(255, 184, 0, 0.05); border: 1px solid rgba(255, 184, 0, 0.2); border-radius: 8px;">
+                                <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-amber);">3. LANGGRAPH 0.2+ MULTI-AGENT ORCHESTRATION</div>
+                                <div style="font-size: 15px; font-weight: 600; color: #FFF;">Supervisor decomposes queries $\rightarrow$ Analyst $\rightarrow$ Citation Verifier $\rightarrow$ Synthesizer with `interrupt()` HITL breakpoints.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="reveal card" style="background: rgba(13, 20, 36, 0.95);">
+                        <div class="card-badge">ENTERPRISE ASSURANCE & TELEMETRY</div>
+                        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
+                            <div style="padding: 14px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 8px;">
+                                <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-emerald);">AUTOMATED DEEPEVAL REGRESSION CI</div>
+                                <div style="font-size: 15px; color: #E2E8F0;">30 ground-truth questions scored in GitHub Actions on every Pull Request. Blocks hallucinations from merging.</div>
+                            </div>
+                            <div style="padding: 14px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px;">
+                                <div style="font-family: var(--font-mono); font-size: 13px; color: #38BDF8;">OPENTELEMETRY TRACING (ARcallbacks/PHOENIX)</div>
+                                <div style="font-size: 15px; color: #E2E8F0;">Full execution span tree with per-sub-agent token cost attribution and latency breakdowns.</div>
+                            </div>
+                            <div style="padding: 14px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.2); border-radius: 8px;">
+                                <div style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-rose);">PYDANTIC V2 CITATION ENFORCEMENT</div>
+                                <div style="font-size: 15px; color: #E2E8F0;">Deterministic schema validation forbids LLMs from answering without citing official Table IDs and reference periods.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 5: MONOREPO STRUCTURE
+                 ========================================== -->
+            <section class="slide">
+                <div class="slide-header">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>Repository Organization</div>
+                    <h2 class="reveal slide-title">Clean Separation: Public Tools vs. Docs vs. Team Hub</h2>
+                    <p class="reveal slide-subtitle">A high-performance monorepo designed for both open-source public adoption and structured team collaboration.</p>
+                </div>
+                <div class="grid-3">
+                    <div class="reveal card">
+                        <div class="card-badge" style="color: var(--accent-cyan);">/PACKAGES (PUBLIC AI TOOLS)</div>
+                        <h3 class="card-title">Production Packages</h3>
+                        <p class="card-p">What external developers install via PyPI or connect via Claude Desktop & Cursor.</p>
+                        <ul style="font-family: var(--font-mono); font-size: 14px; color: #CBD5E1; line-height: 1.8; padding-left: 20px;">
+                            <li><code>candata-mcp/</code> (FastMCP 2.0 server)</li>
+                            <li><code>connectors/</code> (StatCan, BoC, CKAN)</li>
+                            <li><code>engine/</code> (DuckDB Arrow pipelines)</li>
+                            <li><code>agent-orchestrator/</code> (LangGraph)</li>
+                        </ul>
+                    </div>
+
+                    <div class="reveal card">
+                        <div class="card-badge" style="color: var(--accent-amber);">/APPS (PUBLIC INTERFACES)</div>
+                        <h3 class="card-title">Modern Documentation & UI</h3>
+                        <p class="card-p">Public-facing interactive documentation portal and multimodal analytics playground.</p>
+                        <ul style="font-family: var(--font-mono); font-size: 14px; color: #CBD5E1; line-height: 1.8; padding-left: 20px;">
+                            <li><code>docs-portal/</code> (Next.js 15 App Router)</li>
+                            <li>Fumadocs + Tailwind CSS v4</li>
+                            <li>Interactive API Sandbox & Terminal</li>
+                            <li><code>streamlit-dashboard/</code> (Plotly Charts)</li>
+                        </ul>
+                    </div>
+
+                    <div class="reveal card">
+                        <div class="card-badge" style="color: var(--accent-emerald);">/COLLABORATION (TEAM HUB)</div>
+                        <h3 class="card-title">Internal Team Log & Assets</h3>
+                        <p class="card-p">The centralized hub tracking sprint logs, ground-truth benchmarks, and hiring portfolio proofs.</p>
+                        <ul style="font-family: var(--font-mono); font-size: 14px; color: #CBD5E1; line-height: 1.8; padding-left: 20px;">
+                            <li><code>benchmarks/</code> (Ground Truth & Evals)</li>
+                            <li><code>linear-sync/</code> (Cycle Burndowns)</li>
+                            <li><code>linkedin-syndicate/</code> (Post Drafts)</li>
+                            <li><code>career-assets/</code> (Interview Cheat Sheets)</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 6: LINEAR.APP + GITHUB WORKFLOW
+                 ========================================== -->
+            <section class="slide">
+                <div class="slide-header">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>Engineering Discipline</div>
+                    <h2 class="reveal slide-title">Enterprise Delivery: GitHub Linked to Linear.app</h2>
+                    <p class="reveal slide-subtitle">Operating with the rigor of top-tier Silicon Valley and Canadian scale-ups (Vercel, Supabase, Linear).</p>
+                </div>
+                <div class="grid-2">
+                    <div class="reveal card">
+                        <div class="card-badge">THE LINEAR-DRIVEN LIFECYCLE</div>
+                        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
+                            <div style="font-size: 16px; color: #E2E8F0; line-height: 1.6;">
+                                <strong style="color: var(--accent-cyan);">1. One-Week Linear Cycles:</strong> Sprints map to Linear 1-week cycles with clear task estimations and assignees.
+                            </div>
+                            <div style="font-size: 16px; color: #E2E8F0; line-height: 1.6;">
+                                <strong style="color: var(--accent-cyan);">2. Strict Branch Naming:</strong> <code>feat/CAN-101-duckdb-connector</code> automatically transitions the Linear issue to <em>"In Progress"</em>.
+                            </div>
+                            <div style="font-size: 16px; color: #E2E8F0; line-height: 1.6;">
+                                <strong style="color: var(--accent-cyan);">3. Conventional PR Linking:</strong> Opening a PR with <code>[CAN-101] Feat: ...</code> automatically transitions the issue to <em>"In Review"</em>.
+                            </div>
+                            <div style="font-size: 16px; color: #E2E8F0; line-height: 1.6;">
+                                <strong style="color: var(--accent-cyan);">4. Automated Close on Merge:</strong> Merging the PR to main automatically marks the issue <em>"Done"</em>.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="reveal card">
+                        <div class="card-badge">PULL REQUEST QUALITY GATES</div>
+                        <p class="card-p">Every Pull Request requires passing automated quality checks before merging:</p>
+                        <div style="display: flex; flex-direction: column; gap: 10px; font-family: var(--font-mono); font-size: 14px;">
+                            <div style="padding: 10px 14px; background: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 6px; color: var(--accent-cyan);">
+                                [x] Ruff Lint & Formatting + Pyright Strict Typecheck
+                            </div>
+                            <div style="padding: 10px 14px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; color: var(--accent-emerald);">
+                                [x] DeepEval Benchmark Suite (Zero Regression)
+                            </div>
+                            <div style="padding: 10px 14px; background: rgba(255, 184, 0, 0.05); border: 1px solid rgba(255, 184, 0, 0.2); border-radius: 6px; color: var(--accent-amber);">
+                                [x] Security Audit: Zero hardcoded secrets & rate-limit handled
+                            </div>
+                            <div style="padding: 10px 14px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.2); border-radius: 6px; color: var(--accent-rose);">
+                                [x] Mandatory Peer Code Review Approval (1 Team Member)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 7: 6-WEEK ACCELERATED ROADMAP
+                 ========================================== -->
+            <section class="slide">
+                <div class="slide-header">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>The 6-Week Sprint</div>
+                    <h2 class="reveal slide-title">From Kickoff to Job Market Blitz (Oct 2 → Nov 13)</h2>
+                    <p class="reveal slide-subtitle">Accelerated milestones ensuring we finish and publish before year-end corporate hiring freezes.</p>
+                </div>
+                <div class="grid-3" style="row-gap: 20px;">
+                    <div class="reveal card">
+                        <div class="card-badge">WEEK 1 · OCT 2 – OCT 9</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">FastMCP 2.0 Core & Ground Truth</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">StatCan + BoC connectors, DuckDB Arrow server, 15 ground-truth questions benchmarked vs Claude.</p>
+                    </div>
+
+                    <div class="reveal card">
+                        <div class="card-badge">WEEK 2 · OCT 9 – OCT 16</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">LangGraph 0.2+ Orchestration</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Supervisor, Query Planner, Exact Calculation node, and OpenTelemetry Arize Phoenix tracing setup.</p>
+                    </div>
+
+                    <div class="reveal card">
+                        <div class="card-badge">WEEK 3 · OCT 16 – OCT 23</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">Next.js 15 Portal & HITL UI</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Next.js 15 docs portal, Streamlit interactive app with dynamic Plotly charts, and LangGraph `interrupt()` HITL.</p>
+                    </div>
+
+                    <div class="reveal card">
+                        <div class="card-badge">WEEK 4 · OCT 23 – OCT 30</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">DeepEval CI & AI Guardrails</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Automated regression evaluation pipeline in GitHub Actions, Pydantic guardrails, and Docker containers.</p>
+                    </div>
+
+                    <div class="reveal card">
+                        <div class="card-badge">WEEK 5 · OCT 30 – NOV 6</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">PyPI Drop & Cloud Public Beta</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Publish `candata-mcp` to PyPI via `uv`, list on Smithery.ai catalog, live hosted demo, and bilingual docs.</p>
+                    </div>
+
+                    <div class="reveal card" style="border-color: rgba(0, 240, 255, 0.4); background: rgba(0, 240, 255, 0.05);">
+                        <div class="card-badge" style="background: var(--accent-cyan); color: #000;">WEEK 6 · NOV 6 – NOV 13</div>
+                        <h4 style="font-size: 18px; font-weight: 700; color: #FFF; margin: 0 0 8px 0;">Recruiter Blitz & Grand Finale</h4>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.45;">Targeted outreach to 30 Canadian AI Engineering VPs, resume transformations, and team retrospective launch.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 8: LINKEDIN MARKETING SYNDICATE
+                 ========================================== -->
+            <section class="slide">
+                <div class="slide-header">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>Social Impact Strategy</div>
+                    <h2 class="reveal slide-title">Engineering-in-Public: The LinkedIn Syndicate</h2>
+                    <p class="reveal slide-subtitle">How we convert technical milestones into viral recruiter reach using the 30-Minute Algorithmic Boost.</p>
+                </div>
+                <div class="grid-2">
+                    <div class="reveal card">
+                        <div class="card-badge">THE 30-MINUTE ENGAGEMENT PROTOCOL</div>
+                        <p class="card-p">LinkedIn's algorithm decides distribution velocity in the first 30–60 minutes. We win by moving as a synchronized unit:</p>
+                        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px;">
+                            <div style="font-size: 15px; color: #E2E8F0;">
+                                <strong style="color: var(--accent-cyan);">1. Tuesday 8:15 AM EST Drop:</strong> Scheduled during peak Canadian tech browsing.
+                            </div>
+                            <div style="font-size: 15px; color: #E2E8F0;">
+                                <strong style="color: var(--accent-cyan);">2. 15-Minute Value-Add Comments:</strong> All 3 team members leave in-depth technical comments (not "great post", but technical observations).
+                            </div>
+                            <div style="font-size: 15px; color: #E2E8F0;">
+                                <strong style="color: var(--accent-cyan);">3. 30-Minute Author Reply:</strong> Lead author responds immediately, unlocking 4x algorithmic reach.
+                            </div>
+                            <div style="font-size: 15px; color: #E2E8F0;">
+                                <strong style="color: var(--accent-cyan);">4. Rotated Narrative Angles:</strong> Benjamin reposts on architecture, Samir on data truth, Person 3 on transformation, Person 4 on risk.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="reveal card">
+                        <div class="card-badge">PROVEN TECHNICAL HOOKS</div>
+                        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
+                            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 14px; color: #CBD5E1;">
+                                <span style="color: var(--accent-amber); font-weight: 700;">Week 1:</span> "We asked Claude 3.5 Sonnet 15 basic questions about Canadian housing. It hallucinated on 6. Here’s the scorecard."
+                            </div>
+                            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 14px; color: #CBD5E1;">
+                                <span style="color: var(--accent-cyan); font-weight: 700;">Week 2:</span> "A single Statistics Canada table can be 200MB. Here’s how DuckDB 1.2+ got it down to a 2KB response in 1.4s."
+                            </div>
+                            <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 14px; color: #CBD5E1;">
+                                <span style="color: var(--accent-emerald); font-weight: 700;">Week 4:</span> "How do you test an AI agent before merging a PR? You don't 'vibe check' it. You build automated evals in GitHub Actions."
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 9: AI ASSISTANT PERSONAS
+                 ========================================== -->
+            <section class="slide">
+                <div class="slide-header">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>Developer Productivity</div>
+                    <h2 class="reveal slide-title">Tailored AI Assistants: 4 Roles, 1 Master Prompt</h2>
+                    <p class="reveal slide-subtitle">Every team member uses an AI coding assistant (Claude Code, Cursor, Antigravity) loaded with our project guidelines.</p>
+                </div>
+                <div class="grid-2">
+                    <div class="reveal card">
+                        <div class="card-badge">ROLE-AWARE DYNAMIC PROMPTING</div>
+                        <p class="card-p">On startup, your assistant asks you: <br><em>"Which team member are you for this session?"</em></p>
+                        <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); padding: 16px; border-radius: 8px; font-family: var(--font-mono); font-size: 14px; color: var(--accent-cyan); line-height: 1.6;">
+                            > Select Role:<br>
+                            1: Benjamin (Lead Architect & MCP Core)<br>
+                            2: Samir (Data Viz & Agent Evals Lead)<br>
+                            3: Person 3 (Tech Delivery & Transformation)<br>
+                            4: Person 4 (AI Security & Risk Governance)
+                        </div>
+                    </div>
+
+                    <div class="reveal card">
+                        <div class="card-badge">ENFORCED CODING STANDARDS</div>
+                        <ul style="font-family: var(--font-mono); font-size: 14px; color: #CBD5E1; line-height: 1.8; padding-left: 20px;">
+                            <li><strong>Python 3.12+ with `uv`:</strong> Instant dependency locking via <code>uv.lock</code>.</li>
+                            <li><strong>100% Strict Typing:</strong> Passes Pyright without ignore flags.</li>
+                            <li><strong>Mandatory Pytest:</strong> Every tool and node includes unit & VCR tests.</li>
+                            <li><strong>Pydantic v2 Models:</strong> Deterministic citation schemas on all tool outputs.</li>
+                            <li><strong>Linear Issue Linking:</strong> Auto-formats commits with <code>[CAN-XXX]</code>.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==========================================
+                 SLIDE 10: CALL TO ACTION / SPRINT 1
+                 ========================================== -->
+            <section class="slide">
+                <div style="height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; max-width: 1200px; margin: 0 auto;">
+                    <div class="reveal tagline"><span class="tagline-dot"></span>Kickoff Decision & Launch</div>
+                    <h2 class="reveal" style="font-family: var(--font-display); font-size: 72px; font-weight: 900; letter-spacing: -2px; margin: 16px 0 20px 0; color: #FFF;">
+                        Let’s Build Canada’s Premier <br>
+                        <span style="color: var(--accent-cyan);">Open Data Agent Platform</span>
+                    </h2>
+                    <p class="reveal" style="font-size: 24px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 40px; max-width: 900px;">
+                        The repo is live, the architecture is locked, the roles are clear. Let's make our first commits and take the Canadian AI job market by storm.
+                    </p>
+                    <div class="reveal" style="display: flex; gap: 20px;">
+                        <div class="card" style="padding: 20px 32px; border-color: var(--accent-cyan); background: rgba(0, 240, 255, 0.08);">
+                            <div style="font-family: var(--font-mono); font-size: 14px; color: var(--accent-cyan);">GITHUB REPOSITORY</div>
+                            <div style="font-size: 18px; font-weight: 700; color: #FFF;">neobenjax/Canadian-Open-Data-Agentic-Platform</div>
+                        </div>
+                        <div class="card" style="padding: 20px 32px; border-color: var(--accent-amber); background: rgba(255, 184, 0, 0.08);">
+                            <div style="font-family: var(--font-mono); font-size: 14px; color: var(--accent-amber);">LINEAR WORKSPACE</div>
+                            <div style="font-size: 18px; font-weight: 700; color: #FFF;">CanData Platform (CAN)</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- PRESENTATION NAVIGATION CONTROLS -->
+    <div class="deck-controls">
+        <button class="deck-btn" id="prevBtn" title="Previous Slide (Left Arrow / PageUp)">← Prev</button>
+        <span class="slide-counter" id="slideCounter">1 / 10</span>
+        <button class="deck-btn" id="nextBtn" title="Next Slide (Right Arrow / Space / PageDown)">Next →</button>
+    </div>
+
+    <script>
+        /* ===========================================
+           SLIDE PRESENTATION CONTROLLER
+           Zero-dependency fixed 16:9 stage scaler
+           =========================================== */
+        class SlidePresentation {
+            constructor() {
+                this.slides = document.querySelectorAll('.slide');
+                this.currentSlide = 0;
+                this.stage = document.getElementById('deckStage');
+                this.counter = document.getElementById('slideCounter');
+                this.progressBar = document.getElementById('progressBar');
+                this.prevBtn = document.getElementById('prevBtn');
+                this.nextBtn = document.getElementById('nextBtn');
+                
+                this.setupStageScale();
+                this.setupKeyboardNav();
+                this.setupButtons();
+                this.setupTouchNav();
+                this.setupInlineEditing();
+                this.showSlide(0);
+            }
+
+            setupStageScale() {
+                const scale = () => {
+                    const factor = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+                    const x = (window.innerWidth - 1920 * factor) / 2;
+                    const y = (window.innerHeight - 1080 * factor) / 2;
+                    this.stage.style.transform = `translate(${x}px, ${y}px) scale(${factor})`;
+                };
+                scale();
+                window.addEventListener('resize', scale);
+            }
+
+            setupKeyboardNav() {
+                document.addEventListener('keydown', (e) => {
+                    // Don't trigger when editing content
+                    if (e.target.isContentEditable) return;
+
+                    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+                        e.preventDefault();
+                        this.next();
+                    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                        e.preventDefault();
+                        this.prev();
+                    } else if (e.key === 'Home') {
+                        e.preventDefault();
+                        this.showSlide(0);
+                    } else if (e.key === 'End') {
+                        e.preventDefault();
+                        this.showSlide(this.slides.length - 1);
+                    } else if (e.key === 'e' || e.key === 'E') {
+                        this.toggleEditMode();
+                    }
+                });
+            }
+
+            setupButtons() {
+                this.prevBtn.addEventListener('click', () => this.prev());
+                this.nextBtn.addEventListener('click', () => this.next());
+            }
+
+            setupTouchNav() {
+                let startX = 0;
+                document.addEventListener('touchstart', (e) => {
+                    startX = e.touches[0].clientX;
+                }, { passive: true });
+
+                document.addEventListener('touchend', (e) => {
+                    const diff = startX - e.changedTouches[0].clientX;
+                    if (Math.abs(diff) > 50) {
+                        if (diff > 0) this.next();
+                        else this.prev();
+                    }
+                }, { passive: true });
+            }
+
+            setupInlineEditing() {
+                const hotzone = document.getElementById('editHotzone');
+                const toggle = document.getElementById('editToggle');
+                let hideTimeout;
+
+                hotzone.addEventListener('mouseenter', () => {
+                    clearTimeout(hideTimeout);
+                    toggle.classList.add('show');
+                });
+                hotzone.addEventListener('mouseleave', () => {
+                    hideTimeout = setTimeout(() => toggle.classList.remove('show'), 600);
+                });
+                toggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+                toggle.addEventListener('mouseleave', () => {
+                    hideTimeout = setTimeout(() => toggle.classList.remove('show'), 600);
+                });
+                toggle.addEventListener('click', () => this.toggleEditMode());
+            }
+
+            toggleEditMode() {
+                const editable = !document.body.isContentEditable;
+                document.querySelectorAll('.slide h1, .slide h2, .slide h3, .slide h4, .slide p, .slide li, .slide div').forEach(el => {
+                    el.contentEditable = editable ? "true" : "false";
+                });
+                const toggle = document.getElementById('editToggle');
+                toggle.textContent = editable ? "💾 Exit Edit Mode" : "✏️ Edit Deck";
+                toggle.style.background = editable ? "rgba(0, 240, 255, 0.2)" : "rgba(13, 20, 36, 0.9)";
+            }
+
+            next() {
+                if (this.currentSlide < this.slides.length - 1) {
+                    this.showSlide(this.currentSlide + 1);
+                }
+            }
+
+            prev() {
+                if (this.currentSlide > 0) {
+                    this.showSlide(this.currentSlide - 1);
+                }
+            }
+
+            showSlide(index) {
+                this.currentSlide = Math.max(0, Math.min(index, this.slides.length - 1));
+                this.slides.forEach((slide, i) => {
+                    slide.classList.toggle('active', i === this.currentSlide);
+                    slide.classList.toggle('visible', i === this.currentSlide);
+                });
+
+                this.counter.textContent = `${this.currentSlide + 1} / ${this.slides.length}`;
+                this.progressBar.style.width = `${((this.currentSlide + 1) / this.slides.length) * 100}%`;
+            }
+        }
+
+        // Initialize presentation
+        new SlidePresentation();
+    </script>
+</body>
+</html>
