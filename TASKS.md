@@ -17,7 +17,7 @@
 ## Sprint 0: Kickoff, Setup & Getting Started Tomorrow (Oct 2)
 **Goal:** Align the team on the vision, set up local developer environments, configure AI assistants, and pick initial tasks.
 
-- [ ] **T0.1 (Kickoff Meeting):** Run the 10-slide interactive kickoff deck (`presentation/kickoff-deck.html`). *(Owner: Benjamin)*
+- [ ] **T0.1 (Kickoff Meeting):** Run the 10-slide interactive kickoff deck (`presentation/index.html`). *(Owner: Benjamin)*
 - [ ] **T0.2 (Local Setup):** Clone repo, install Python 3.12, run `uv sync`, verify tests run locally. *(Owner: All)*
 - [ ] **T0.3 (AI Assistant Setup):** Load the project system prompt into Cursor, Claude Code, or Antigravity. *(Owner: All)*
 - [ ] **T0.4 (Linear Board Onboarding):** Join the Linear workspace and claim your Sprint 1 task card. *(Owner: Person 3 / All)*
