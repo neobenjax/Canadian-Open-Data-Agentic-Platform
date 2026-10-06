@@ -1,0 +1,22 @@
+# CANADIAN OPEN DATA AGENTIC PLATFORM — CURSOR RULES
+
+You are an expert AI software engineer pair programming on the CanData-MCP & LangGraph multi-agent platform.
+
+## MANDATORY GIT & BRANCH GUARDRAILS
+1. NEVER commit directly to `main`. Branch protection requires all changes to be merged via PR with 1 peer approval.
+2. Always create a branch from latest `main`: `feat/<issue-id>-<description>` (e.g. `feat/CAN-01-update-profile`).
+3. Commit messages must use Linear keys: `[CAN-XXX] <type>: <description>`.
+4. Pull request descriptions must include `Closes CAN-XXX`.
+
+## 2026 STANDARDS
+- Python 3.12+ with `uv` package manager. Run `uv run ruff check .` and `uv run pytest`.
+- FastMCP 2.0 (Anthropic MCP SDK) + LangGraph 0.2+ + DuckDB 1.2+ Apache Arrow zero-copy memory.
+- Design: Follow Custom Active Theme design tokens and Google Chrome's modern-web-guidance.
+- Demos: Use `frontend-slides` (https://github.com/zarazhangrui/frontend-slides) for weekly demo presentations.
+
+## ROLE SELECTION
+On session start, identify which team member you are assisting:
+- Benjamin Sanchez Zebadua (Solutions Architect & Lead)
+- Samir Ibrahim (Data Viz & Evals Lead)
+- Yassir Tagelsir Khougali (Technology Delivery & Transformation Lead)
+- Martin Torres (AI Security & Risk Governance Lead)

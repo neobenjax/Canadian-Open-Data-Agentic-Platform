@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.1.0",
+  "name": "Custom Active Theme (Snowflake-Inspired Enterprise Edition)",
+  "description": "Precision-engineered design tokens for Canadian Open Data Platform with enterprise data cloud typography and accessibility",
+  "colors": {
+    "primary": "#A82424",
+    "primary-focus": "#8B1B1B",
+    "primary-bg": "#F9F6F6",
+    "secondary-bg": "#F1EAEA",
+    "surface": "#FFFFFF",
+    "surface-card": "#FFFFFF",
+    "body": "#0F172A",
+    "body-muted": "#8A5C5C",
+    "ink": "#0F172A",
+    "text-primary": "#0F172A",
+    "text-secondary": "#633636",
+    "text-muted": "#8A5C5C",
+    "accent": "#A82424",
+    "slate-steel": "#D6C2C2",
+    "border-subtle": "rgba(0, 0, 0, 0.08)",
+    "border-accent": "rgba(168, 36, 36, 0.25)",
+    "on-primary": "#FFFFFF"
+  },
+  "typography": {
+    "heading-font": "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "body-font": "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "code-font": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+  },
+  "rounded": {
+    "none": "0px",
+    "xs": "2px",
+    "sm": "4px",
+    "md": "8px",
+    "lg": "12px",
+    "xl": "16px",
+    "full": "9999px"
+  },
+  "shadows": {
+    "sm": "0 1px 3px 0 rgba(15, 23, 42, 0.04)",
+    "md": "0 4px 14px -1px rgba(15, 23, 42, 0.07), 0 2px 6px -2px rgba(15, 23, 42, 0.04)",
+    "lg": "0 12px 28px -3px rgba(15, 23, 42, 0.08), 0 4px 10px -4px rgba(15, 23, 42, 0.04)",
+    "card-hover": "0 20px 30px -5px rgba(168, 36, 36, 0.09), 0 8px 12px -6px rgba(168, 36, 36, 0.05)"
+  }
+}
