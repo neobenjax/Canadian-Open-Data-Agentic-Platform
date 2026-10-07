@@ -1,0 +1,112 @@
+Title,Description,Status,Assignee,Project
+[CAN-00] Verify end-to-end Gitflow & Linear synchronization workflow during the onboarding kickoff meeting without altering personal profile tasks.,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Owner: Unassigned
+Key: CAN-00",Todo,Unassigned,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+[CAN-01] Verify workflow & update developer bio.,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-01",Todo,Benjamin Sanchez Zebadua,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+"[CAN-02] Verify workflow, update bio & draft initial benchmark questions.","Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Owner: Samir Ibrahim
+Key: CAN-02",Todo,Samir Ibrahim,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+"[CAN-03] Verify workflow, update bio & add meeting notes template.","Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Owner: Yassir Tagelsir Khougali
+Key: CAN-03",Todo,Yassir Tagelsir Khougali,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+[CAN-05] Verify that GitHub blocks direct pushes to `main` and enforces the 1-approval requirement across the triangular review cycle:,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Owner: Unassigned
+Key: CAN-05",Todo,Unassigned,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+[CAN-06] Post first 2-minute daily check-in on WhatsApp before 10:00 AM EST.,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Owner: Unassigned
+Key: CAN-06",Todo,Unassigned,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+"[CAN-11] Implement async HTTPX client for Statistics Canada WDS API (metadata discovery, vector lookup, SDMX cube slice with HTTP caching). *(Owner: Benjamin / Yassir · 2h)*","Milestone: Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-11",Todo,Benjamin Sanchez Zebadua,Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+"[CAN-12] Implement async client for Bank of Canada Valet API (policy rate, inflation target, CPI series). *(Owner: Yassir / Benjamin · 2h)*","Milestone: Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-12",Todo,Benjamin Sanchez Zebadua,Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+"[CAN-13] Build FastMCP 2.0 server with in-memory DuckDB Arrow streams reducing 200MB payloads to <3KB with tool annotations (`readOnly`, `idempotent`). *(Owner: Benjamin · 3h)*","Milestone: Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-13",Todo,Benjamin Sanchez Zebadua,Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+"[CAN-14] Curate 15 ground-truth benchmark questions based on GTA housing, rent vs income, and inflation metrics. *(Owner: Samir · 2h)*","Milestone: Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+Owner: Samir Ibrahim
+Key: CAN-14",Todo,Samir Ibrahim,Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+[CAN-15] Run baseline benchmark comparing plain Claude 3.5 Sonnet vs existing `mcp-statcan` vs CanData-MCP; log hallucinations and citation coverage. *(Owner: Samir / Yassir · 2h)*,"Milestone: Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+Owner: Samir Ibrahim
+Key: CAN-15",Todo,Samir Ibrahim,Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+"[CAN-16] Conduct API security, rate limit, and data provenance audit for Canadian public endpoints. *(Owner: Benjamin / Yassir · 2h)*","Milestone: Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-16",Todo,Benjamin Sanchez Zebadua,Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
+[CAN-21] Define typed `AgentState` with Pydantic v2 schemas and `AsyncSqliteSaver` checkpointer for time-travel debugging. *(Owner: Samir / Benjamin · 2.5h)*,"Milestone: Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-21",Todo,Benjamin Sanchez Zebadua,Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+[CAN-22] Implement Supervisor agent node that decomposes complex queries into deterministic tool calls. *(Owner: Samir · 2.5h)*,"Milestone: Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+Owner: Samir Ibrahim
+Key: CAN-22",Todo,Samir Ibrahim,Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+[CAN-23] Implement Data Analyst node executing exact DuckDB SQL math (no mental math). *(Owner: Benjamin · 2.5h)*,"Milestone: Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-23",Todo,Benjamin Sanchez Zebadua,Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+[CAN-24] Implement Citation Verifier node checking statistics against official StatCan/BoC table IDs. *(Owner: Samir · 2h)*,"Milestone: Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+Owner: Samir Ibrahim
+Key: CAN-24",Todo,Samir Ibrahim,Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+[CAN-25] Set up OpenTelemetry-native Arize Phoenix & LangSmith tracing to measure step latency and token costs per sub-agent. *(Owner: Yassir / Benjamin · 2h)*,"Milestone: Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-25",Todo,Benjamin Sanchez Zebadua,Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+[CAN-26] Bilingual French/English metadata mapping and data lineage tracking. *(Owner: Yassir · 2h)*,"Milestone: Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+Owner: Yassir Tagelsir Khougali
+Key: CAN-26",Todo,Yassir Tagelsir Khougali,Milestone 2: LangGraph Multi-Agent Orchestration & Observability (Sprint 2)
+[CAN-31] Scaffold Next.js 15 App Router + Fumadocs / Tailwind CSS v4 in `/apps/docs-portal`. *(Owner: Benjamin · 3h)*,"Milestone: Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-31",Todo,Benjamin Sanchez Zebadua,Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
+[CAN-32] Build modern Streamlit UI with `astream_events` v2 real-time streaming and dynamic Plotly charts. *(Owner: Samir / Yassir · 2.5h)*,"Milestone: Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
+Owner: Samir Ibrahim
+Key: CAN-32",Todo,Samir Ibrahim,Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
+[CAN-33] Implement LangGraph `interrupt()` breakpoint when data ambiguities arise (e.g. municipal vs CMA boundaries). *(Owner: Samir / Benjamin · 2h)*,"Milestone: Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-33",Todo,Benjamin Sanchez Zebadua,Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
+[CAN-34] Add connector for Open Government Canada CKAN federal datasets. *(Owner: Yassir / Benjamin · 2h)*,"Milestone: Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-34",Todo,Benjamin Sanchez Zebadua,Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
+[CAN-35] User testing session with 3 external Canadian policy/data researchers; log feedback. *(Owner: Yassir · 2h)*,"Milestone: Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
+Owner: Yassir Tagelsir Khougali
+Key: CAN-35",Todo,Yassir Tagelsir Khougali,Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
+[CAN-41] Implement DeepEval automated test harness running against 30 ground-truth questions. *(Owner: Samir · 2.5h)*,"Milestone: Milestone 4: Automated CI/CD Evals & AI Security Guardrails (Sprint 4)
+Owner: Samir Ibrahim
+Key: CAN-41",Todo,Samir Ibrahim,Milestone 4: Automated CI/CD Evals & AI Security Guardrails (Sprint 4)
+"[CAN-42] Configure GitHub Actions CI pipeline running Ruff, Pyright, and DeepEval scoring on every PR. *(Owner: Benjamin · 2.5h)*","Milestone: Milestone 4: Automated CI/CD Evals & AI Security Guardrails (Sprint 4)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-42",Todo,Benjamin Sanchez Zebadua,Milestone 4: Automated CI/CD Evals & AI Security Guardrails (Sprint 4)
+[CAN-43] Implement Pydantic v2 output validators and prompt injection defense; audit LLM tool calls. *(Owner: Samir · 2.5h)*,"Milestone: Milestone 4: Automated CI/CD Evals & AI Security Guardrails (Sprint 4)
+Owner: Samir Ibrahim
+Key: CAN-43",Todo,Samir Ibrahim,Milestone 4: Automated CI/CD Evals & AI Security Guardrails (Sprint 4)
+[CAN-44] Token cost optimization with prompt caching and compressed serialization. *(Owner: Yassir / Benjamin · 2h)*,"Milestone: Milestone 4: Automated CI/CD Evals & AI Security Guardrails (Sprint 4)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-44",Todo,Benjamin Sanchez Zebadua,Milestone 4: Automated CI/CD Evals & AI Security Guardrails (Sprint 4)
+[CAN-45] Containerize FastMCP server and LangGraph service; publish images to GHCR with Docker hardening. *(Owner: Benjamin · 2h)*,"Milestone: Milestone 4: Automated CI/CD Evals & AI Security Guardrails (Sprint 4)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-45",Todo,Benjamin Sanchez Zebadua,Milestone 4: Automated CI/CD Evals & AI Security Guardrails (Sprint 4)
+[CAN-51] Package `candata-mcp` with `pyproject.toml` and publish to PyPI via `uv`. *(Owner: Benjamin · 2.5h)*,"Milestone: Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-51",Todo,Benjamin Sanchez Zebadua,"Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)"
+[CAN-52] Submit server to official Anthropic MCP registry and Smithery.ai catalog. *(Owner: Benjamin / Yassir · 1.5h)*,"Milestone: Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-52",Todo,Benjamin Sanchez Zebadua,"Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)"
+[CAN-53] Deploy hosted demo and docs portal to Vercel / Streamlit Cloud. *(Owner: Benjamin / Yassir · 2h)*,"Milestone: Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-53",Todo,Benjamin Sanchez Zebadua,"Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)"
+[CAN-54] Build comprehensive bilingual README with architecture diagrams and API reference. *(Owner: Benjamin / Samir · 2h)*,"Milestone: Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-54",Todo,Benjamin Sanchez Zebadua,"Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)"
+[CAN-55] Publish enterprise case study report comparing manual research vs. agentic synthesis (4 hours vs 12 seconds). *(Owner: Yassir / Samir · 2h)*,"Milestone: Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)
+Owner: Samir Ibrahim
+Key: CAN-55",Todo,Samir Ibrahim,"Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)"
+"[CAN-61] Launch modern, results-first portfolio site (`apps/portfolio-site`) showcasing problem, solution, live milestones, and team cards. *(Owner: All · 2.5h)*","Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+Owner: Unassigned
+Key: CAN-61",Todo,Unassigned,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+[CAN-62] Update all 3 LinkedIn profiles and resumes with exact keyword alignment to Senior AI Engineer / Lead roles. *(Owner: Individual / Benjamin review · 2h)*,"Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-62",Todo,Benjamin Sanchez Zebadua,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+"[CAN-63] Prepare 1-page technical interview cheat sheets covering DuckDB vs Pandas, LangGraph state, DeepEval metrics. *(Owner: All · 2h)*","Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+Owner: Unassigned
+Key: CAN-63",Todo,Unassigned,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+[CAN-64] Direct outreach to 30 Canadian AI Engineering VPs and tech hiring managers. *(Owner: All · 2h)*,"Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+Owner: Unassigned
+Key: CAN-64",Todo,Unassigned,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)

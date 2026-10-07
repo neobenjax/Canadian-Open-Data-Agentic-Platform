@@ -20,26 +20,24 @@ It solves the **"Truth & Token Economics"** gap in Canadian public data:
 
 ### 1.2 Why Are We Doing This Together?
 1. **Proof of Work Beats 500 Resumes:** In the 2026 Canadian tech job market, blind resume applications get filtered by automated ATS screeners. By building a production-grade open-source platform, we produce verifiable receipts (code, benchmarks, live demos) that attract tech leads and recruiters directly.
-2. **The 4-Person Enterprise Advantage:** Combining 50+ years of collective experience across banking architecture, data visualization, large-scale enterprise transformation, and information security produces software that looks, feels, and operates like enterprise software.
+2. **The 3-Person Enterprise Advantage:** Combining 35+ years of collective experience across banking architecture, high-stakes data visualization, and large-scale enterprise transformation produces software that looks, feels, and operates like enterprise software.
 3. **Sustainable Pace:** Each team member commits **2 to 4 hours per week**. Working as an aligned collective ensures rapid weekly delivery without burnout.
 
 ---
 
-## 2. Meet the Collective: 4 Pillars & Real Backgrounds
+## 2. Meet the Collective: 3 Active Pillars (Core Team)
 
 ```mermaid
 flowchart TD
-    subgraph The Core AI Collective
+    subgraph The Core AI Collective (3-Person Team)
         LEAD["Benjamin Sanchez Zebadua\nSolutions Architect & Lead\n10+ Yrs Banking FinTech | IFC® | SDD"]
         SAM["Samir Ibrahim\nSenior Software & Data Viz Lead\n10+ Yrs Systems, Dashboards, Real-world Data"]
         YAS["Yassir Tagelsir Khougali\nTechnology Delivery & Transformation Lead\n15+ Yrs Enterprise ($400M+) | PMP® | Carleton MSc"]
-        MAR["Martin Torres\nAI Security, Risk & Governance Lead\n15+ Yrs Regulated Banking | Security+ | GRC"]
     end
 
-    LEAD -->|FastMCP 2.0 Core, DuckDB & Monorepo| PLATFORM[(CanData-MCP Platform)]
-    SAM -->|Ground-Truth Benchmarks & Agent Nodes| PLATFORM
-    YAS -->|Linear Delivery, HITL & Observability| PLATFORM
-    MAR -->|AI Guardrails, API Security & Governance| PLATFORM
+    LEAD -->|FastMCP 2.0 Core, DuckDB & Docker/API Security| PLATFORM[(CanData-MCP Platform)]
+    SAM -->|Benchmarks, Agent Nodes & Prompt Defense| PLATFORM
+    YAS -->|Delivery, HITL & Canadian Data Lineage| PLATFORM
 ```
 
 ### 1. Benjamin Sanchez Zebadua
@@ -63,12 +61,8 @@ flowchart TD
 - **Domain Credentials:** PMP® Certified; Carleton University Master's in Applied Business Analytics candidate (Technology Innovation Management).
 - **AI Upskilling Focus:** LangGraph Human-in-the-Loop (`interrupt()`) workflow design, OpenTelemetry / Arize Phoenix observability and token cost telemetry, stakeholder user testing scripts, and Linear.app agile delivery management.
 
-### 4. Martin Torres
-**Role:** AI Security, Risk & Governance (GRC) Lead (Episode 4 Lead)  
-🔗 **LinkedIn:** [martin-torres-cybersecurity](https://www.linkedin.com/in/martin-torres-cybersecurity/)
-- **Background:** Technology and Operational Risk professional with 15+ years in regulated banking environments specializing in technology operations, internal controls, application security, incident remediation, and business continuity. Completed the Information Security Analyst Program (Correlation One).
-- **Domain Credentials:** CompTIA Security+ Certified; Banking Technology Risk, Governance, Risk and Compliance (GRC), and Information Security.
-- **AI Upskilling Focus:** AI Guardrails, Pydantic v2 schema-enforced validation, public API security, Canadian data lineage tracking, prompt injection defenses, Docker container hardening, and DevSecOps in CI/CD.
+### Future Contributor Archive: Martin Torres
+*(Stepping back during early launch stages — profile archived in `collaboration/team-archive/martin_torres_profile.md` to be seamlessly re-onboarded in subsequent phases).*
 
 ---
 
@@ -80,7 +74,6 @@ This platform represents **Project #1 (led by Benjamin)**.
 Our team vision is to keep this collective intact across future collaborative initiatives where **other team members will step up as Project Leads**:
 - Samir can lead a future project focused on real-world decision intelligence and advanced visual analytics.
 - Yassir can lead a future project focused on enterprise AI workflow transformation and operational governance.
-- Martin can lead a future project focused on banking-grade AI security, automated guardrails, and compliance.
 
 **The Win-Win Result:** Every single member gains **both** full-stack technical commits across modern AI tools AND a **verified Team Lead credential** on their resume and LinkedIn profile.
 

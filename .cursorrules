@@ -2,11 +2,30 @@
 
 You are an expert AI software engineer pair programming on the CanData-MCP & LangGraph multi-agent platform.
 
-## MANDATORY GIT & BRANCH GUARDRAILS
+## MANDATORY GIT & BRANCH GUARDRAILS (FROM CONTRIBUTING.MD)
 1. NEVER commit directly to `main`. Branch protection requires all changes to be merged via PR with 1 peer approval.
-2. Always create a branch from latest `main`: `feat/<issue-id>-<description>` (e.g. `feat/CAN-01-update-profile`).
-3. Commit messages must use Linear keys: `[CAN-XXX] <type>: <description>`.
-4. Pull request descriptions must include `Closes CAN-XXX`.
+2. Whenever asked to work on a task (e.g., "Work on CAN-02"), automatically:
+   - Check current branch. If on `main`, pull `origin main` and branch: `git checkout -b feat/<issue-id>-<description>`.
+   - Mark in-progress: `python scripts/sync_tasks.py --mark-in-progress <issue-id>`.
+   - Implement the feature following 2026 modern standards.
+   - Run verification: `uv run ruff check .` and `uv run pytest`.
+   - Commit: `git commit -m "[CAN-XXX] feat: <description>"`.
+   - Push: `git push -u origin feat/<issue-id>-<description>`.
+   - Mark in-review: `python scripts/sync_tasks.py --mark-in-review <issue-id>`.
+   - Provide PR link with `Closes CAN-XXX` and designated triangular reviewer:
+     * Benjamin's PRs -> Assign Samir (@samiroibrahim)
+     * Samir's PRs -> Assign Yassir (@yassir-tagelsir-khougali)
+     * Yassir's PRs -> Assign Benjamin (@neobenjax)
+3. After PR merge:
+   - Mark task done in TASKS.md & Linear: `python scripts/sync_tasks.py --mark-done <issue-id>`.
+   - Purge feature branch: `git checkout main && git pull origin main && git branch -d <branch> && git push origin --delete <branch>`.
+
+## ACCOUNT SETUP & AUTOMATION COMMANDS
+- SSH Commit Signing: See `docs/DEVELOPER_SETUP_AND_AUTOMATION_GUIDE.md`. Assist developer with `git config --global gpg.format ssh` and `commit.gpgsign true`.
+- Task Tracking CLI:
+  * Check overall status: `python scripts/sync_tasks.py --status`
+  * Check member tasks: `python scripts/sync_tasks.py --owner <Name>`
+  * Sync with Linear cloud: `python scripts/sync_tasks.py --status --sync-linear`
 
 ## 2026 STANDARDS
 - Python 3.12+ with `uv` package manager. Run `uv run ruff check .` and `uv run pytest`.
@@ -14,9 +33,9 @@ You are an expert AI software engineer pair programming on the CanData-MCP & Lan
 - Design: Follow Custom Active Theme design tokens and Google Chrome's modern-web-guidance.
 - Demos: Use `frontend-slides` (https://github.com/zarazhangrui/frontend-slides) for weekly demo presentations.
 
-## ROLE SELECTION
+## ROLE SELECTION (3-PERSON CORE TEAM)
 On session start, identify which team member you are assisting:
-- Benjamin Sanchez Zebadua (Solutions Architect & Lead)
-- Samir Ibrahim (Data Viz & Evals Lead)
-- Yassir Tagelsir Khougali (Technology Delivery & Transformation Lead)
-- Martin Torres (AI Security & Risk Governance Lead)
+- Benjamin Sanchez Zebadua (Solutions Architect & Lead — Core fastMCP, DuckDB, Docker & API Security)
+- Samir Ibrahim (Data Viz & Evals Lead — Benchmarks, Reasoning Nodes, Prompt Defense & Safety)
+- Yassir Tagelsir Khougali (Technology Delivery & Transformation Lead — Delivery, HITL, Data Lineage & Governance)
+*(Martin Torres archived in collaboration/team-archive/)*
