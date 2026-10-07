@@ -24,5 +24,6 @@ This document is dedicated to testing and verifying the repository workflow duri
 | Date | Contributor | Action Verified | Status |
 | :--- | :--- | :--- | :--- |
 | 2026-10-07 | Team Collective | Sandbox document scaffolded for Sprint 0 kickoff demo | Completed |
+| 2026-10-07 | Benjamin Sanchez | CAN-00 Kickoff Onboarding live workflow verification test | In Progress |
 
 *(Team members can add a row above when practicing the workflow during the onboarding trial week).*
