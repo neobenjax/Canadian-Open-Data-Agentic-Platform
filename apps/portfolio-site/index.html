@@ -487,8 +487,10 @@
 
     .team-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 24px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+      max-width: 1120px;
+      margin: 0 auto;
     }
 
     .member-card {
@@ -928,11 +930,11 @@
               <h3>Benjamin Sanchez</h3>
               <span class="member-role">Tech Lead &amp; AI Architect</span>
               <p class="member-bio">
-                Leads system architecture, core orchestration pipelines, and deterministic tool execution for civic data synthesis.
+                Leads system architecture, FastMCP core pipelines, deterministic query execution, Docker hardening, and API rate-limiting security.
               </p>
             </div>
             <div class="member-footer">
-              <span class="role-badge">Core Architecture</span>
+              <span class="role-badge">Core &amp; Security</span>
               <a href="https://www.linkedin.com/in/benjaminsanchezzebadua/" target="_blank" rel="noopener noreferrer" class="linkedin-button">
                 LinkedIn &rarr;
               </a>
@@ -948,11 +950,11 @@
               <h3>Samir Ibrahim</h3>
               <span class="member-role">AI Systems Specialist</span>
               <p class="member-bio">
-                Designs evaluation benchmarks, validation test suites, and regression checks to ensure zero-drift output integrity.
+                Designs evaluation benchmarks, validation test suites, dynamic visualizations, and prompt injection defense guardrails.
               </p>
             </div>
             <div class="member-footer">
-              <span class="role-badge">System Evals</span>
+              <span class="role-badge">Evals &amp; Defense</span>
               <a href="https://www.linkedin.com/in/samiroibrahim/" target="_blank" rel="noopener noreferrer" class="linkedin-button">
                 LinkedIn &rarr;
               </a>
@@ -968,36 +970,18 @@
               <h3>Yassir Khougali</h3>
               <span class="member-role">Data Engineering Lead</span>
               <p class="member-bio">
-                Specializes in federated data connectors, DuckDB query optimization, schema mapping, and resilient Parquet caching.
+                Specializes in federated data connectors, DuckDB query optimization, Canadian data lineage tracking, and audit logging governance.
               </p>
             </div>
             <div class="member-footer">
-              <span class="role-badge">Data Ingestion</span>
+              <span class="role-badge">Data &amp; Lineage</span>
               <a href="https://www.linkedin.com/in/yassir-tagelsir-khougali/" target="_blank" rel="noopener noreferrer" class="linkedin-button">
                 LinkedIn &rarr;
               </a>
             </div>
           </div>
 
-          <!-- MARTIN -->
-          <div class="member-card">
-            <div>
-              <div class="photo-frame">
-                <img src="./assets/team/martin.jpg" alt="Martin Torres" onerror="this.onerror=null; this.src='https://media.licdn.com/dms/image/v2/D4E03AQEvA2mQYRvJMg/profile-displayphoto-shrink_200_200/B4EZbd63vIHcAY-/0/1747479919887?e=2147483647&v=beta&t=Ng0fm9stFHJkOrJEggBJD6MGW89fMc4hh_Vaa-_TYbM';" />
-              </div>
-              <h3>Martin Torres</h3>
-              <span class="member-role">Security &amp; Governance</span>
-              <p class="member-bio">
-                Architects API boundaries, Canadian data privacy guardrails, automated vulnerability scanning, and audit trails.
-              </p>
-            </div>
-            <div class="member-footer">
-              <span class="role-badge">Governance</span>
-              <a href="https://www.linkedin.com/in/martin-torres-cybersecurity/" target="_blank" rel="noopener noreferrer" class="linkedin-button">
-                LinkedIn &rarr;
-              </a>
-            </div>
-          </div>
+
         </div>
       </div>
     </section>
