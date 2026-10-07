@@ -28,7 +28,7 @@
   - *Goal:* Verify workflow & update developer bio.  
   - *Steps:* Claim `CAN-01` in Linear $\rightarrow$ Create branch `feat/CAN-01-profile-update` $\rightarrow$ Add personal bio and links in `ABOUT_THE_TEAM.md` $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Samir.  
   - *Estimate:* 1 hour · *Owner:* Benjamin Sanchez Zebadua
-- [ ] **CAN-02 (Samir's Onboarding Chore):**  
+- [ ] **CAN-02 (Samir's Onboarding Chore):** 
   - *Goal:* Verify workflow, update bio & draft initial benchmark questions.  
   - *Steps:* Claim `CAN-02` in Linear $\rightarrow$ Create branch `feat/CAN-02-profile-and-benchmarks` $\rightarrow$ Add personal bio in `ABOUT_THE_TEAM.md` and create `collaboration/benchmarks/benchmark_questions_draft.md` with 3 sample housing ground-truth questions $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Yassir.  
   - *Estimate:* 1 hour · *Owner:* Samir Ibrahim

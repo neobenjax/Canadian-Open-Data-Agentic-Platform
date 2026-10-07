@@ -122,47 +122,72 @@ In `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac) or `%
 
 ---
 
-## 🔄 Part 4: Task Status Synchronization Automation (`sync_tasks.py`)
+## 🔄 Part 4: Loading All Milestones & Tasks into Linear.app
 
-To ensure that [`TASKS.md`](../TASKS.md) and Linear.app never fall out of sync, we provide an automated CLI tool located at `scripts/sync_tasks.py`.
+We provide an automated CLI utility at `scripts/sync_tasks.py` that can load all 36 tasks and 7 milestones directly into Linear:
 
-### 1. Check Live Dashboard:
+### Option 4.1: Direct Guided Upload via GraphQL API
+Run:
 ```bash
-python scripts/sync_tasks.py --status
+python scripts/sync_tasks.py --upload-to-linear
 ```
-*Outputs completion percentage, grouped milestone progress, and task states across Benjamin, Samir, and Yassir.*
+- If `LINEAR_API_KEY` is not already in your environment, the script prompts you to paste it.
+- It connects to Linear, verifies the team, creates Projects for each Milestone, matches team members (Benjamin, Samir, Yassir), and creates all tasks idempotently (skips already existing tasks).
 
-### 2. See Tasks Assigned to You:
+### Option 4.2: 1-Click CSV Web Import
+If you prefer using Linear's web interface:
 ```bash
-python scripts/sync_tasks.py --owner Samir
-python scripts/sync_tasks.py --owner Yassir
-python scripts/sync_tasks.py --owner Benjamin
+python scripts/sync_tasks.py --export-csv linear_tasks_import.csv
 ```
-
-### 3. Transition Task to "In Progress":
-```bash
-python scripts/sync_tasks.py --mark-in-progress CAN-02
-```
-
-### 4. Mark Task as Done (Updates TASKS.md checkbox & Linear status):
-```bash
-python scripts/sync_tasks.py --mark-done CAN-02
-```
-*This command automatically flips `- [ ] CAN-02` to `- [x] CAN-02` in `TASKS.md` and transitions the ticket on Linear to "Done"!*
+Then navigate to: **Linear $\rightarrow$ Settings $\rightarrow$ Import / Export $\rightarrow$ Import CSV** and upload `linear_tasks_import.csv`!
 
 ---
 
-## 💬 Part 5: How Team Members Manage Status Changes
+## ⚡ Part 5: The Automated Lifecycle (TASKS.md + Linear Mirror)
 
-You have two easy ways to tackle status updates:
+Every task follows a 4-stage lifecycle synchronized between `TASKS.md` and Linear.app:
+
+```mermaid
+flowchart LR
+    A[1. TODO] -->|Agent: --mark-in-progress CAN-XX| B[2. IN PROGRESS]
+    B -->|Agent: --mark-in-review CAN-XX| C[3. IN REVIEW]
+    C -->|Agent: --mark-done CAN-XX| D[4. DONE]
+```
+
+### 1. Starting a Task (TODO $\rightarrow$ IN PROGRESS):
+When a developer says: *"I'm going to work on CAN-02"*:
+```bash
+python scripts/sync_tasks.py --mark-in-progress CAN-02 --assignee Samir
+```
+- **In Linear:** Task moves to **In Progress** and is assigned to Samir.
+- **In TASKS.md:** Updated to `- [ ] **CAN-02 (Samir's Onboarding Chore):** [IN PROGRESS] ...`
+
+### 2. Ready for Pull Request (IN PROGRESS $\rightarrow$ IN REVIEW):
+When the code is written, verified, and the PR branch is pushed:
+```bash
+python scripts/sync_tasks.py --mark-in-review CAN-02
+```
+- **In Linear:** Task moves to **In Review**.
+- **In TASKS.md:** Updated to `- [ ] **CAN-02 (Samir's Onboarding Chore):** [IN REVIEW] ...`
+
+### 3. PR Merged (IN REVIEW $\rightarrow$ DONE):
+When the PR is approved and merged into `main`:
+```bash
+python scripts/sync_tasks.py --mark-done CAN-02
+```
+- **In Linear:** Task moves to **Done**.
+- **In TASKS.md:** Checkbox flips to `- [x] **CAN-02 (Samir's Onboarding Chore):** ...`
+
+---
+
+## 💬 Part 6: How Team Members Manage Status Changes
 
 ### Method A: Asking Your AI Agent (Zero-Friction)
-You can simply instruct your agent:
-> *"I have finished CAN-02. Please mark it as completed in TASKS.md and update Linear."*
+Team members can simply instruct their agent:
+- *"I am starting work on CAN-02"* $\rightarrow$ Agent runs `sync_tasks.py --mark-in-progress CAN-02`.
+- *"I'm pushing the PR for CAN-02"* $\rightarrow$ Agent runs `sync_tasks.py --mark-in-review CAN-02`.
+- *"PR has been merged for CAN-02"* $\rightarrow$ Agent runs `sync_tasks.py --mark-done CAN-02`.
 
-The Agent will:
-1. Run `python scripts/sync_tasks.py --mark-done CAN-02` (or use Linear MCP).
-2. Stage and commit the `TASKS.md` checkbox update alongside your Pull Request.
 
 ### Method B: Manual Linear UI Changes (Visual Board)
 1. Open the board: [https://linear.app/canopendataagenticplatform/team/CAN/active](https://linear.app/canopendataagenticplatform/team/CAN/active).

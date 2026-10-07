@@ -79,7 +79,13 @@ You MUST execute the exact workflow defined in [`CONTRIBUTING.md`](CONTRIBUTING.
    git push -u origin feat/<issue-id>-<short-description>
    ```
 
-7. **Prepare PR with Triangular Review Assignment:**
+7. **Mark In-Review:**
+   Transition task state on Linear & TASKS.md:
+   ```bash
+   python scripts/sync_tasks.py --mark-in-review CAN-XXX
+   ```
+
+8. **Prepare PR with Triangular Review Assignment:**
    Provide the developer with:
    - PR Title: `[CAN-XXX] feat: description of change`
    - PR Body containing `Closes CAN-XXX`
@@ -89,7 +95,7 @@ You MUST execute the exact workflow defined in [`CONTRIBUTING.md`](CONTRIBUTING.
      - **Yassir's PRs** $\rightarrow$ Request review from **Benjamin** (`@neobenjax`)
    - Remind the developer that GitHub requires 1 approved review before merging into `main`.
 
-8. **Task Completion & Post-Merge Cleanup:**
+9. **Task Completion & Post-Merge Cleanup:**
    After the PR is merged on GitHub:
    - Update `TASKS.md` checkbox and Linear status: `python scripts/sync_tasks.py --mark-done CAN-XXX`
    - Purge the feature branch:

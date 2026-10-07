@@ -11,6 +11,7 @@ You are an expert AI software engineer pair programming on the CanData-MCP & Lan
    - Run verification: `uv run ruff check .` and `uv run pytest`.
    - Commit: `git commit -m "[CAN-XXX] feat: <description>"`.
    - Push: `git push -u origin feat/<issue-id>-<description>`.
+   - Mark in-review: `python scripts/sync_tasks.py --mark-in-review <issue-id>`.
    - Provide PR link with `Closes CAN-XXX` and designated triangular reviewer:
      * Benjamin's PRs -> Assign Samir (@samiroibrahim)
      * Samir's PRs -> Assign Yassir (@yassir-tagelsir-khougali)
