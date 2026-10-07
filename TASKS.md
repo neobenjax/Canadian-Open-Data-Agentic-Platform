@@ -24,7 +24,7 @@
 **Goal:** Verify that every team member can connect to Linear, create a feature branch, edit a purposeful file, push a commit, open a Pull Request, conduct a peer review via the triangular review loop, and merge to `main` with GitHub branch protection enabled. Zero project coding required.
 
 ### Feature 0.1: Developer Environment & Profile Verification Chores
-- [ ] **CAN-00 (Kickoff Onboarding Workflow Test Sandbox):** 
+- [ ] **CAN-00 (Kickoff Onboarding Workflow Test Sandbox):** [IN REVIEW] 
   - *Goal:* Verify end-to-end Gitflow & Linear synchronization workflow during the onboarding kickoff meeting without altering personal profile tasks.  
   - *Steps:* Pick up `CAN-00` in Linear $\rightarrow$ Set status `IN PROGRESS` $\rightarrow$ Create branch `feat/CAN-00-test-workflow-sandbox` $\rightarrow$ Add or modify test entry in `collaboration/tests/sandbox.md` $\rightarrow$ Push branch $\rightarrow$ Set status `IN REVIEW` $\rightarrow$ Open PR $\rightarrow$ Triangular peer review $\rightarrow$ Merge to `main` $\rightarrow$ Set status `DONE` $\rightarrow$ Purge feature branch.  
   - *Estimate:* 15 min · *Owner:* All Team Members (Kickoff Live Demo)
