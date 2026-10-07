@@ -24,6 +24,69 @@ flowchart TD
 
 ---
 
+## 🧪 Live Kickoff Meeting Demonstration: The Sandbox Task (`CAN-00`)
+
+To demonstrate the full gitflow and Linear status synchronization during the kickoff meeting **without consuming or touching anyone's personal onboarding chore**, use the dedicated test ticket:
+
+- **Issue Key:** `CAN-00`
+- **Title:** `[CAN-00] Kickoff Onboarding Workflow Test Sandbox`
+- **Target File:** `collaboration/tests/sandbox.md`
+
+### Live Step-by-Step Demo Script:
+
+1. **Pick up the task & set status to `IN PROGRESS`:**
+   ```bash
+   python scripts/sync_tasks.py --mark-in-progress CAN-00 --assignee Benjamin
+   ```
+   *(Linear moves `CAN-00` card to **In Progress** and `TASKS.md` marks `[IN PROGRESS]`)*
+
+2. **Branch from `main`:**
+   ```bash
+   git checkout main && git pull origin main
+   git checkout -b feat/CAN-00-test-workflow-sandbox
+   ```
+
+3. **Make test edit in `collaboration/tests/sandbox.md`:**
+   Add a verification row in the table:
+   ```markdown
+   | 2026-10-07 | Benjamin Sanchez | Live demo during onboarding kickoff | Passed |
+   ```
+
+4. **Pre-Flight check, commit, and push:**
+   ```bash
+   uv run ruff check .
+   git add collaboration/tests/sandbox.md
+   git commit -m "[CAN-00] test: live demonstration of gitflow and linear sync"
+   git push -u origin feat/CAN-00-test-workflow-sandbox
+   ```
+
+5. **Set status to `IN REVIEW` & open PR:**
+   ```bash
+   python scripts/sync_tasks.py --mark-in-review CAN-00
+   ```
+   Open PR on GitHub with Title `[CAN-00] test: live demonstration of gitflow and linear sync` and body:
+   ```markdown
+   ## Description
+   Live meeting demonstration of branch protection, commit signing, and review workflow.
+   
+   Closes CAN-00
+   ```
+
+6. **Peer Approval & Merge:**
+   - Reviewer clicks **Approve** on GitHub.
+   - Author clicks **Squash and Merge**.
+
+7. **Set status to `DONE` & Purge Branch:**
+   ```bash
+   python scripts/sync_tasks.py --mark-done CAN-00
+   git checkout main && git pull origin main
+   git branch -d feat/CAN-00-test-workflow-sandbox
+   git push origin --delete feat/CAN-00-test-workflow-sandbox
+   ```
+   *(Linear card is moved to **Done**, `TASKS.md` checkbox becomes `[x]`, and the branch is clean).*
+
+---
+
 ## 🔄 The Triangular Peer Review Loop
 
 With our 3-person core team (**Benjamin**, **Samir**, **Yassir**), code reviews follow a clear triangular cycle so everyone reviews real code and no single person becomes a bottleneck:

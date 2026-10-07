@@ -1,4 +1,7 @@
 Title,Description,Status,Assignee,Project
+[CAN-00] Verify end-to-end Gitflow & Linear synchronization workflow during the onboarding kickoff meeting without altering personal profile tasks.,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Owner: Unassigned
+Key: CAN-00",Todo,Unassigned,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 [CAN-01] Verify workflow & update developer bio.,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 Owner: Benjamin Sanchez Zebadua
 Key: CAN-01",Todo,Benjamin Sanchez Zebadua,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
