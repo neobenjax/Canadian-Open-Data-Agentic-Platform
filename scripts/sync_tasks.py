@@ -903,19 +903,43 @@ def reconcile_git_linear_tasks(api_key: Optional[str] = None):
     print("✅ GitHub commit & PR reconciliation complete!")
 
 
-def create_github_pr_for_task(issue_key: str, repo_name: str = "neobenjax/Canadian-Open-Data-Agentic-Platform", base_branch: str = "main"):
+def get_github_collaborators(repo_name: str, token: str) -> List[str]:
+    """Fetch list of verified collaborator logins for repository."""
+    url = f"https://api.github.com/repos/{repo_name}/collaborators"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "CanData-Sync/1.0"
+    }
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read().decode())
+            return [c.get("login") for c in data if c.get("login")]
+    except Exception:
+        return []
+
+
+def create_github_pr_for_task(
+    issue_key: str,
+    repo_name: str = "neobenjax/Canadian-Open-Data-Agentic-Platform",
+    base_branch: str = "main",
+    reviewer: Optional[str] = None,
+    non_interactive: bool = False,
+):
     """
     Automate Pull Request creation and Triangular Review assignment via GitHub API:
     1. Reads GITHUB_TOKEN from .env or os.environ.
     2. Detects current active git branch (e.g. feat/CAN-08-...).
     3. Resolves task title & description from TASKS.md.
     4. Automatically resolves designated triangular reviewer:
-       - Benjamin Sanchez -> Samir Ibrahim (@samiroibrahim)
-       - Samir Ibrahim    -> Yassir Khougali (@yassir-tagelsir-khougali)
+       - Benjamin Sanchez -> Samir Omer (@samiromer2)
+       - Samir Ibrahim    -> Yassir Khougali (@yassirtmk)
        - Yassir Khougali  -> Benjamin Sanchez (@neobenjax)
-    5. Calls GitHub API to create PR with 'Closes CAN-XXX'.
-    6. Calls GitHub API to assign the reviewer.
-    7. Transitions task to IN REVIEW locally and in Linear!
+    5. Prompts for Human-in-the-Loop (HITL) reviewer validation (unless --yes / non_interactive).
+    6. Calls GitHub API to create PR with 'Closes CAN-XXX'.
+    7. Calls GitHub API to assign the reviewer(s).
+    8. Transitions task to IN REVIEW locally and in Linear!
     """
     load_dotenv()
     token = os.environ.get("GITHUB_TOKEN")
@@ -939,16 +963,65 @@ def create_github_pr_for_task(issue_key: str, repo_name: str = "neobenjax/Canadi
     title = f"[{task['key']}] feat: {task['description']}"
     body = f"## Summary\nAutomated PR creation for {task['key']}: {task['description']}.\n\nCloses {task['key']}"
 
-    # Determine reviewer
+    # Determine default triangular reviewer
     owner_str = task["owner"].lower()
     if "benjamin" in owner_str:
-        reviewer = "samiroibrahim"
+        default_reviewer = "samiromer2"
     elif "samir" in owner_str:
-        reviewer = "yassir-tagelsir-khougali"
+        default_reviewer = "yassirtmk"
     elif "yassir" in owner_str:
-        reviewer = "neobenjax"
+        default_reviewer = "neobenjax"
     else:
-        reviewer = "samiroibrahim"
+        default_reviewer = "samiromer2"
+
+    collaborators = get_github_collaborators(repo_name, token)
+
+    # Human-in-the-Loop (HITL) Reviewer Selection
+    target_reviewers: List[str] = []
+    if reviewer:
+        # Reviewer provided explicitly via argument
+        target_reviewers = [r.strip().lstrip("@") for r in reviewer.split(",") if r.strip()]
+    elif non_interactive or not sys.stdin.isatty():
+        # Non-interactive mode: accept default triangular reviewer
+        target_reviewers = [default_reviewer]
+    else:
+        print("\n" + "=" * 74)
+        print(" 🍁 HUMAN-IN-THE-LOOP (HITL) REVIEWER VALIDATION")
+        print("=" * 74)
+        print(f"Task:    [{task['key']}] {task['description']}")
+        print(f"Owner:   {task['owner']}")
+        print(f"Branch:  {branch}")
+        print(f"Default Triangular Reviewer: @{default_reviewer}")
+        if collaborators:
+            print(f"Active Collaborators:        {', '.join(['@' + c for c in collaborators])}")
+        print("-" * 74)
+        print("Reviewer Options:")
+        print(f"  [1] Confirm default reviewer (@{default_reviewer})")
+        print("  [2] Enter custom reviewer(s) (comma-separated)")
+        print("  [3] Skip reviewer assignment")
+        
+        try:
+            choice = input(f"Select option [1/2/3, Enter for default @{default_reviewer}]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            choice = "1"
+
+        if choice == "2":
+            try:
+                custom_input = input("Enter GitHub username(s) (e.g. samiromer2, yassirtmk): ").strip()
+                target_reviewers = [r.strip().lstrip("@") for r in custom_input.split(",") if r.strip()]
+            except (EOFError, KeyboardInterrupt):
+                target_reviewers = [default_reviewer]
+        elif choice == "3":
+            target_reviewers = []
+            print("Skipping reviewer assignment.")
+        else:
+            target_reviewers = [default_reviewer]
+
+    # Validate against collaborator list
+    if collaborators and target_reviewers:
+        for r in target_reviewers:
+            if r not in collaborators:
+                print(f"⚠️ Warning: User @{r} is not a listed collaborator on {repo_name}. GitHub may ignore review requests until invited.", file=sys.stderr)
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -983,13 +1056,14 @@ def create_github_pr_for_task(issue_key: str, repo_name: str = "neobenjax/Canadi
             print(f"GitHub PR creation error: {e.code} {e.read().decode()}", file=sys.stderr)
             return
 
-    if pr and reviewer:
+    if pr and target_reviewers:
         pr_num = pr["number"]
         rev_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_num}/requested_reviewers"
-        req = urllib.request.Request(rev_url, data=json.dumps({"reviewers": [reviewer]}).encode("utf-8"), headers=headers)
+        req = urllib.request.Request(rev_url, data=json.dumps({"reviewers": target_reviewers}).encode("utf-8"), headers=headers)
         try:
             with urllib.request.urlopen(req) as resp:
-                print(f"✅ Assigned reviewer @{reviewer} to PR #{pr_num}")
+                assigned_list = [f"@{r}" for r in target_reviewers]
+                print(f"✅ Assigned reviewer(s) {', '.join(assigned_list)} to PR #{pr_num}")
         except Exception as e:
             print(f"Notice assigning reviewer: {e}", file=sys.stderr)
 
@@ -1064,6 +1138,8 @@ def main():
     parser.add_argument("--organize-projects", action="store_true", help="Organize parent project, lead, and milestone sub-projects")
     parser.add_argument("--reconcile-git", action="store_true", help="Reconcile GitHub merged PRs (CAN-00) and active PRs (CAN-02) on Linear")
     parser.add_argument("--create-pr", type=str, metavar="KEY", help="Create GitHub Pull Request and assign triangular reviewer automatically")
+    parser.add_argument("--reviewer", type=str, help="GitHub username(s) to assign as reviewer(s), comma-separated")
+    parser.add_argument("--yes", "-y", action="store_true", help="Non-interactive mode: auto-confirm default triangular reviewer")
     parser.add_argument("--upload-to-linear", action="store_true", help="Interactively upload all TASKS.md tasks to Linear")
     parser.add_argument("--export-csv", type=str, nargs="?", const="linear_tasks_import.csv", help="Export tasks to CSV for Linear import")
     parser.add_argument("--mark-todo", type=str, metavar="KEY", help="Set task state to TODO")
@@ -1093,7 +1169,7 @@ def main():
         return
 
     if args.create_pr:
-        create_github_pr_for_task(args.create_pr.upper())
+        create_github_pr_for_task(args.create_pr.upper(), reviewer=args.reviewer, non_interactive=args.yes)
         return
 
     if args.upload_to_linear:

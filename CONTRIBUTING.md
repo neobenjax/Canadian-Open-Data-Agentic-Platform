@@ -67,13 +67,17 @@ flowchart LR
    git push -u origin feat/CAN-02-profile-and-benchmarks
    ```
 
-6. **Open a Pull Request:**
-   - Go to GitHub and open a PR targeting `main`.
-   - Ensure the PR description includes `Closes CAN-XXX`.
-   - Assign your assigned peer reviewer based on the **Triangular Review Cycle**:
-     - **Benjamin's PRs** $\rightarrow$ Request review from **Samir** (`@samiroibrahim`)
-     - **Samir's PRs** $\rightarrow$ Request review from **Yassir** (`@yassir-tagelsir-khougali`)
-     - **Yassir's PRs** $\rightarrow$ Request review from **Benjamin** (`@neobenjax`)
+6. **Open a Pull Request & Triangular Review Assignment:**
+   - **Automated Option (Recommended):** Let your AI agent or CLI create the PR:
+     ```bash
+     python scripts/sync_tasks.py --create-pr CAN-XXX
+     ```
+     This triggers an interactive **Human-in-the-Loop (HITL)** prompt to confirm or customize reviewers.
+   - **Manual Option:** Go to GitHub and open a PR targeting `main` with `Closes CAN-XXX` in the description.
+   - **Triangular Review Cycle:**
+     - **Benjamin's PRs** $\rightarrow$ Request review from **Samir Omer** (`@samiromer2`)
+     - **Samir's PRs** $\rightarrow$ Request review from **Yassir Khougali** (`@yassirtmk`)
+     - **Yassir's PRs** $\rightarrow$ Request review from **Benjamin Sanchez** (`@neobenjax`)
 
 7. **Address Feedback, Approve & Merge:**
    - Once your teammate approves the PR, merge it into `main`.
@@ -102,7 +106,9 @@ The Agent will automatically:
 2. Implement your code modifications.
 3. Run `uv run ruff check .` and `uv run pytest`.
 4. Commit with `[CAN-02] feat: ...`.
-5. Push the feature branch and generate your PR link with your designated triangular reviewer.
+5. Push the feature branch and mark the task in-review.
+6. Proactively ask you: *"Would you like me to open the Pull Request for you, or do you prefer to open it manually?"*
+7. Execute Human-in-the-Loop (HITL) validation to confirm or adjust your reviewer (`@samiromer2`, `@yassirtmk`, or `@neobenjax`) before opening the PR.
 
 ---
 

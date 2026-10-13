@@ -12,10 +12,14 @@ You are an expert AI software engineer pair programming on the CanData-MCP & Lan
    - Commit: `git commit -m "[CAN-XXX] feat: <description>"`.
    - Push: `git push -u origin feat/<issue-id>-<description>`.
    - Mark in-review: `python scripts/sync_tasks.py --mark-in-review <issue-id>`.
-   - Provide PR link with `Closes CAN-XXX` and designated triangular reviewer:
-     * Benjamin's PRs -> Assign Samir (@samiroibrahim)
-     * Samir's PRs -> Assign Yassir (@yassir-tagelsir-khougali)
-     * Yassir's PRs -> Assign Benjamin (@neobenjax)
+   - Proactive PR Prompt & HITL Reviewer Validation (MANDATORY):
+     * Proactively ask developer: "Would you like me to open the Pull Request for you, or do you prefer to open it manually?"
+     * HITL Reviewer Check: Before creating the PR, confirm if developer wants default triangular reviewer:
+       - Benjamin's PRs -> Default: Samir Omer (@samiromer2)
+       - Samir's PRs    -> Default: Yassir Khougali (@yassirtmk)
+       - Yassir's PRs   -> Default: Benjamin Sanchez (@neobenjax)
+     * If automated: create PR via GitHub API / `python scripts/sync_tasks.py --create-pr <issue-id>`.
+     * If manual: provide PR link, title, body with `Closes <issue-id>`, and reviewer handle.
 3. After PR merge:
    - Mark task done in TASKS.md & Linear: `python scripts/sync_tasks.py --mark-done <issue-id>`.
    - Purge feature branch: `git checkout main && git pull origin main && git branch -d <branch> && git push origin --delete <branch>`.
