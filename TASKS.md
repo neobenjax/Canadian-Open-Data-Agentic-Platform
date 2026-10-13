@@ -12,7 +12,6 @@
 
 ## 📅 Team Cadence & Communication Guidelines
 - **Weekly Time Commitment:** 2 to 4 hours per week per team member. Flexible pace with weekly plan adaptations.
-- **Daily Async Check-in:** Brief message in the WhatsApp group before 10:00 AM EST (Done yesterday, Today's focus, Blockers).
 - **Weekly Sync Meeting:** Weekly progression demo meeting (Day & time agreed weekly).
 - **Demo Rule:** Every member creates a brief 2-3 slide presentation using `/frontend-slides` ([repo](https://github.com/zarazhangrui/frontend-slides)) showcasing screenshots, metrics, and progress.
 - **Support Rule:** *"Never Silently Blocked"* — stuck for >2 hours or day job is demanding? Flag it early so a teammate can pair up or rebalance tasks.
@@ -27,7 +26,7 @@
 - [x] **CAN-00 (Kickoff Onboarding Workflow Test Sandbox):** 
   - *Goal:* Verify end-to-end Gitflow & Linear synchronization workflow during the onboarding kickoff meeting without altering personal profile tasks.  
   - *Steps:* Pick up `CAN-00` in Linear $\rightarrow$ Set status `IN PROGRESS` $\rightarrow$ Create branch `feat/CAN-00-test-workflow-sandbox` $\rightarrow$ Add or modify test entry in `collaboration/tests/sandbox.md` $\rightarrow$ Push branch $\rightarrow$ Set status `IN REVIEW` $\rightarrow$ Open PR $\rightarrow$ Triangular peer review $\rightarrow$ Merge to `main` $\rightarrow$ Set status `DONE` $\rightarrow$ Purge feature branch.  
-  - *Estimate:* 15 min · *Owner:* All Team Members (Kickoff Live Demo)
+  - *Estimate:* 15 min · *Owner:* Benjamin Sanchez Zebadua
 - [ ] **CAN-01 (Benjamin's Onboarding Chore):**  
   - *Goal:* Verify workflow & update developer bio.  
   - *Steps:* Claim `CAN-01` in Linear $\rightarrow$ Create branch `feat/CAN-01-profile-update` $\rightarrow$ Add personal bio and links in `ABOUT_THE_TEAM.md` $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Samir.  
@@ -48,10 +47,7 @@
     - Samir's PR $\rightarrow$ Reviewed & approved by Yassir
     - Yassir's PR $\rightarrow$ Reviewed & approved by Benjamin  
   - *Steps:* Each member reviews and approves their assigned teammate's PR $\rightarrow$ Merge PR into `main` $\rightarrow$ Purge merged feature branch.  
-  - *Estimate:* 1 hour · *Owner:* All Team Members
-- [ ] **CAN-06 (WhatsApp Async Routine Test):**  
-  - *Goal:* Post first 2-minute daily check-in on WhatsApp before 10:00 AM EST.  
-  - *Estimate:* 15 min · *Owner:* All Team Members
+  - *Estimate:* 1 hour · *Owner:* Benjamin Sanchez Zebadua
 
 ---
 
@@ -139,7 +135,7 @@
 **Goal:** Launch results-first portfolio site, update resumes and LinkedIn profiles, and begin targeted recruiter outreach.
 
 ### Feature 6.1: Portfolio Showcase & Career Launch
-- [ ] **CAN-61:** Launch modern, results-first portfolio site (`apps/portfolio-site`) showcasing problem, solution, live milestones, and team cards. *(Owner: All · 2.5h)*
+- [ ] **CAN-61:** Launch modern, results-first portfolio site (`apps/portfolio-site`) showcasing problem, solution, live milestones, and team cards. *(Owner: Benjamin Sanchez Zebadua · 2.5h)*
 - [ ] **CAN-62:** Update all 3 LinkedIn profiles and resumes with exact keyword alignment to Senior AI Engineer / Lead roles. *(Owner: Individual / Benjamin review · 2h)*
-- [ ] **CAN-63:** Prepare 1-page technical interview cheat sheets covering DuckDB vs Pandas, LangGraph state, DeepEval metrics. *(Owner: All · 2h)*
-- [ ] **CAN-64:** Direct outreach to 30 Canadian AI Engineering VPs and tech hiring managers. *(Owner: All · 2h)*
+- [ ] **CAN-63:** Prepare 1-page technical interview cheat sheets covering DuckDB vs Pandas, LangGraph state, DeepEval metrics. *(Owner: Benjamin Sanchez Zebadua · 2h)*
+- [ ] **CAN-64:** Direct outreach to 30 Canadian AI Engineering VPs and tech hiring managers. *(Owner: Benjamin Sanchez Zebadua · 2h)*

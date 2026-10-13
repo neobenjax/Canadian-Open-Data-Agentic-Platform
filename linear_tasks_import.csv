@@ -1,7 +1,7 @@
 Title,Description,Status,Assignee,Project
 [CAN-00] Verify end-to-end Gitflow & Linear synchronization workflow during the onboarding kickoff meeting without altering personal profile tasks.,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 Owner: Unassigned
-Key: CAN-00",Todo,Unassigned,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Key: CAN-00",Done,Unassigned,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 [CAN-01] Verify workflow & update developer bio.,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 Owner: Benjamin Sanchez Zebadua
 Key: CAN-01",Todo,Benjamin Sanchez Zebadua,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
@@ -14,9 +14,6 @@ Key: CAN-03",Todo,Yassir Tagelsir Khougali,Milestone 0: Team Onboarding & Gitflo
 [CAN-05] Verify that GitHub blocks direct pushes to `main` and enforces the 1-approval requirement across the triangular review cycle:,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 Owner: Unassigned
 Key: CAN-05",Todo,Unassigned,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
-[CAN-06] Post first 2-minute daily check-in on WhatsApp before 10:00 AM EST.,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
-Owner: Unassigned
-Key: CAN-06",Todo,Unassigned,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 "[CAN-11] Implement async HTTPX client for Statistics Canada WDS API (metadata discovery, vector lookup, SDMX cube slice with HTTP caching). *(Owner: Benjamin / Yassir · 2h)*","Milestone: Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
 Owner: Benjamin Sanchez Zebadua
 Key: CAN-11",Todo,Benjamin Sanchez Zebadua,Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
@@ -98,15 +95,15 @@ Key: CAN-54",Todo,Benjamin Sanchez Zebadua,"Milestone 5: PyPI Release, Cloud Hos
 [CAN-55] Publish enterprise case study report comparing manual research vs. agentic synthesis (4 hours vs 12 seconds). *(Owner: Yassir / Samir · 2h)*,"Milestone: Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)
 Owner: Samir Ibrahim
 Key: CAN-55",Todo,Samir Ibrahim,"Milestone 5: PyPI Release, Cloud Hosting & Public Beta (Sprint 5)"
-"[CAN-61] Launch modern, results-first portfolio site (`apps/portfolio-site`) showcasing problem, solution, live milestones, and team cards. *(Owner: All · 2.5h)*","Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
-Owner: Unassigned
-Key: CAN-61",Todo,Unassigned,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+"[CAN-61] Launch modern, results-first portfolio site (`apps/portfolio-site`) showcasing problem, solution, live milestones, and team cards. *(Owner: Benjamin Sanchez Zebadua · 2.5h)*","Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-61",Todo,Benjamin Sanchez Zebadua,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
 [CAN-62] Update all 3 LinkedIn profiles and resumes with exact keyword alignment to Senior AI Engineer / Lead roles. *(Owner: Individual / Benjamin review · 2h)*,"Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
 Owner: Benjamin Sanchez Zebadua
 Key: CAN-62",Todo,Benjamin Sanchez Zebadua,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
-"[CAN-63] Prepare 1-page technical interview cheat sheets covering DuckDB vs Pandas, LangGraph state, DeepEval metrics. *(Owner: All · 2h)*","Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
-Owner: Unassigned
-Key: CAN-63",Todo,Unassigned,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
-[CAN-64] Direct outreach to 30 Canadian AI Engineering VPs and tech hiring managers. *(Owner: All · 2h)*,"Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
-Owner: Unassigned
-Key: CAN-64",Todo,Unassigned,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+"[CAN-63] Prepare 1-page technical interview cheat sheets covering DuckDB vs Pandas, LangGraph state, DeepEval metrics. *(Owner: Benjamin Sanchez Zebadua · 2h)*","Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-63",Todo,Benjamin Sanchez Zebadua,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+[CAN-64] Direct outreach to 30 Canadian AI Engineering VPs and tech hiring managers. *(Owner: Benjamin Sanchez Zebadua · 2h)*,"Milestone: Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-64",Todo,Benjamin Sanchez Zebadua,Milestone 6: Recruiter Blitz & Portfolio Showcase (Sprint 6)

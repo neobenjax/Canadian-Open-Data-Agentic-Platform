@@ -187,16 +187,17 @@ def parse_tasks_md(filepath: str = TASKS_FILE) -> Dict[str, Any]:
             desc = t_match.group(5).strip()
 
             # If description is empty on the same line, check following lines for *Goal:*
-            if not desc:
-                for next_idx in range(idx + 1, min(idx + 4, len(lines))):
-                    next_line = lines[next_idx].strip()
-                    if next_line.startswith("- *Goal:*"):
-                        desc = next_line.replace("- *Goal:*", "").strip()
-                        break
-                    elif next_line.startswith("- ["):
-                        break
-                if not desc and owner_info:
-                    desc = owner_info
+            extra_owner = ""
+            for next_idx in range(idx + 1, min(idx + 12, len(lines))):
+                next_line = lines[next_idx].strip()
+                if not desc and next_line.startswith("- *Goal:*"):
+                    desc = next_line.replace("- *Goal:*", "").strip()
+                if "*Owner:*" in next_line:
+                    extra_owner = next_line.split("*Owner:*")[1].strip()
+                elif next_line.startswith("- ["):
+                    break
+            if not desc and owner_info:
+                desc = owner_info
 
             status = "TODO"
             if is_checkbox_done:
@@ -205,13 +206,14 @@ def parse_tasks_md(filepath: str = TASKS_FILE) -> Dict[str, Any]:
                 status = explicit_status.upper()
 
             owner = "Unassigned"
-            if "Benjamin" in owner_info or "Benjamin" in desc:
+            search_str = f"{owner_info} {desc} {extra_owner}"
+            if "Benjamin" in search_str:
                 owner = "Benjamin Sanchez Zebadua"
-            elif "Samir" in owner_info or "Samir" in desc:
+            elif "Samir" in search_str:
                 owner = "Samir Ibrahim"
-            elif "Yassir" in owner_info or "Yassir" in desc:
+            elif "Yassir" in search_str:
                 owner = "Yassir Tagelsir Khougali"
-            elif "All" in owner_info:
+            elif "All" in search_str:
                 owner = "All Team Members"
 
             tasks.append({
