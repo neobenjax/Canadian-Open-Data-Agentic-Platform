@@ -4,7 +4,7 @@ This file links directly to the root team registry:
 👉 See [ABOUT_THE_TEAM.md](../../ABOUT_THE_TEAM.md) for full individual profile cards, backgrounds, and LinkedIn URLs.
 
 ### Active Core Directory (3-Person Team)
-- **Benjamin Sanchez Zebadua** — [LinkedIn](https://www.linkedin.com/in/benjaminsanchezzebadua/) · Solutions Architect & Lead
+- **Benjamin Sanchez Zebadua** — [Profile](team/benjamin_sanchez_profile.md) · [LinkedIn](https://www.linkedin.com/in/benjaminsanchezzebadua/) · [GitHub](https://github.com/neobenjax) · Solutions Architect & Lead
 - **Samir Ibrahim** — [LinkedIn](https://www.linkedin.com/in/samiroibrahim/) · Data Viz & Evaluation Lead
 - **Yassir Tagelsir Khougali** — [LinkedIn](https://www.linkedin.com/in/yassir-tagelsir-khougali/) · Technology Delivery & Transformation Lead
 

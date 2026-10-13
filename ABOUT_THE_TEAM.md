@@ -10,11 +10,12 @@ All three members are committed to hands-on AI and Agentic development, pairing 
 
 ### 1. Benjamin Sanchez Zebadua
 **Role:** Project Lead & Solutions Architect (Episode 1 Lead)  
-🔗 **LinkedIn:** [benjaminsanchezzebadua](https://www.linkedin.com/in/benjaminsanchezzebadua/)
+🔗 **LinkedIn:** [benjaminsanchezzebadua](https://www.linkedin.com/in/benjaminsanchezzebadua/) · 💻 **GitHub:** [@neobenjax](https://github.com/neobenjax) · 🌐 **Portfolio:** [benjaminsz.com](https://benjaminsz.com) · ✉️ **Contact:** [benjaminsz.work@gmail.com](mailto:benjaminsz.work@gmail.com)  
+📄 **Detailed Architecture Profile:** [`collaboration/team/benjamin_sanchez_profile.md`](collaboration/team/benjamin_sanchez_profile.md)
 
-- **Professional Summary:** Frontend Infrastructure Engineer & Solutions Architect with over a decade of experience scaling high-volume banking technology and FinTech platforms. Expert in monorepo architectures, developer enablement pipelines, scalable design systems, and high-traffic web performance. Led multi-scrum teams through native-to-mobile infrastructure overhauls safeguarding digital banking for 2M+ active users.
-- **Domain Credentials:** Postgraduate Diploma in Financial Planning & Wealth Management; IFC® Certified (Investment Funds in Canada); Spec-Driven Development (SDD) & FinTech compliance.
-- **Hands-On AI Focus in Project:** FastMCP 2.0 protocol core, DuckDB 1.2+ Apache Arrow vectorized query engine, LangGraph state graph architecture, PyPI packaging, monorepo governance, Docker container hardening, and public API rate-limiting security.
+- **Professional Summary:** Senior Full Stack Engineer & Solutions Architect with over a decade of experience delivering secure, customer-centric applications and scaling high-volume banking technology. Expert in modern full-stack architectures (React, Node.js, TypeScript), monorepos, developer enablement pipelines, and AI Spec-Driven Development (SDD). Led multi-scrum teams through major native-to-mobile infrastructure overhauls safeguarding digital banking for 20M+ active users.
+- **Domain Credentials:** AI Development using Spec-Driven Development (SDD); FinTech development and compliance; Postgraduate Diploma in Financial Planning & Wealth Management; IFC® Certified (Investment Funds in Canada).
+- **Hands-On AI Focus in Project:** FastMCP 2.0 protocol core, DuckDB 1.2+ Apache Arrow vectorized query engine, LangGraph state graph architecture, Next.js 15 documentation portal, PyPI packaging, monorepo governance, Docker container hardening, and public API rate-limiting security.
 
 ---
 
