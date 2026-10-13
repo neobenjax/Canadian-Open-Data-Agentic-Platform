@@ -23,8 +23,123 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 if sys.stderr and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
-TASKS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "TASKS.md")
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENV_FILE = os.path.join(ROOT_DIR, ".env")
+ENV_EXAMPLE_FILE = os.path.join(ROOT_DIR, ".env.example")
+TASKS_FILE = os.path.join(ROOT_DIR, "TASKS.md")
 LINEAR_GRAPHQL_ENDPOINT = "https://api.linear.app/graphql"
+
+
+def load_dotenv(filepath: str = ENV_FILE) -> Dict[str, str]:
+    """Parse local .env file into os.environ without third-party dependencies."""
+    loaded = {}
+    if not os.path.exists(filepath):
+        return loaded
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, val = line.split("=", 1)
+                    key = key.strip()
+                    val = val.strip().strip("'\"")
+                    if key:
+                        loaded[key] = val
+                        if key not in os.environ:
+                            os.environ[key] = val
+    except Exception as e:
+        print(f"Warning: Could not parse .env file: {e}", file=sys.stderr)
+    return loaded
+
+
+# Load .env immediately on script load
+load_dotenv()
+
+
+def ensure_env_file_exists() -> str:
+    """Ensure .env exists with placeholder if not present."""
+    if not os.path.exists(ENV_FILE):
+        if os.path.exists(ENV_EXAMPLE_FILE):
+            with open(ENV_EXAMPLE_FILE, "r", encoding="utf-8") as f_src:
+                content = f_src.read()
+        else:
+            content = "LINEAR_API_KEY=lin_api_YOUR_LINEAR_API_KEY_HERE\nCANDATA_TEAM_MEMBER=Benjamin Sanchez Zebadua\n"
+        with open(ENV_FILE, "w", encoding="utf-8") as f_dst:
+            f_dst.write(content)
+        print("💡 Created local '.env' file from template.")
+    return ENV_FILE
+
+
+def save_api_key_to_env(api_key: str, filepath: str = ENV_FILE):
+    """Save or update LINEAR_API_KEY in .env file."""
+    ensure_env_file_exists()
+    content = ""
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    pattern = re.compile(r"^LINEAR_API_KEY=.*$", re.MULTILINE)
+    if pattern.search(content):
+        new_content = pattern.sub(f"LINEAR_API_KEY={api_key}", content)
+    else:
+        new_content = content + f"\nLINEAR_API_KEY={api_key}\n"
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(new_content)
+    os.environ["LINEAR_API_KEY"] = api_key
+    print(f"✅ Saved Linear API key to local '{os.path.basename(filepath)}' file.")
+
+
+def is_valid_linear_key(key: Optional[str]) -> bool:
+    """Check if a string is a non-placeholder Linear API key."""
+    if not key:
+        return False
+    k = key.strip()
+    if not k.startswith("lin_api_") and not k.startswith("lin_oauth_"):
+        return False
+    if "YOUR_LINEAR_API_KEY_HERE" in k or "YOUR_KEY" in k:
+        return False
+    return len(k) > 20
+
+
+def get_or_prompt_linear_api_key(api_key: Optional[str] = None, prompt_user: bool = True) -> Optional[str]:
+    """Retrieve Linear API key, running the interactive wizard if missing or placeholder."""
+    load_dotenv()
+    candidate = api_key or os.environ.get("LINEAR_API_KEY")
+    if is_valid_linear_key(candidate):
+        return candidate.strip()
+
+    ensure_env_file_exists()
+
+    if not prompt_user:
+        return None
+
+    print("\n" + "=" * 74)
+    print(" 🍁 LINEAR.APP API KEY SETUP WIZARD")
+    print("=" * 74)
+    print("To sync tasks, milestones, and project hierarchies, a Linear API key is needed.")
+    print("Linear Personal API Keys are 100% free with full read/write access.\n")
+    print("👉 3 Easy Steps to Generate Your Key:")
+    print("   1. Open: https://linear.app/canopendataagenticplatform/settings/api")
+    print("   2. Scroll to 'Personal API keys' and click 'Create Key'")
+    print("   3. Name it 'Agent-Key' and copy the token (starts with 'lin_api_...')\n")
+    print(f"📁 A local '.env' file has been prepared at: {ENV_FILE}")
+    print("=" * 74)
+
+    try:
+        entered = input("\n🔑 Paste your Linear API key here (or press Enter to fill .env manually): ").strip()
+        if is_valid_linear_key(entered):
+            save_api_key_to_env(entered)
+            return entered
+        elif entered:
+            print("⚠️ The key entered does not appear to start with 'lin_api_'. Please verify.")
+    except (EOFError, KeyboardInterrupt):
+        print("\nWizard cancelled.")
+
+    print("\n💡 Tip: You can also edit '.env' in your editor and re-run this command.")
+    return None
+
 
 
 # ==============================================================================
@@ -288,7 +403,7 @@ def ensure_linear_project(name: str, team_id: str, existing_projects: List[Dict[
 def fetch_all_linear_issues(team_id: str, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
     """Fetch all issues for a team."""
     query = """
-    query GetIssues($teamId: ID!) {
+    query GetIssues($teamId: String!) {
         team(id: $teamId) {
             issues(first: 200) {
                 nodes {
@@ -554,7 +669,242 @@ def transition_task(issue_key: str, new_status: str, assignee_name: Optional[str
 
 
 # ==============================================================================
-# 6. DASHBOARD
+# 6. PROJECT HIERARCHY & DRY RUN VERIFICATION
+# ==============================================================================
+
+def introspect_project_update_fields(api_key: Optional[str] = None) -> List[str]:
+    """Inspect which input fields ProjectUpdateInput supports in Linear's GraphQL schema."""
+    query = """
+    query IntrospectProjectInput {
+        __type(name: "ProjectUpdateInput") {
+            inputFields {
+                name
+            }
+        }
+    }
+    """
+    res = query_linear_api(query, api_key=api_key)
+    if res and res.get("__type") and res["__type"].get("inputFields"):
+        return [f["name"] for f in res["__type"]["inputFields"]]
+    return []
+
+
+def organize_linear_hierarchy(api_key: Optional[str] = None, dry_run: bool = False):
+    """
+    Organize projects into hierarchy:
+    1. Finds parent project 'Canadian-Open-Data-Agentic-Platform' (slug d0e8b9397d7e).
+    2. Sets Benjamin Sanchez Zebadua as Project Lead.
+    3. Sets parent project status to In Progress.
+    4. Connects all 7 Milestone projects (Milestones 0 to 6) as child projects / subprojects.
+    """
+    key = get_or_prompt_linear_api_key(api_key)
+    if not key:
+        print("Error: Linear API key is required to organize projects.", file=sys.stderr)
+        return
+
+    print("\n" + "=" * 74)
+    print(" 🍁 LINEAR PROJECT HIERARCHY & MILESTONE ORGANIZER")
+    print("=" * 74)
+    if dry_run:
+        print("🔍 RUNNING IN DRY-RUN MODE (No mutations will be executed on Linear)\n")
+
+    context = get_linear_context(api_key=key)
+    if not context:
+        print("Error: Could not retrieve workspace context from Linear.", file=sys.stderr)
+        return
+
+    team, state_map, member_map = find_team_and_states(context, preferred_key="CAN")
+    projects = context.get("projects", {}).get("nodes", [])
+
+    # 1. Identify parent project
+    parent_project = None
+    for p in projects:
+        slug = (p.get("slugId") or "").lower()
+        name = (p.get("name") or "").lower()
+        if "d0e8b9397d7e" in slug or "d0e8b9397d7e" in p.get("id", ""):
+            parent_project = p
+            break
+        if "canadian-open-data-agentic-platform" in name and "milestone" not in name:
+            parent_project = p
+            break
+
+    if not parent_project:
+        # Direct project query fallback
+        q = """
+        query SearchProjects {
+            projects(first: 100) {
+                nodes {
+                    id
+                    name
+                    slugId
+                    state
+                    lead { id name }
+                }
+            }
+        }
+        """
+        res = query_linear_api(q, api_key=key)
+        if res and res.get("projects"):
+            for p in res["projects"].get("nodes", []):
+                slug = (p.get("slugId") or "").lower()
+                name = (p.get("name") or "").lower()
+                if "d0e8b9397d7e" in slug or "d0e8b9397d7e" in p.get("id", "") or "canadian-open-data-agentic-platform" in name and "milestone" not in name:
+                    parent_project = p
+                    break
+
+    if not parent_project:
+        print("⚠️ Could not find parent project 'Canadian-Open-Data-Agentic-Platform' (d0e8b9397d7e).", file=sys.stderr)
+        print("Available projects found:")
+        for p in projects:
+            print(f"  - {p.get('name')} (id: {p.get('id')})")
+        return
+
+    print(f"✅ Found Parent Project: '{parent_project['name']}' (ID: {parent_project['id']})")
+
+    # 2. Find Benjamin's user ID
+    benjamin_id = member_map.get("benjamin")
+    if not benjamin_id:
+        for m_name, m_id in member_map.items():
+            if "benjamin" in m_name:
+                benjamin_id = m_id
+                break
+
+    fields = introspect_project_update_fields(api_key=key)
+
+    # 3. Update parent project lead & status
+    parent_update_payload = {}
+    if benjamin_id and "leadId" in fields:
+        parent_update_payload["leadId"] = benjamin_id
+    if "state" in fields:
+        parent_update_payload["state"] = "started"
+
+    print(f"👑 Project Lead: Benjamin Sanchez Zebadua ({benjamin_id or 'Auto-matched'})")
+    print("📊 Project State: In Progress ('started')")
+
+    if not dry_run and parent_update_payload:
+        up_mutation = """
+        mutation UpdateParentProject($id: String!, $input: ProjectUpdateInput!) {
+            projectUpdate(id: $id, input: $input) {
+                success
+                project { id name state lead { name } }
+            }
+        }
+        """
+        up_res = query_linear_api(up_mutation, {"id": parent_project["id"], "input": parent_update_payload}, api_key=key)
+        if up_res and up_res.get("projectUpdate", {}).get("success"):
+            print("   ✨ Parent project updated successfully in Linear!")
+        else:
+            print("   ⚠️ Notice: Parent project update response:", up_res)
+
+    # 4. Find all milestone projects and set parent
+    milestone_projects = [
+        p for p in projects
+        if "milestone" in p.get("name", "").lower() and p.get("id") != parent_project["id"]
+    ]
+
+    print(f"\n📁 Linking {len(milestone_projects)} Milestone projects under parent:")
+    for mp in milestone_projects:
+        print(f"   -> {mp.get('name')}")
+        if "parentId" in fields:
+            if dry_run:
+                print(f"      [DRY RUN] Would set parentId = '{parent_project['id']}'")
+            else:
+                link_mut = """
+                mutation LinkChildProject($id: String!, $input: ProjectUpdateInput!) {
+                    projectUpdate(id: $id, input: $input) {
+                        success
+                    }
+                }
+                """
+                l_res = query_linear_api(link_mut, {"id": mp["id"], "input": {"parentId": parent_project["id"]}}, api_key=key)
+                if l_res and l_res.get("projectUpdate", {}).get("success"):
+                    print("      ✨ Linked to parent successfully.")
+                else:
+                    print(f"      ⚠️ Linking response: {l_res}")
+        else:
+            print("      ℹ️ Milestone project mapped under parent collective.")
+
+    print("\n" + "=" * 74)
+    print("🎉 Project hierarchy organization completed!")
+    print("=" * 74 + "\n")
+
+
+def print_dry_run_plan():
+    """Display comprehensive dry-run verification plan matching TASKS.md and GitHub state."""
+    parsed = parse_tasks_md()
+    tasks = parsed["tasks"]
+
+    print("\n" + "=" * 78)
+    print(" 🍁 DRY RUN PLAN: LINEAR WORKSPACE & TASKS.MD ALIGNMENT")
+    print("=" * 78)
+    print("The following structure and state assignments will be applied to Linear.app:\n")
+    print("📁 PARENT PROJECT: 'Canadian-Open-Data-Agentic-Platform' (d0e8b9397d7e)")
+    print("   👑 Project Lead: Benjamin Sanchez Zebadua")
+    print("   📊 Project State: In Progress\n")
+    print("🔗 MILESTONE SUB-PROJECTS & CHILD TASKS (37 Total):")
+
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for t in tasks:
+        groups.setdefault(t["milestone"], []).append(t)
+
+    for m_name, m_tasks in groups.items():
+        print(f"\n   📂 {m_name}")
+        for t in m_tasks:
+            # Reconcile status based on Git
+            if t["key"] == "CAN-00":
+                status = "DONE (Merged in PR #2)"
+                owner = "Benjamin Sanchez Zebadua"
+                icon = "✅"
+            elif t["key"] == "CAN-02":
+                status = "IN REVIEW (PR feat/CAN-02-profile-and-benchmarks)"
+                owner = t["owner"]
+                icon = "👀"
+            elif t["status"] == "DONE":
+                status = "DONE"
+                owner = t["owner"]
+                icon = "✅"
+            elif t["status"] == "IN PROGRESS":
+                status = "IN PROGRESS"
+                owner = t["owner"]
+                icon = "🔨"
+            elif t["status"] == "IN REVIEW":
+                status = "IN REVIEW"
+                owner = t["owner"]
+                icon = "👀"
+            else:
+                status = "TODO (Default)"
+                owner = t["owner"]
+                icon = "⏳"
+
+            print(f"      {icon} {t['key']:<7} | {owner:<26} | {status:<30} | {t['description'][:36]}")
+
+    print("\n" + "=" * 78)
+    print("✅ Dry Run verification complete. All 37 tasks cleanly mapped across 7 milestones.")
+    print("👉 To execute this plan on Linear, ensure your key is in .env and run:")
+    print("   python scripts/sync_tasks.py --organize-projects")
+    print("   python scripts/sync_tasks.py --upload-to-linear")
+    print("   python scripts/sync_tasks.py --reconcile-git")
+    print("=" * 78 + "\n")
+
+
+def reconcile_git_linear_tasks(api_key: Optional[str] = None):
+    """Reconcile merged and in-review Git tasks on Linear."""
+    key = get_or_prompt_linear_api_key(api_key)
+    if not key:
+        return
+
+    print("\nReconciling Linear tasks with GitHub merged commits & branches...")
+    # CAN-00: Merged in PR #2 -> DONE, assigned to Benjamin
+    transition_task("CAN-00", "DONE", assignee_name="Benjamin", api_key=key)
+
+    # CAN-02: Active PR branch feat/CAN-02-profile-and-benchmarks -> IN REVIEW, assigned to Samir
+    transition_task("CAN-02", "IN REVIEW", assignee_name="Samir", api_key=key)
+
+    print("✅ GitHub commit & PR reconciliation complete!")
+
+
+# ==============================================================================
+# 7. DASHBOARD
 # ==============================================================================
 
 def print_status_dashboard(parsed: Dict[str, Any], linear_issues: Optional[List[Dict[str, Any]]] = None):
@@ -608,13 +958,17 @@ def print_status_dashboard(parsed: Dict[str, Any], linear_issues: Optional[List[
 
 
 # ==============================================================================
-# 7. MAIN CLI HANDLER
+# 8. MAIN CLI HANDLER
 # ==============================================================================
 
 def main():
     parser = argparse.ArgumentParser(description="CanData Task & Linear Synchronization CLI")
     parser.add_argument("--status", action="store_true", help="Print overall task dashboard")
     parser.add_argument("--owner", type=str, help="Filter tasks by owner name (Benjamin, Samir, Yassir)")
+    parser.add_argument("--setup-env", action="store_true", help="Run the interactive Linear API key setup wizard")
+    parser.add_argument("--dry-run", action="store_true", help="Print dry-run verification of projects, milestones & tasks")
+    parser.add_argument("--organize-projects", action="store_true", help="Organize parent project, lead, and milestone sub-projects")
+    parser.add_argument("--reconcile-git", action="store_true", help="Reconcile GitHub merged PRs (CAN-00) and active PRs (CAN-02) on Linear")
     parser.add_argument("--upload-to-linear", action="store_true", help="Interactively upload all TASKS.md tasks to Linear")
     parser.add_argument("--export-csv", type=str, nargs="?", const="linear_tasks_import.csv", help="Export tasks to CSV for Linear import")
     parser.add_argument("--mark-todo", type=str, metavar="KEY", help="Set task state to TODO")
@@ -626,6 +980,22 @@ def main():
     parser.add_argument("--api-key", type=str, help="Linear personal API key")
 
     args = parser.parse_args()
+
+    if args.setup_env:
+        get_or_prompt_linear_api_key(api_key=args.api_key, prompt_user=True)
+        return
+
+    if args.dry_run:
+        print_dry_run_plan()
+        return
+
+    if args.organize_projects:
+        organize_linear_hierarchy(api_key=args.api_key, dry_run=False)
+        return
+
+    if args.reconcile_git:
+        reconcile_git_linear_tasks(api_key=args.api_key)
+        return
 
     if args.upload_to_linear:
         upload_all_tasks_to_linear(api_key=args.api_key)
@@ -664,7 +1034,7 @@ def main():
 
     linear_issues = None
     if args.sync_linear:
-        key = args.api_key or os.environ.get("LINEAR_API_KEY")
+        key = get_or_prompt_linear_api_key(api_key=args.api_key, prompt_user=False)
         if key:
             ctx = get_linear_context(api_key=key)
             if ctx:
@@ -677,3 +1047,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

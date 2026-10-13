@@ -63,26 +63,41 @@ When pushed to GitHub, your commit will show a green **Verified** badge.
 
 ---
 
-## 📋 Part 2: Linear.app Workspace & Personal API Key
+## 📋 Part 2: Linear.app Workspace & Frictionless `.env` Setup
 
 Our team tracks cycles and epics in Linear:
 - **Workspace:** [https://linear.app/canopendataagenticplatform/team/CAN/active](https://linear.app/canopendataagenticplatform/team/CAN/active)
 - **Team Key:** `CAN` (Issues format: `CAN-01`, `CAN-02`, etc.)
 - **Free Tier Confirmation:** Linear Personal API Keys (`lin_api_...`) are **100% free** and provide full read/write access to list, create, and transition tasks.
 
-### Step 2.1: Generate Your Personal API Key
-1. Go to Linear: [linear.app/canopendataagenticplatform](https://linear.app/canopendataagenticplatform).
-2. Click your avatar (bottom left) $\rightarrow$ **Settings** $\rightarrow$ **Account** $\rightarrow$ **Security & Access**.
-3. Under **Personal API keys**, click **Create Key**.
-4. Name it `Agent-Key` and copy the secret token (`lin_api_...`).
-5. Add it to your local environment (e.g. in your `.env` or shell profile):
-   ```bash
-   # Windows PowerShell
-   [System.Environment]::SetEnvironmentVariable('LINEAR_API_KEY', 'lin_api_YOUR_TOKEN', 'User')
+### Step 2.1: The 1-Step Interactive Setup Wizard (Fastest)
+Whenever you run any command in `scripts/sync_tasks.py` without an API key, the script **automatically detects the missing key, scaffolds a local `.env` file, and guides you**:
 
-   # macOS / Linux (bash/zsh)
-   export LINEAR_API_KEY="lin_api_YOUR_TOKEN"
-   ```
+```bash
+python scripts/sync_tasks.py --setup-env
+```
+
+1. It directs you to [https://linear.app/canopendataagenticplatform/settings/api](https://linear.app/canopendataagenticplatform/settings/api).
+2. Under **Personal API keys**, click **Create Key**, name it `Agent-Key`, and copy your token (`lin_api_...`).
+3. Paste it directly into the prompt:
+   - The CLI automatically saves it into your local `.env` file (which is gitignored).
+   - You will never have to re-enter it again!
+
+### Step 2.2: Manual `.env` Configuration (Alternative)
+You can also set up `.env` manually:
+```bash
+# Windows PowerShell
+Copy-Item .env.example .env
+
+# macOS / Linux (bash/zsh)
+cp .env.example .env
+```
+Open `.env` in your editor and replace the placeholder:
+```env
+LINEAR_API_KEY=lin_api_YOUR_ACTUAL_TOKEN_HERE
+CANDATA_TEAM_MEMBER=Your Name
+```
+*(Because `.env` is listed in `.gitignore`, your secret token is safe and will never be pushed to GitHub).*
 
 ---
 
