@@ -39,6 +39,10 @@
   - *Goal:* Verify workflow, update bio & add meeting notes template.  
   - *Steps:* Claim `CAN-03` in Linear $\rightarrow$ Create branch `feat/CAN-03-profile-and-meeting-notes` $\rightarrow$ Add personal bio in `ABOUT_THE_TEAM.md` and create `collaboration/meetings/sprint_0_trial_notes.md` with weekly sync template $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Benjamin.  
   - *Estimate:* 1 hour · *Owner:* Yassir Tagelsir Khougali
+- [ ] **CAN-08 (Linear .env Wizard, Project Hierarchy & PR Automation):** [IN REVIEW] 
+  - *Goal:* Automated Linear API onboarding wizard, parent project hierarchy reorganization, automated PR creation via GitHub API, and proactive HITL reviewer protocols.  
+  - *Steps:* Set up zero-dependency `.env` wizard $\rightarrow$ Reorganize Linear hierarchy into Option 1 $\rightarrow$ Implement automated PR & HITL reviewer protocol $\rightarrow$ Open PR #4 $\rightarrow$ Request review from Samir.  
+  - *Estimate:* 2 hours · *Owner:* Benjamin Sanchez Zebadua
 
 ### Feature 0.2: Triangular Peer Review & Branch Protection Verification
 - [ ] **CAN-05 (Branch Protection & PR Approval Test):**  

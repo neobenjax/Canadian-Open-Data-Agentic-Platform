@@ -16,14 +16,20 @@ This file defines the mandatory operating rules, developer guardrails, and perso
   ```
   *(Example: `feat/CAN-01-update-team-profile` — note that `CAN-01` refers to the Linear issue key).*
 
-### 2. The Linear Issue Linking Guardrail
+### 2. The Linear Issue Linking & Auto-Closing Guardrail (Full-Circle Integration)
 - Every feature or bug fix corresponds to a Linear task from workspace:  
-  `https://linear.app/canopendataagenticplatform/team/CAN/active`.
-- Always format commit messages with the Linear issue key:
+  `https://linear.app/canopendataagenticplatform/team/BEN/active`.
+- **Commit Formatting:** Always format git commits with the Linear task key:
   ```bash
   git commit -m "[CAN-XXX] feat: description of change"
   ```
-- Always include `Closes CAN-XXX` in Pull Request descriptions so Linear automatically marks the card as Done upon merge.
+- **PR Dual-Key Auto-Closing Rule:** Linear's underlying team key is **`BEN`**. GitHub's native Linear integration **only auto-closes issues when referenced by their native team key** (`BEN-XX`). Therefore, PR descriptions MUST include both keys:
+  ```markdown
+  Closes BEN-XX
+  Closes CAN-XXX
+  ```
+  *(Example: `CAN-02` corresponds to `BEN-6`, `CAN-08` corresponds to `BEN-42`).*
+- **Linked Documentation Deliverable:** Every feature PR should include a linked documentation file in `docs/` or `collaboration/` (e.g. `collaboration/benchmarks/benchmark_questions_draft.md` for CAN-02, `docs/CAN_08_ONBOARDING_AND_ENV_AUTOMATION.md` for CAN-08) documenting deliverables, traps, and verification.
 
 ### 3. The 2026 Modern Engineering Standards
 - **Python:** Use `uv` package manager, Python 3.12+, strict type hints (`pyright`), Ruff formatting. Follow [python-best-practices](https://github.com/ludo-technologies/python-best-practices).
@@ -107,7 +113,7 @@ You MUST execute the exact workflow defined in [`CONTRIBUTING.md`](CONTRIBUTING.
    - **Path B: Developer chooses Manual PR Creation:**
      Provide the developer with the pre-formatted PR details so they can copy-paste them to GitHub:
      - PR Title: `[CAN-XXX] feat: description of change`
-     - PR Body containing `Closes CAN-XXX`
+     - PR Body containing `Closes BEN-XX` and `Closes CAN-XXX` (where `BEN-XX` is the native Linear issue key)
      - Reviewer Assignment: `@samiromer2`, `@yassirtmk`, or `@neobenjax`
      - Compare & Pull Request URL: `https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform/pull/new/feat/<issue-id>-<short-description>`
 

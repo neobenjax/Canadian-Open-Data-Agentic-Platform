@@ -1,7 +1,7 @@
 Title,Description,Status,Assignee,Project
 [CAN-00] Verify end-to-end Gitflow & Linear synchronization workflow during the onboarding kickoff meeting without altering personal profile tasks.,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
-Owner: Unassigned
-Key: CAN-00",Done,Unassigned,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-00",Done,Benjamin Sanchez Zebadua,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 [CAN-01] Verify workflow & update developer bio.,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 Owner: Benjamin Sanchez Zebadua
 Key: CAN-01",Todo,Benjamin Sanchez Zebadua,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
@@ -11,9 +11,12 @@ Key: CAN-02",Todo,Samir Ibrahim,Milestone 0: Team Onboarding & Gitflow Trial Wee
 "[CAN-03] Verify workflow, update bio & add meeting notes template.","Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 Owner: Yassir Tagelsir Khougali
 Key: CAN-03",Todo,Yassir Tagelsir Khougali,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+"[CAN-08] Automated Linear API onboarding wizard, parent project hierarchy reorganization, automated PR creation via GitHub API, and proactive HITL reviewer protocols.","Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-08",Todo,Benjamin Sanchez Zebadua,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 [CAN-05] Verify that GitHub blocks direct pushes to `main` and enforces the 1-approval requirement across the triangular review cycle:,"Milestone: Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
-Owner: Unassigned
-Key: CAN-05",Todo,Unassigned,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
+Owner: Benjamin Sanchez Zebadua
+Key: CAN-05",Todo,Benjamin Sanchez Zebadua,Milestone 0: Team Onboarding & Gitflow Trial Week (Sprint 0)
 "[CAN-11] Implement async HTTPX client for Statistics Canada WDS API (metadata discovery, vector lookup, SDMX cube slice with HTTP caching). *(Owner: Benjamin / Yassir · 2h)*","Milestone: Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)
 Owner: Benjamin Sanchez Zebadua
 Key: CAN-11",Todo,Benjamin Sanchez Zebadua,Milestone 1: FastMCP 2.0 Core & Ground-Truth Benchmarks (Sprint 1)

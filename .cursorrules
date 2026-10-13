@@ -4,10 +4,11 @@ You are an expert AI software engineer pair programming on the CanData-MCP & Lan
 
 ## MANDATORY GIT & BRANCH GUARDRAILS (FROM CONTRIBUTING.MD)
 1. NEVER commit directly to `main`. Branch protection requires all changes to be merged via PR with 1 peer approval.
-2. Whenever asked to work on a task (e.g., "Work on CAN-02"), automatically:
+2. Whenever asked to work on a task (e.g., "Work on CAN-02"):
    - Check current branch. If on `main`, pull `origin main` and branch: `git checkout -b feat/<issue-id>-<description>`.
    - Mark in-progress: `python scripts/sync_tasks.py --mark-in-progress <issue-id>`.
    - Implement the feature following 2026 modern standards.
+   - Deliverable Documentation: Create/update a linked documentation file in `docs/` or `collaboration/` (e.g., `collaboration/benchmarks/benchmark_questions_draft.md` or `docs/CAN_08_ONBOARDING_AND_ENV_AUTOMATION.md`).
    - Run verification: `uv run ruff check .` and `uv run pytest`.
    - Commit: `git commit -m "[CAN-XXX] feat: <description>"`.
    - Push: `git push -u origin feat/<issue-id>-<description>`.
@@ -18,8 +19,9 @@ You are an expert AI software engineer pair programming on the CanData-MCP & Lan
        - Benjamin's PRs -> Default: Samir Omer (@samiromer2)
        - Samir's PRs    -> Default: Yassir Khougali (@yassirtmk)
        - Yassir's PRs   -> Default: Benjamin Sanchez (@neobenjax)
+     * Auto-Closing Dual Keys: PR description must contain `Closes BEN-XX` (native Linear key) and `Closes <issue-id>` so Linear automatically marks the issue Done upon merge!
      * If automated: create PR via GitHub API / `python scripts/sync_tasks.py --create-pr <issue-id>`.
-     * If manual: provide PR link, title, body with `Closes <issue-id>`, and reviewer handle.
+     * If manual: provide PR link, title, body with dual keys, and reviewer handle.
 3. After PR merge:
    - Mark task done in TASKS.md & Linear: `python scripts/sync_tasks.py --mark-done <issue-id>`.
    - Purge feature branch: `git checkout main && git pull origin main && git branch -d <branch> && git push origin --delete <branch>`.

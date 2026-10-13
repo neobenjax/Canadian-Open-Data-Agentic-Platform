@@ -963,7 +963,26 @@ def create_github_pr_for_task(
         return
 
     title = f"[{task['key']}] feat: {task['description']}"
-    body = f"## Summary\nAutomated PR creation for {task['key']}: {task['description']}.\n\nCloses {task['key']}"
+
+    # Auto-resolve native Linear identifier (e.g. BEN-42) to enable Linear GitHub auto-closing
+    linear_close_lines = [f"Closes {task['key']}"]
+    linear_api_key = get_or_prompt_linear_api_key(prompt_user=False)
+    if linear_api_key:
+        try:
+            ctx = get_linear_context(api_key=linear_api_key)
+            if ctx:
+                team, _, _ = find_team_and_states(ctx, preferred_key="CAN")
+                if team:
+                    linear_issues = fetch_all_linear_issues(team["id"], api_key=linear_api_key)
+                    for iss in linear_issues:
+                        if task['key'].upper() in iss["title"].upper() or task['key'].upper() == iss["identifier"].upper():
+                            if iss["identifier"].upper() != task['key'].upper():
+                                linear_close_lines.insert(0, f"Closes {iss['identifier']}")
+                            break
+        except Exception:
+            pass
+
+    body = f"## Summary\nAutomated PR creation for {task['key']}: {task['description']}.\n\n" + "\n".join(linear_close_lines)
 
     # Determine default triangular reviewer
     owner_str = task["owner"].lower()
