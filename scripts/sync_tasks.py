@@ -903,6 +903,100 @@ def reconcile_git_linear_tasks(api_key: Optional[str] = None):
     print("✅ GitHub commit & PR reconciliation complete!")
 
 
+def create_github_pr_for_task(issue_key: str, repo_name: str = "neobenjax/Canadian-Open-Data-Agentic-Platform", base_branch: str = "main"):
+    """
+    Automate Pull Request creation and Triangular Review assignment via GitHub API:
+    1. Reads GITHUB_TOKEN from .env or os.environ.
+    2. Detects current active git branch (e.g. feat/CAN-08-...).
+    3. Resolves task title & description from TASKS.md.
+    4. Automatically resolves designated triangular reviewer:
+       - Benjamin Sanchez -> Samir Ibrahim (@samiroibrahim)
+       - Samir Ibrahim    -> Yassir Khougali (@yassir-tagelsir-khougali)
+       - Yassir Khougali  -> Benjamin Sanchez (@neobenjax)
+    5. Calls GitHub API to create PR with 'Closes CAN-XXX'.
+    6. Calls GitHub API to assign the reviewer.
+    7. Transitions task to IN REVIEW locally and in Linear!
+    """
+    load_dotenv()
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        print("Error: GITHUB_TOKEN is not configured in .env.", file=sys.stderr)
+        print("Please add GITHUB_TOKEN=ghp_... to your local .env file.", file=sys.stderr)
+        return
+
+    import subprocess
+    try:
+        branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
+    except Exception:
+        branch = ""
+
+    parsed = parse_tasks_md()
+    task = next((t for t in parsed["tasks"] if t["key"].upper() == issue_key.upper()), None)
+    if not task:
+        print(f"Error: Task {issue_key} not found in TASKS.md.", file=sys.stderr)
+        return
+
+    title = f"[{task['key']}] feat: {task['description']}"
+    body = f"## Summary\nAutomated PR creation for {task['key']}: {task['description']}.\n\nCloses {task['key']}"
+
+    # Determine reviewer
+    owner_str = task["owner"].lower()
+    if "benjamin" in owner_str:
+        reviewer = "samiroibrahim"
+    elif "samir" in owner_str:
+        reviewer = "yassir-tagelsir-khougali"
+    elif "yassir" in owner_str:
+        reviewer = "neobenjax"
+    else:
+        reviewer = "samiroibrahim"
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "CanData-Sync/1.0",
+        "Content-Type": "application/json"
+    }
+
+    # Check for existing open PR
+    check_url = f"https://api.github.com/repos/{repo_name}/pulls?head={repo_name.split('/')[0]}:{branch}&state=open"
+    req = urllib.request.Request(check_url, headers=headers)
+    existing_prs = []
+    try:
+        with urllib.request.urlopen(req) as resp:
+            existing_prs = json.loads(resp.read().decode())
+    except Exception as e:
+        print(f"Warning checking existing PRs: {e}", file=sys.stderr)
+
+    pr = None
+    if existing_prs:
+        pr = existing_prs[0]
+        print(f"ℹ️ Open Pull Request already exists: #{pr['number']} ({pr['html_url']})")
+    else:
+        create_url = f"https://api.github.com/repos/{repo_name}/pulls"
+        payload = json.dumps({"title": title, "body": body, "head": branch, "base": base_branch}).encode("utf-8")
+        req = urllib.request.Request(create_url, data=payload, headers=headers)
+        try:
+            with urllib.request.urlopen(req) as resp:
+                pr = json.loads(resp.read().decode())
+                print(f"✨ Created Pull Request #{pr['number']}: {pr['html_url']}")
+        except urllib.error.HTTPError as e:
+            print(f"GitHub PR creation error: {e.code} {e.read().decode()}", file=sys.stderr)
+            return
+
+    if pr and reviewer:
+        pr_num = pr["number"]
+        rev_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_num}/requested_reviewers"
+        req = urllib.request.Request(rev_url, data=json.dumps({"reviewers": [reviewer]}).encode("utf-8"), headers=headers)
+        try:
+            with urllib.request.urlopen(req) as resp:
+                print(f"✅ Assigned reviewer @{reviewer} to PR #{pr_num}")
+        except Exception as e:
+            print(f"Notice assigning reviewer: {e}", file=sys.stderr)
+
+    # Transition task to IN REVIEW locally and on Linear
+    transition_task(issue_key, "IN REVIEW")
+
+
 # ==============================================================================
 # 7. DASHBOARD
 # ==============================================================================
@@ -969,6 +1063,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Print dry-run verification of projects, milestones & tasks")
     parser.add_argument("--organize-projects", action="store_true", help="Organize parent project, lead, and milestone sub-projects")
     parser.add_argument("--reconcile-git", action="store_true", help="Reconcile GitHub merged PRs (CAN-00) and active PRs (CAN-02) on Linear")
+    parser.add_argument("--create-pr", type=str, metavar="KEY", help="Create GitHub Pull Request and assign triangular reviewer automatically")
     parser.add_argument("--upload-to-linear", action="store_true", help="Interactively upload all TASKS.md tasks to Linear")
     parser.add_argument("--export-csv", type=str, nargs="?", const="linear_tasks_import.csv", help="Export tasks to CSV for Linear import")
     parser.add_argument("--mark-todo", type=str, metavar="KEY", help="Set task state to TODO")
@@ -995,6 +1090,10 @@ def main():
 
     if args.reconcile_git:
         reconcile_git_linear_tasks(api_key=args.api_key)
+        return
+
+    if args.create_pr:
+        create_github_pr_for_task(args.create_pr.upper())
         return
 
     if args.upload_to_linear:
