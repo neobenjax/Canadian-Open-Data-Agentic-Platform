@@ -45,7 +45,7 @@
   - *Estimate:* 2 hours · *Owner:* Benjamin Sanchez Zebadua
 
 ### Feature 0.2: Triangular Peer Review & Branch Protection Verification
-- [ ] **CAN-05 (Branch Protection & PR Approval Test):**  
+- [ ] **CAN-05 (Branch Protection & PR Approval Test):** [IN REVIEW] 
   - *Goal:* Verify that GitHub blocks direct pushes to `main` and enforces the 1-approval requirement across the triangular review cycle:
     - Benjamin's PR $\rightarrow$ Reviewed & approved by Samir
     - Samir's PR $\rightarrow$ Reviewed & approved by Yassir
