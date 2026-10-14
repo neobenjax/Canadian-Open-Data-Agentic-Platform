@@ -16,14 +16,20 @@ This file defines the mandatory operating rules, developer guardrails, and perso
   ```
   *(Example: `feat/CAN-01-update-team-profile` — note that `CAN-01` refers to the Linear issue key).*
 
-### 2. The Linear Issue Linking Guardrail
+### 2. The Linear Issue Linking & Auto-Closing Guardrail (Full-Circle Integration)
 - Every feature or bug fix corresponds to a Linear task from workspace:  
-  `https://linear.app/canopendataagenticplatform/team/CAN/active`.
-- Always format commit messages with the Linear issue key:
+  `https://linear.app/canopendataagenticplatform/team/BEN/active`.
+- **Commit Formatting:** Always format git commits with the Linear task key:
   ```bash
   git commit -m "[CAN-XXX] feat: description of change"
   ```
-- Always include `Closes CAN-XXX` in Pull Request descriptions so Linear automatically marks the card as Done upon merge.
+- **PR Dual-Key Auto-Closing Rule:** Linear's underlying team key is **`BEN`**. GitHub's native Linear integration **only auto-closes issues when referenced by their native team key** (`BEN-XX`). Therefore, PR descriptions MUST include both keys:
+  ```markdown
+  Closes BEN-XX
+  Closes CAN-XXX
+  ```
+  *(Example: `CAN-02` corresponds to `BEN-6`, `CAN-08` corresponds to `BEN-42`).*
+- **Linked Documentation Deliverable:** Every feature PR should include a linked documentation file in `docs/` or `collaboration/` (e.g. `collaboration/benchmarks/benchmark_questions_draft.md` for CAN-02, `docs/CAN_08_ONBOARDING_AND_ENV_AUTOMATION.md` for CAN-08) documenting deliverables, traps, and verification.
 
 ### 3. The 2026 Modern Engineering Standards
 - **Python:** Use `uv` package manager, Python 3.12+, strict type hints (`pyright`), Ruff formatting. Follow [python-best-practices](https://github.com/ludo-technologies/python-best-practices).
@@ -85,18 +91,34 @@ You MUST execute the exact workflow defined in [`CONTRIBUTING.md`](CONTRIBUTING.
    python scripts/sync_tasks.py --mark-in-review CAN-XXX
    ```
 
-8. **Prepare PR with Triangular Review Assignment:**
-   Provide the developer with:
-   - PR Title: `[CAN-XXX] feat: description of change`
-   - PR Body containing `Closes CAN-XXX`
-   - Designated Reviewer Assignment:
-     - **Benjamin's PRs** $\rightarrow$ Request review from **Samir** (`@samiroibrahim`)
-     - **Samir's PRs** $\rightarrow$ Request review from **Yassir** (`@yassir-tagelsir-khougali`)
-     - **Yassir's PRs** $\rightarrow$ Request review from **Benjamin** (`@neobenjax`)
-   - Remind the developer that GitHub requires 1 approved review before merging into `main`.
+8. **Proactive Pull Request Offer & HITL Reviewer Validation (CRITICAL FOR ALL AGENTS):**
+   Immediately after pushing changes and marking the task in-review, the AGENT MUST proactively ask the human developer:
+   > *"I have pushed your changes to `feat/<issue-id>-<short-description>` and marked CAN-XXX in review. Would you like me to automatically create and send the Pull Request for you, or would you prefer to open it manually on GitHub?"*
+
+   - **Path A: Developer chooses Automated PR Creation (Agent / CLI):**
+     Before sending the PR or assigning reviewers, the AGENT MUST execute **Human-in-the-Loop (HITL) Reviewer Validation**:
+     > *"The default triangular reviewer for your role is **<Assigned Reviewer>** (`@<github-handle>`). Would you like to proceed with this reviewer, or would you like to assign a different reviewer or add more reviewers?"*
+     
+     **Triangular Reviewer Defaults:**
+     - **Benjamin's PRs** $\rightarrow$ Default Reviewer: **Samir Omer** (`@samiromer2`)
+     - **Samir's PRs** $\rightarrow$ Default Reviewer: **Yassir Khougali** (`@yassirtmk`)
+     - **Yassir's PRs** $\rightarrow$ Default Reviewer: **Benjamin Sanchez** (`@neobenjax`)
+
+     Once confirmed/modified by the developer, the agent can create the PR using GitHub API / GitHub MCP or by running:
+     ```bash
+     python scripts/sync_tasks.py --create-pr CAN-XXX --reviewer <chosen-handle>
+     ```
+     The agent then provides the created PR link and reminds the developer that 1 peer approval is required before merge.
+
+   - **Path B: Developer chooses Manual PR Creation:**
+     Provide the developer with the pre-formatted PR details so they can copy-paste them to GitHub:
+     - PR Title: `[CAN-XXX] feat: description of change`
+     - PR Body containing `Closes BEN-XX` and `Closes CAN-XXX` (where `BEN-XX` is the native Linear issue key)
+     - Reviewer Assignment: `@samiromer2`, `@yassirtmk`, or `@neobenjax`
+     - Compare & Pull Request URL: `https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform/pull/new/feat/<issue-id>-<short-description>`
 
 9. **Task Completion & Post-Merge Cleanup:**
-   After the PR is merged on GitHub:
+   After the PR is approved and merged on GitHub:
    - Update `TASKS.md` checkbox and Linear status: `python scripts/sync_tasks.py --mark-done CAN-XXX`
    - Purge the feature branch:
      ```bash

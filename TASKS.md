@@ -12,7 +12,6 @@
 
 ## 📅 Team Cadence & Communication Guidelines
 - **Weekly Time Commitment:** 2 to 4 hours per week per team member. Flexible pace with weekly plan adaptations.
-- **Daily Async Check-in:** Brief message in the WhatsApp group before 10:00 AM EST (Done yesterday, Today's focus, Blockers).
 - **Weekly Sync Meeting:** Weekly progression demo meeting (Day & time agreed weekly).
 - **Demo Rule:** Every member creates a brief 2-3 slide presentation using `/frontend-slides` ([repo](https://github.com/zarazhangrui/frontend-slides)) showcasing screenshots, metrics, and progress.
 - **Support Rule:** *"Never Silently Blocked"* — stuck for >2 hours or day job is demanding? Flag it early so a teammate can pair up or rebalance tasks.
@@ -24,15 +23,15 @@
 **Goal:** Verify that every team member can connect to Linear, create a feature branch, edit a purposeful file, push a commit, open a Pull Request, conduct a peer review via the triangular review loop, and merge to `main` with GitHub branch protection enabled. Zero project coding required.
 
 ### Feature 0.1: Developer Environment & Profile Verification Chores
-- [ ] **CAN-00 (Kickoff Onboarding Workflow Test Sandbox):** [IN REVIEW] 
+- [x] **CAN-00 (Kickoff Onboarding Workflow Test Sandbox):** 
   - *Goal:* Verify end-to-end Gitflow & Linear synchronization workflow during the onboarding kickoff meeting without altering personal profile tasks.  
   - *Steps:* Pick up `CAN-00` in Linear $\rightarrow$ Set status `IN PROGRESS` $\rightarrow$ Create branch `feat/CAN-00-test-workflow-sandbox` $\rightarrow$ Add or modify test entry in `collaboration/tests/sandbox.md` $\rightarrow$ Push branch $\rightarrow$ Set status `IN REVIEW` $\rightarrow$ Open PR $\rightarrow$ Triangular peer review $\rightarrow$ Merge to `main` $\rightarrow$ Set status `DONE` $\rightarrow$ Purge feature branch.  
-  - *Estimate:* 15 min · *Owner:* All Team Members (Kickoff Live Demo)
+  - *Estimate:* 15 min · *Owner:* Benjamin Sanchez Zebadua
 - [ ] **CAN-01 (Benjamin's Onboarding Chore):**  
   - *Goal:* Verify workflow & update developer bio.  
   - *Steps:* Claim `CAN-01` in Linear $\rightarrow$ Create branch `feat/CAN-01-profile-update` $\rightarrow$ Add personal bio and links in `ABOUT_THE_TEAM.md` $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Samir.  
   - *Estimate:* 1 hour · *Owner:* Benjamin Sanchez Zebadua
-- [ ] **CAN-02 (Samir's Onboarding Chore):** 
+- [ ] **CAN-02 (Samir's Onboarding Chore):** [IN REVIEW] 
   - *Goal:* Verify workflow, update bio & draft initial benchmark questions.  
   - *Steps:* Claim `CAN-02` in Linear $\rightarrow$ Create branch `feat/CAN-02-profile-and-benchmarks` $\rightarrow$ Add personal bio in `ABOUT_THE_TEAM.md` and create `collaboration/benchmarks/benchmark_questions_draft.md` with 3 sample housing ground-truth questions $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Yassir.  
   - *Estimate:* 1 hour · *Owner:* Samir Ibrahim
@@ -40,6 +39,10 @@
   - *Goal:* Verify workflow, update bio & add meeting notes template.  
   - *Steps:* Claim `CAN-03` in Linear $\rightarrow$ Create branch `feat/CAN-03-profile-and-meeting-notes` $\rightarrow$ Add personal bio in `ABOUT_THE_TEAM.md` and create `collaboration/meetings/sprint_0_trial_notes.md` with weekly sync template $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Benjamin.  
   - *Estimate:* 1 hour · *Owner:* Yassir Tagelsir Khougali
+- [ ] **CAN-08 (Linear .env Wizard, Project Hierarchy & PR Automation):** [IN REVIEW] 
+  - *Goal:* Automated Linear API onboarding wizard, parent project hierarchy reorganization, automated PR creation via GitHub API, and proactive HITL reviewer protocols.  
+  - *Steps:* Set up zero-dependency `.env` wizard $\rightarrow$ Reorganize Linear hierarchy into Option 1 $\rightarrow$ Implement automated PR & HITL reviewer protocol $\rightarrow$ Open PR #4 $\rightarrow$ Request review from Samir.  
+  - *Estimate:* 2 hours · *Owner:* Benjamin Sanchez Zebadua
 
 ### Feature 0.2: Triangular Peer Review & Branch Protection Verification
 - [ ] **CAN-05 (Branch Protection & PR Approval Test):**  
@@ -48,10 +51,7 @@
     - Samir's PR $\rightarrow$ Reviewed & approved by Yassir
     - Yassir's PR $\rightarrow$ Reviewed & approved by Benjamin  
   - *Steps:* Each member reviews and approves their assigned teammate's PR $\rightarrow$ Merge PR into `main` $\rightarrow$ Purge merged feature branch.  
-  - *Estimate:* 1 hour · *Owner:* All Team Members
-- [ ] **CAN-06 (WhatsApp Async Routine Test):**  
-  - *Goal:* Post first 2-minute daily check-in on WhatsApp before 10:00 AM EST.  
-  - *Estimate:* 15 min · *Owner:* All Team Members
+  - *Estimate:* 1 hour · *Owner:* Benjamin Sanchez Zebadua
 
 ---
 
@@ -139,7 +139,7 @@
 **Goal:** Launch results-first portfolio site, update resumes and LinkedIn profiles, and begin targeted recruiter outreach.
 
 ### Feature 6.1: Portfolio Showcase & Career Launch
-- [ ] **CAN-61:** Launch modern, results-first portfolio site (`apps/portfolio-site`) showcasing problem, solution, live milestones, and team cards. *(Owner: All · 2.5h)*
+- [ ] **CAN-61:** Launch modern, results-first portfolio site (`apps/portfolio-site`) showcasing problem, solution, live milestones, and team cards. *(Owner: Benjamin Sanchez Zebadua · 2.5h)*
 - [ ] **CAN-62:** Update all 3 LinkedIn profiles and resumes with exact keyword alignment to Senior AI Engineer / Lead roles. *(Owner: Individual / Benjamin review · 2h)*
-- [ ] **CAN-63:** Prepare 1-page technical interview cheat sheets covering DuckDB vs Pandas, LangGraph state, DeepEval metrics. *(Owner: All · 2h)*
-- [ ] **CAN-64:** Direct outreach to 30 Canadian AI Engineering VPs and tech hiring managers. *(Owner: All · 2h)*
+- [ ] **CAN-63:** Prepare 1-page technical interview cheat sheets covering DuckDB vs Pandas, LangGraph state, DeepEval metrics. *(Owner: Benjamin Sanchez Zebadua · 2h)*
+- [ ] **CAN-64:** Direct outreach to 30 Canadian AI Engineering VPs and tech hiring managers. *(Owner: Benjamin Sanchez Zebadua · 2h)*

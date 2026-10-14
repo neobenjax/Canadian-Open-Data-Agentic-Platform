@@ -93,8 +93,8 @@ With our 3-person core team (**Benjamin**, **Samir**, **Yassir**), code reviews 
 
 | PR Author | Assigned Reviewer | GitHub Handle |
 |---|---|---|
-| **Benjamin Sanchez** | **Samir Ibrahim** | `@samiroibrahim` |
-| **Samir Ibrahim** | **Yassir Khougali** | `@yassir-tagelsir-khougali` |
+| **Benjamin Sanchez** | **Samir Omer** | `@samiromer2` |
+| **Samir Omer** | **Yassir Khougali** | `@yassirtmk` |
 | **Yassir Khougali** | **Benjamin Sanchez** | `@neobenjax` |
 
 ---
@@ -165,7 +165,7 @@ git push -u origin feat/CAN-02-profile-and-benchmarks
    - Created draft benchmark questions in collaboration/benchmarks/benchmark_questions_draft.md
    - Verified local linter and pytest tests pass
    ```
-5. **Assign Reviewer:** Select **Yassir Khougali** (`@yassir-tagelsir-khougali`).
+5. **Assign Reviewer:** Select **Yassir Khougali** (`@yassirtmk`).
 
 ---
 
@@ -212,7 +212,7 @@ git push origin --delete feat/CAN-02-profile-and-benchmarks
 ### The Linear Ticket
 - **Issue Key:** `CAN-01`
 - **Title:** `[CAN-01] Benjamin's Onboarding Chore: Lead bio update & project badges`
-- **Assigned Reviewer:** **Samir Ibrahim** (`@samiroibrahim`)
+- **Assigned Reviewer:** **Samir Omer** (`@samiromer2`)
 
 ### What Benjamin Tells His Agent:
 > *"I am working on task CAN-01. Please branch from latest main into feat/CAN-01-profile-update, update my bio in ABOUT_THE_TEAM.md, verify tests pass, commit with [CAN-01] Conventional Commit, and push to origin."*

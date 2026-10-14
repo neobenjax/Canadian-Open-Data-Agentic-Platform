@@ -67,13 +67,22 @@ flowchart LR
    git push -u origin feat/CAN-02-profile-and-benchmarks
    ```
 
-6. **Open a Pull Request:**
-   - Go to GitHub and open a PR targeting `main`.
-   - Ensure the PR description includes `Closes CAN-XXX`.
-   - Assign your assigned peer reviewer based on the **Triangular Review Cycle**:
-     - **Benjamin's PRs** $\rightarrow$ Request review from **Samir** (`@samiroibrahim`)
-     - **Samir's PRs** $\rightarrow$ Request review from **Yassir** (`@yassir-tagelsir-khougali`)
-     - **Yassir's PRs** $\rightarrow$ Request review from **Benjamin** (`@neobenjax`)
+6. **Open a Pull Request & Triangular Review Assignment:**
+   - **Automated Option (Recommended):** Let your AI agent or CLI create the PR:
+     ```bash
+     python scripts/sync_tasks.py --create-pr CAN-XXX
+     ```
+     This triggers an interactive **Human-in-the-Loop (HITL)** prompt to confirm or customize reviewers.
+   - **Manual Option:** Go to GitHub and open a PR targeting `main`. Ensure the PR description includes both native Linear team key and semantic task key:
+     ```markdown
+     Closes BEN-XX
+     Closes CAN-XXX
+     ```
+     *(Note: The Linear team key is `BEN`. Using `Closes BEN-XX` triggers native auto-closure on Linear upon merge).*
+   - **Triangular Review Cycle:**
+     - **Benjamin's PRs** $\rightarrow$ Request review from **Samir Omer** (`@samiromer2`)
+     - **Samir's PRs** $\rightarrow$ Request review from **Yassir Khougali** (`@yassirtmk`)
+     - **Yassir's PRs** $\rightarrow$ Request review from **Benjamin Sanchez** (`@neobenjax`)
 
 7. **Address Feedback, Approve & Merge:**
    - Once your teammate approves the PR, merge it into `main`.
@@ -100,9 +109,13 @@ You don't need to manually run git commands if you don't want to. You can simply
 The Agent will automatically:
 1. Verify latest `main` and branch off to `feat/CAN-02-...`.
 2. Implement your code modifications.
-3. Run `uv run ruff check .` and `uv run pytest`.
-4. Commit with `[CAN-02] feat: ...`.
-5. Push the feature branch and generate your PR link with your designated triangular reviewer.
+3. Create/update a linked deliverable doc in `docs/` or `collaboration/` (e.g. `collaboration/benchmarks/benchmark_questions_draft.md` or `docs/CAN_08_ONBOARDING_AND_ENV_AUTOMATION.md`).
+4. Run `uv run ruff check .` and `uv run pytest`.
+5. Commit with `[CAN-02] feat: ...`.
+6. Push the feature branch and mark the task in-review.
+7. Proactively ask you: *"Would you like me to open the Pull Request for you, or do you prefer to open it manually?"*
+8. Execute Human-in-the-Loop (HITL) validation to confirm or adjust your reviewer (`@samiromer2`, `@yassirtmk`, or `@neobenjax`).
+9. Format the PR description with dual auto-closing keys: `Closes BEN-XX` & `Closes CAN-02`.
 
 ---
 
