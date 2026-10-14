@@ -27,7 +27,7 @@
   - *Goal:* Verify end-to-end Gitflow & Linear synchronization workflow during the onboarding kickoff meeting without altering personal profile tasks.  
   - *Steps:* Pick up `CAN-00` in Linear $\rightarrow$ Set status `IN PROGRESS` $\rightarrow$ Create branch `feat/CAN-00-test-workflow-sandbox` $\rightarrow$ Add or modify test entry in `collaboration/tests/sandbox.md` $\rightarrow$ Push branch $\rightarrow$ Set status `IN REVIEW` $\rightarrow$ Open PR $\rightarrow$ Triangular peer review $\rightarrow$ Merge to `main` $\rightarrow$ Set status `DONE` $\rightarrow$ Purge feature branch.  
   - *Estimate:* 15 min · *Owner:* Benjamin Sanchez Zebadua
-- [ ] **CAN-01 (Benjamin's Onboarding Chore):**  
+- [ ] **CAN-01 (Benjamin's Onboarding Chore):** [IN REVIEW] 
   - *Goal:* Verify workflow & update developer bio.  
   - *Steps:* Claim `CAN-01` in Linear $\rightarrow$ Create branch `feat/CAN-01-profile-update` $\rightarrow$ Add personal bio and links in `ABOUT_THE_TEAM.md` $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Samir.  
   - *Estimate:* 1 hour · *Owner:* Benjamin Sanchez Zebadua
