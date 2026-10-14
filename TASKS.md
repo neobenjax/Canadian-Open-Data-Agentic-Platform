@@ -36,7 +36,7 @@
   - *Goal:* Verify workflow, update bio & draft initial benchmark questions.  
   - *Steps:* Claim `CAN-02` in Linear $\rightarrow$ Create branch `feat/CAN-02-profile-and-benchmarks` $\rightarrow$ Add personal bio in `ABOUT_THE_TEAM.md` and create `collaboration/benchmarks/benchmark_questions_draft.md` with 3 sample housing ground-truth questions $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Yassir.  
   - *Estimate:* 1 hour · *Owner:* Samir Ibrahim
-- [ ] **CAN-03 (Yassir's Onboarding Chore):** [IN PROGRESS] 
+- [ ] **CAN-03 (Yassir's Onboarding Chore):** [IN REVIEW] 
   - *Goal:* Verify workflow, update bio & add meeting notes template.  
   - *Steps:* Claim `CAN-03` in Linear $\rightarrow$ Create branch `feat/CAN-03-profile-and-meeting-notes` $\rightarrow$ Add personal bio in `ABOUT_THE_TEAM.md` and create `collaboration/meetings/sprint_0_trial_notes.md` with weekly sync template $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Benjamin.  
   - *Estimate:* 1 hour · *Owner:* Yassir Tagelsir Khougali
