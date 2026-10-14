@@ -30,11 +30,16 @@ All three members are committed to hands-on AI and Agentic development, pairing 
 
 ### 3. Yassir Tagelsir Khougali
 **Role:** Technology Delivery, PMO & Human-in-the-Loop Transformation Lead (Episode 3 Lead)  
-🔗 **LinkedIn:** [yassir-tagelsir-khougali](https://www.linkedin.com/in/yassir-tagelsir-khougali/)
+🔗 **LinkedIn:** [yassir-tagelsir-khougali](https://www.linkedin.com/in/yassir-tagelsir-khougali/)  
+📍 **Location:** Ontario, Canada
 
 - **Professional Summary:** Technology transformation leader with 15+ years of international experience delivering large-scale enterprise modernization programs across digital infrastructure, enterprise systems, cloud modernization, business automation, and systems integration exceeding $400M and impacting 12M+ users.
 - **Domain Credentials:** PMP® Certified; Carleton University Master's in Applied Business Analytics candidate (focus on Technology Innovation Management).
-- **Hands-On AI Focus in Project:** LangGraph Human-in-the-Loop (`interrupt()`) workflow design, OpenTelemetry / Arize Phoenix observability and token cost telemetry, stakeholder user testing scripts, Linear.app agile delivery management, Canadian data lineage tracking, and audit logging governance.
+- **Hands-On AI Focus in Project:** LangGraph Human-in-the-Loop (`interrupt()`) workflow design, stakeholder user testing scripts, Linear.app agile delivery management, Canadian data lineage tracking, and audit logging governance.
+- **Projects Built:**
+  - **Agentic RAG system** (graduate team project, developed and built by Yassir): LangChain orchestration, a reasoning agent that routes between rewriting, retrieval and re-ingestion based on reviewer feedback (Human-in-the-Loop), and a web research agent. Python, Streamlit, ChromaDB, Gemini.
+  - **Billing evidence prototype** (capstone): a tamper-evident, auditable pipeline that turns data center telemetry into billing evidence. Python, FastAPI, React.
+- **Stack:** Python · LangChain · ChromaDB · Streamlit · FastAPI · React
 
 ---
 
