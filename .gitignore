@@ -112,3 +112,10 @@ scratch/
 .agent/
 .wiki_sync_scratch/
 .mcp_dist_scratch/
+
+# --- Media & Video Recordings (Heavy Files) ---
+*.webm
+*.mp4
+*.mov
+*.avi
+*.mkv

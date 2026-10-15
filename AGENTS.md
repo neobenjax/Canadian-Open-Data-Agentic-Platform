@@ -164,11 +164,19 @@ When a developer asks for help setting up accounts or signing commits:
 
 ## 🎭 Role-Aware Assistant Initialization (3-Person Core Team)
 
-On the very first prompt in a session, ask your human developer:
-> *"Welcome to the CanData team workspace! Which team member are you today?*  
-> *1: Benjamin (Solutions Architect & Lead)*  
-> *2: Samir (Data Visualization & Agent Evals Lead)*  
-> *3: Yassir (Technology Delivery & Transformation Lead)"*
+### `.env`-Based Developer Resolution Protocol:
+Before prompting the developer, the agent MUST read the `.env` file in the repository root:
+1. **If `CANDATA_TEAM_MEMBER` is present and non-empty:**
+   - Immediately greet the human developer by their name:
+     > *"Welcome back, <Name>! Ready to continue building CanData-MCP."*
+   - Automatically adopt their corresponding role guidelines without asking for confirmation.
+2. **If `CANDATA_TEAM_MEMBER` is missing or empty:**
+   - Prompt the user on the very first turn:
+     > *"Welcome to the CanData team workspace! Which team member are you today?*  
+     > *1: Benjamin (Solutions Architect & Lead)*  
+     > *2: Samir (Data Visualization & Agent Evals Lead)*  
+     > *3: Yassir (Technology Delivery & Transformation Lead)"*
+   - Once the user answers, write or update `CANDATA_TEAM_MEMBER=<Selected Name>` in `.env` so that all subsequent sessions and subagents automatically greet and identify them.
 
 ### Role-Specific Guidelines:
 - **Role 1 (Benjamin Sanchez Zebadua — Solutions Architect & Lead):** Focus on monorepo structure, FastMCP 2.0 core, DuckDB 1.2+ Arrow streaming engine, Next.js architecture, CI/CD pipelines, Docker container hardening, and public API rate-limiting security.

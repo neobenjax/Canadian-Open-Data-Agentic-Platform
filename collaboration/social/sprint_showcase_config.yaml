@@ -1,0 +1,87 @@
+# ==============================================================================
+# Canadian Open Data Agentic Platform — LinkedIn Showcase Sprint Config
+# Reusable configuration for generating video and animated GIF assets for LinkedIn
+# ==============================================================================
+
+post_metadata:
+  sprint: "Sprint 0 / Sprint 1 Kickoff"
+  theme: "Building CanData-MCP in Public"
+  target_platform: "LinkedIn"
+  aspect_ratio: "16:9"
+  target_video_duration_sec: 36
+  author: "Benjamin Sanchez Zebadua"
+  repo_monorepo_url: "https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform"
+  repo_mcp_url: "https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server"
+
+team:
+  lead:
+    name: "Benjamin Sanchez Zebadua"
+    role: "Solutions Architect & Lead"
+    handle: "@Benjamin Sanchez Zebadua"
+    focus: "FastMCP 2.0, DuckDB Arrow Engine, Enterprise Gitflow"
+  evals:
+    name: "Samir Ibrahim"
+    role: "Data Visualization & Agent Evals Lead"
+    handle: "@Samir Ibrahim"
+    focus: "GTA Housing Benchmarks, DeepEval Test Suites"
+  delivery:
+    name: "Yassir Tagelsir Khougali"
+    role: "Technology Delivery & Transformation Lead"
+    handle: "@Yassir Tagelsir Khougali"
+    focus: "Human-in-the-Loop interrupt() Governance, Token Telemetry"
+
+scenes:
+  - id: "scene-1-hook"
+    title: "The AI Hallucination Problem"
+    subtitle: "Asking AI about Canadian data often yields wrong years or phantom numbers."
+    problem_highlight: "Ask AI: 'What's the average rent for a 2-bedroom in Toronto?' -> Hallucinates $2,600+ without citation."
+    ground_truth_highlight: "Official StatCan Table 34-10-0133-01 (v3823103): Exactly $2,045/month."
+    asset: "assets/benchmark_questions.png"
+    duration_sec: 6
+
+  - id: "scene-2-monorepo"
+    title: "The Monorepo Engine"
+    subtitle: "Full-stack Agentic Architecture: FastMCP 2.0 + DuckDB in-memory streaming"
+    feature_points:
+      - "Streaming 200MB federal CSVs into <3KB Arrow batches"
+      - "Strict typing, Ruff formatting, PyTest verification"
+      - "Single source of truth for all packages, apps, and benchmarks"
+    asset: "assets/monorepo_main.png"
+    duration_sec: 6
+
+  - id: "scene-3-gitflow"
+    title: "Agent-in-the-Loop Gitflow"
+    subtitle: "AI coding assistants operate strictly inside our production workflow"
+    feature_points:
+      - "Real Linear tickets (BEN-XX / CAN-XX) synced bidirectionally"
+      - "Branch protection: Zero direct commits to main"
+      - "Automated PR linking and status transition"
+    asset_linear: "assets/linear_dashboard.png"
+    asset_pr: "assets/pr_merged_sample.png"
+    duration_sec: 7
+
+  - id: "scene-4-peer-review"
+    title: "Triangular Peer Review Guardrail"
+    subtitle: "Every AI-generated PR requires a human teammate's verified approval"
+    review_cycle: "Benjamin -> Samir -> Yassir -> Benjamin"
+    ruleset_highlight: "Enterprise ruleset: 1 required approving review, signed commits, bypass: NEVER"
+    asset: "assets/github_ruleset.png"
+    duration_sec: 6
+
+  - id: "scene-5-distribution"
+    title: "Downstream Distribution Mirror"
+    subtitle: "Monorepo publishes clean standalone MCP Server releases preserving git authorship"
+    pipeline_points:
+      - "Automated GitHub Actions CI/CD sync workflow"
+      - "Individual developer attribution preserved on downstream commits"
+      - "Read-only mirror for frictionless end-user MCP installation"
+    asset: "assets/distribution_mcp.png"
+    duration_sec: 6
+
+  - id: "scene-6-cta"
+    title: "What Canadian Data Question Should AI Answer?"
+    subtitle: "Follow our 7-week journey building CanData-MCP in public"
+    cta_question: "What Canadian data question would you want an AI agent to answer correctly?"
+    repo_url: "github.com/neobenjax/Canadian-Open-Data-Agentic-Platform"
+    tags: "#AgenticAI #MCP #LangGraph #OpenData #Canada"
+    duration_sec: 5

@@ -140,6 +140,6 @@
 
 ### Feature 6.1: Portfolio Showcase & Career Launch
 - [ ] **CAN-61:** Launch modern, results-first portfolio site (`apps/portfolio-site`) showcasing problem, solution, live milestones, and team cards. *(Owner: Benjamin Sanchez Zebadua · 2.5h)*
-- [ ] **CAN-62:** Update all 3 LinkedIn profiles and resumes with exact keyword alignment to Senior AI Engineer / Lead roles. *(Owner: Individual / Benjamin review · 2h)*
+- [ ] **CAN-62:** [IN PROGRESS] Update all 3 LinkedIn profiles and resumes with exact keyword alignment to Senior AI Engineer / Lead roles. *(Owner: Individual / Benjamin review · 2h)*
 - [ ] **CAN-63:** Prepare 1-page technical interview cheat sheets covering DuckDB vs Pandas, LangGraph state, DeepEval metrics. *(Owner: Benjamin Sanchez Zebadua · 2h)*
 - [ ] **CAN-64:** Direct outreach to 30 Canadian AI Engineering VPs and tech hiring managers. *(Owner: Benjamin Sanchez Zebadua · 2h)*

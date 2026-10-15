@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CanData-MCP — LinkedIn Showcase Video & Motion Stage</title>
+  <style>
+    :root {
+      --bg-dark: #08090d;
+      --bg-card: rgba(18, 20, 27, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.1);
+      --border-glow: rgba(99, 102, 241, 0.3);
+      --accent-blue: #3b82f6;
+      --accent-indigo: #6366f1;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --accent-purple: #a855f7;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: #030407;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding: 16px;
+    }
+
+    /* Clean Frameless / Studio / Fullscreen / Recording Mode */
+    body.frameless,
+    body.recording-mode,
+    body:fullscreen,
+    :fullscreen {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: var(--bg-dark) !important;
+      overflow: hidden !important;
+      justify-content: center !important;
+    }
+
+    body.frameless .stage-wrapper,
+    body.recording-mode .stage-wrapper,
+    :fullscreen .stage-wrapper,
+    .stage-wrapper:fullscreen {
+      max-width: 100vw !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      border-radius: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      aspect-ratio: unset !important;
+    }
+
+    body.frameless .controls-strip,
+    body.recording-mode .controls-strip,
+    :fullscreen .controls-strip {
+      display: none !important;
+    }
+
+    body.frameless .timeline-bar,
+    body.recording-mode .timeline-bar,
+    :fullscreen .timeline-bar {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      display: none !important;
+    }
+
+    body.frameless .scene,
+    body.recording-mode .scene,
+    :fullscreen .scene {
+      inset: 56px 0 0 0 !important;
+      padding: 36px 64px !important;
+    }
+
+    /* Minimal Hairline Progress at the bottom */
+    .hairline-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-indigo), var(--accent-emerald), var(--accent-rose));
+      z-index: 60;
+      transition: width 0.1s linear;
+      box-shadow: 0 0 8px rgba(99, 102, 241, 0.8);
+    }
+
+    /* 16:9 Aspect Ratio Frame Container */
+    .stage-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 1280px;
+      aspect-ratio: 16 / 9;
+      background: var(--bg-dark);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 40px rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    /* Motion Stage Screen */
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Subtle Animated Background Grid */
+    .grid-bg {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15), transparent 60%),
+        radial-gradient(circle at 100% 100%, rgba(225, 29, 72, 0.1), transparent 50%),
+        linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+      pointer-events: none;
+    }
+
+    /* Top Persistent Branding Bar */
+    .top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 56px;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(8, 9, 13, 0.7);
+      backdrop-filter: blur(12px);
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .flag-icon {
+      font-size: 20px;
+    }
+
+    .project-name {
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.3px;
+      background: linear-gradient(90deg, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .pill-badge {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      color: #a5b4fc;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sprint-tag {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Bottom Timeline Bar */
+    .timeline-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(8, 9, 13, 0.85);
+      backdrop-filter: blur(12px);
+      z-index: 50;
+    }
+
+    .progress-track {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      margin: 0 24px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-indigo), var(--accent-emerald));
+      transition: width 0.1s linear;
+    }
+
+    .scene-indicators {
+      display: flex;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 24px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .dot.active {
+      background: var(--accent-indigo);
+      width: 36px;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.6);
+    }
+
+    /* Scene Container */
+    .scene {
+      position: absolute;
+      inset: 56px 0 48px 0;
+      padding: 32px 48px;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      visibility: hidden;
+      transform: scale(0.98);
+      transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .scene.active {
+      opacity: 1;
+      visibility: visible;
+      transform: scale(1);
+    }
+
+    .scene-header {
+      margin-bottom: 24px;
+    }
+
+    .scene-eyebrow {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .scene-title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .scene-sub {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Scene Layout Styles */
+    .split-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      flex: 1;
+      align-items: center;
+      min-height: 0;
+    }
+
+    .screenshot-card {
+      position: relative;
+      background: #0f1118;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+      height: 100%;
+      max-height: 410px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .window-header {
+      background: #161822;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .w-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .w-red { background: #ef4444; }
+    .w-yellow { background: #f59e0b; }
+    .w-green { background: #10b981; }
+
+    .card-content-img {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .card-content-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      transition: transform 6s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .scene.active .card-content-img img {
+      transform: scale(1.08) translateY(-10px);
+    }
+
+    /* Comparison Cards for Scene 1 */
+    .compare-card {
+      padding: 24px;
+      border-radius: 12px;
+      background: rgba(18, 20, 28, 0.85);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 16px;
+      backdrop-filter: blur(8px);
+    }
+
+    .compare-card.bad {
+      border-color: rgba(244, 63, 94, 0.4);
+      background: linear-gradient(135deg, rgba(244, 63, 94, 0.06), rgba(18, 20, 28, 0.9));
+    }
+
+    .compare-card.good {
+      border-color: rgba(16, 185, 129, 0.4);
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(18, 20, 28, 0.9));
+    }
+
+    .badge-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      width: fit-content;
+    }
+
+    .badge-tag.bad { background: rgba(244, 63, 94, 0.2); color: #fda4af; }
+    .badge-tag.good { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+
+    .number-display {
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+    .bad-num { color: #f43f5e; text-decoration: line-through; opacity: 0.85; }
+    .good-num { color: #10b981; }
+
+    .citation-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #cbd5e1;
+    }
+
+    /* Diagram Styles for Scene 4 & 5 */
+    .diagram-container {
+      background: rgba(15, 17, 24, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+    }
+
+    .triangular-svg {
+      width: 100%;
+      max-width: 420px;
+      height: 280px;
+    }
+
+    /* Callout Features List */
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      justify-content: center;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: rgba(18, 20, 28, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 14px 18px;
+      border-radius: 10px;
+      backdrop-filter: blur(8px);
+    }
+
+    .feature-icon {
+      font-size: 20px;
+      line-height: 1;
+      padding: 6px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .feature-text h4 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #ffffff;
+      margin-bottom: 2px;
+    }
+
+    .feature-text p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Finale CTA Card */
+    .cta-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      height: 100%;
+      gap: 20px;
+    }
+
+    .cta-badge {
+      background: linear-gradient(135deg, rgba(225, 29, 72, 0.2), rgba(99, 102, 241, 0.2));
+      border: 1px solid rgba(225, 29, 72, 0.4);
+      padding: 6px 18px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fda4af;
+      letter-spacing: 0.5px;
+    }
+
+    .cta-question {
+      font-size: 38px;
+      font-weight: 800;
+      max-width: 860px;
+      line-height: 1.25;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .team-strip {
+      display: flex;
+      gap: 20px;
+      margin-top: 6px;
+    }
+
+    .team-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 8px 16px;
+      border-radius: 30px;
+      font-size: 13px;
+      color: #e2e8f0;
+    }
+
+    .team-av {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    .link-pill {
+      margin-top: 10px;
+      background: #1e2230;
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      padding: 12px 28px;
+      border-radius: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 15px;
+      font-weight: 600;
+      color: #93c5fd;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.25);
+    }
+
+    /* External Control Strip */
+    .controls-strip {
+      margin-top: 16px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn {
+      background: #1e2230;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: white;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      background: #2a3044;
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-record {
+      background: linear-gradient(135deg, #e11d48, #be123c);
+      border-color: #f43f5e;
+      box-shadow: 0 4px 15px rgba(225, 29, 72, 0.4);
+    }
+
+    .btn-record:hover {
+      background: linear-gradient(135deg, #f43f5e, #e11d48);
+    }
+
+    .btn-record.recording {
+      animation: pulse-red 1.2s infinite;
+    }
+
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+      70% { box-shadow: 0 0 0 12px rgba(244, 63, 94, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 16:9 Showcase Stage -->
+  <div class="stage-wrapper" id="stageWrapper">
+    <div class="stage" id="stageElement">
+      <div class="grid-bg"></div>
+
+      <!-- Top Persistent Bar -->
+      <div class="top-bar">
+        <div class="brand">
+          <span class="flag-icon">🍁</span>
+          <span class="project-name">CanData-MCP</span>
+          <div class="pill-badge">
+            <span style="color: #4ade80;">●</span> Open-Source Agentic Platform
+          </div>
+        </div>
+        <div class="sprint-tag">Sprint 0 → Sprint 1 · Building in Public</div>
+      </div>
+
+      <!-- SCENE 1: THE HOOK & GROUND TRUTH BENCHMARK -->
+      <div class="scene active" id="scene-1" data-duration="6">
+        <div class="scene-header">
+          <div class="scene-eyebrow" style="color: #f43f5e;">
+            <span>⚠️ The Agent Hallucination Trap</span>
+          </div>
+          <h2 class="scene-title">Ask an AI chatbot: "What's the average rent for a 2-bedroom in Toronto?"</h2>
+          <p class="scene-sub">Most LLMs give confident figures from blog posts, wrong survey years, or unverified asking rents.</p>
+        </div>
+
+        <div class="split-layout">
+          <!-- Hallucinated vs Verified -->
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="compare-card bad">
+              <span class="badge-tag bad">❌ Generic AI Answer</span>
+              <div>
+                <div class="number-display bad-num">~$2,640 / mo</div>
+                <div style="font-size: 13px; color: #fda4af; margin-top: 4px;">Unverified asking rent scrape · Zero official citation</div>
+              </div>
+            </div>
+
+            <div class="compare-card good">
+              <span class="badge-tag good">✅ CanData-MCP Verified Ground-Truth</span>
+              <div>
+                <div class="number-display good-num">$2,045 / mo (+3.7%)</div>
+                <div class="citation-box" style="margin-top: 8px;">
+                  📌 StatCan Table 34-10-0133-01 · Vector v3823103<br/>
+                  CMHC Rental Market Survey (October official census series)
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Benchmark Markdown Real Screenshot -->
+          <div class="screenshot-card">
+            <div class="window-header">
+              <div class="window-dots">
+                <div class="w-dot w-red"></div>
+                <div class="w-dot w-yellow"></div>
+                <div class="w-dot w-green"></div>
+              </div>
+              <span>collaboration/benchmarks/benchmark_questions_draft.md</span>
+              <span>Samir's Ground-Truth Suite</span>
+            </div>
+            <div class="card-content-img">
+              <img src="assets/benchmark_questions.png" alt="Ground Truth Benchmark Screenshot">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCENE 2: THE MONOREPO ENGINE -->
+      <div class="scene" id="scene-2" data-duration="6">
+        <div class="scene-header">
+          <div class="scene-eyebrow" style="color: #60a5fa;">
+            <span>🏛️ Monorepo Single Source of Truth</span>
+          </div>
+          <h2 class="scene-title">neobenjax / Canadian-Open-Data-Agentic-Platform</h2>
+          <p class="scene-sub">Housing core MCP packages, live Next.js apps, DuckDB streaming engines, and eval suites.</p>
+        </div>
+
+        <div class="split-layout">
+          <div class="screenshot-card">
+            <div class="window-header">
+              <div class="window-dots">
+                <div class="w-dot w-red"></div>
+                <div class="w-dot w-yellow"></div>
+                <div class="w-dot w-green"></div>
+              </div>
+              <span>github.com/neobenjax/Canadian-Open-Data-Agentic-Platform</span>
+              <span>main branch</span>
+            </div>
+            <div class="card-content-img">
+              <img src="assets/monorepo_main.png" alt="Monorepo GitHub Screenshot">
+            </div>
+          </div>
+
+          <div class="feature-list">
+            <div class="feature-item">
+              <div class="feature-icon">⚡</div>
+              <div class="feature-text">
+                <h4>FastMCP 2.0 &amp; In-Memory DuckDB</h4>
+                <p>Arrow stream transformations compress 200MB federal CSVs down to &lt;3KB contextual payloads.</p>
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-icon">🛡️</div>
+              <div class="feature-text">
+                <h4>Strict 2026 Modern Python Standards</h4>
+                <p>Python 3.12+, uv package manager, Ruff formatting, and strict Pyright typing.</p>
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-icon">📊</div>
+              <div class="feature-text">
+                <h4>Official Federal Endpoints</h4>
+                <p>Direct connectors to Statistics Canada WDS, Bank of Canada Valet, and Open Government CKAN.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCENE 3: AGENT-IN-THE-LOOP GITFLOW -->
+      <div class="scene" id="scene-3" data-duration="7">
+        <div class="scene-header">
+          <div class="scene-eyebrow" style="color: #a855f7;">
+            <span>🤖 Real AI Workflow Integration</span>
+          </div>
+          <h2 class="scene-title">Linear Tickets → Feature Branches → Pull Requests</h2>
+          <p class="scene-sub">AI coding agents work inside our real workflow: no loose code, no undocumented changes.</p>
+        </div>
+
+        <div class="split-layout">
+          <!-- Linear Live Dashboard Mockup -->
+          <div class="screenshot-card">
+            <div class="window-header">
+              <div class="window-dots">
+                <div class="w-dot w-red"></div>
+                <div class="w-dot w-yellow"></div>
+                <div class="w-dot w-green"></div>
+              </div>
+              <span>linear.app/canopendataagenticplatform · Sprint Board</span>
+              <span>BEN-XX / CAN-XX</span>
+            </div>
+            <div class="card-content-img">
+              <img src="assets/linear_dashboard.png" alt="Linear Dashboard Screenshot">
+            </div>
+          </div>
+
+          <!-- PR Merged Sample Screenshot -->
+          <div class="screenshot-card">
+            <div class="window-header">
+              <div class="window-dots">
+                <div class="w-dot w-red"></div>
+                <div class="w-dot w-yellow"></div>
+                <div class="w-dot w-green"></div>
+              </div>
+              <span>GitHub Pull Requests · Auto-Closing Integration</span>
+              <span>Verified Merged</span>
+            </div>
+            <div class="card-content-img">
+              <img src="assets/pr_merged_sample.png" alt="Merged GitHub PR Screenshot">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCENE 4: PEER REVIEW GUARDRAIL -->
+      <div class="scene" id="scene-4" data-duration="6">
+        <div class="scene-header">
+          <div class="scene-eyebrow" style="color: #10b981;">
+            <span>🛡️ Mandatory Human Verification</span>
+          </div>
+          <h2 class="scene-title">Triangular Peer Review: Never Direct Commit to Main</h2>
+          <p class="scene-sub">Every PR requires a teammate's sign-off, even when AI wrote the first draft.</p>
+        </div>
+
+        <div class="split-layout">
+          <!-- Ruleset Screenshot -->
+          <div class="screenshot-card">
+            <div class="window-header">
+              <div class="window-dots">
+                <div class="w-dot w-red"></div>
+                <div class="w-dot w-yellow"></div>
+                <div class="w-dot w-green"></div>
+              </div>
+              <span>GitHub Branch Ruleset: Enterprise Grade</span>
+              <span>Bypass: NEVER</span>
+            </div>
+            <div class="card-content-img">
+              <img src="assets/github_ruleset.png" alt="GitHub Ruleset Screenshot">
+            </div>
+          </div>
+
+          <!-- Triangular Diagram SVG -->
+          <div class="diagram-container">
+            <div style="font-size: 13px; font-weight: 700; color: #a5b4fc; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 1px;">
+              Triangular Peer Review Model
+            </div>
+            <svg class="triangular-svg" viewBox="0 0 400 240">
+              <defs>
+                <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#3b82f6" />
+                  <stop offset="100%" stop-color="#1d4ed8" />
+                </linearGradient>
+                <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#10b981" />
+                  <stop offset="100%" stop-color="#047857" />
+                </linearGradient>
+                <linearGradient id="grad-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#f59e0b" />
+                  <stop offset="100%" stop-color="#b45309" />
+                </linearGradient>
+                <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#818cf8" />
+                </marker>
+              </defs>
+
+              <!-- Curved Arrows -->
+              <path d="M 215 65 Q 290 85 295 145" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-dasharray="4" marker-end="url(#arrow)" />
+              <path d="M 265 180 Q 200 215 135 180" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-dasharray="4" marker-end="url(#arrow)" />
+              <path d="M 105 145 Q 110 85 185 65" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-dasharray="4" marker-end="url(#arrow)" />
+
+              <!-- Node: Benjamin -->
+              <g transform="translate(200, 50)">
+                <circle r="34" fill="url(#grad-blue)" stroke="#93c5fd" stroke-width="2" />
+                <text y="-2" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">Benjamin</text>
+                <text y="14" text-anchor="middle" fill="#bfdbfe" font-size="9">Architect</text>
+              </g>
+
+              <!-- Node: Samir -->
+              <g transform="translate(310, 165)">
+                <circle r="34" fill="url(#grad-green)" stroke="#6ee7b7" stroke-width="2" />
+                <text y="-2" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">Samir</text>
+                <text y="14" text-anchor="middle" fill="#a7f3d0" font-size="9">Evals &amp; Viz</text>
+              </g>
+
+              <!-- Node: Yassir -->
+              <g transform="translate(90, 165)">
+                <circle r="34" fill="url(#grad-amber)" stroke="#fde68a" stroke-width="2" />
+                <text y="-2" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">Yassir</text>
+                <text y="14" text-anchor="middle" fill="#fef3c7" font-size="9">Delivery</text>
+              </g>
+            </svg>
+            <div style="font-size: 11.5px; color: #94a3b8; text-align: center; margin-top: 4px;">
+              1 Required Peer Approval · Stale Review Dismissal · Signed Commits Only
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCENE 5: DISTRIBUTION MIRROR PIPELINE -->
+      <div class="scene" id="scene-5" data-duration="6">
+        <div class="scene-header">
+          <div class="scene-eyebrow" style="color: #06b6d4;">
+            <span>🚀 Automated Distribution Architecture</span>
+          </div>
+          <h2 class="scene-title">Monorepo → Standalone MCP Server Mirror</h2>
+          <p class="scene-sub">Automated GitHub Action syncs downstream with individual contributor attribution preserved.</p>
+        </div>
+
+        <div class="split-layout">
+          <!-- Flow Diagram -->
+          <div class="diagram-container">
+            <div style="font-size: 13px; font-weight: 700; color: #67e8f9; text-transform: uppercase; margin-bottom: 16px; letter-spacing: 1px;">
+              CI/CD Downstream Sync Architecture
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 380px;">
+              <div style="background: #181a24; border: 1px solid #334155; padding: 12px 16px; border-radius: 8px;">
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 600;">SOURCE REPOSITORY</div>
+                <div style="font-size: 14px; font-weight: 700; color: #fff; margin-top: 2px;">Canadian-Open-Data-Agentic-Platform</div>
+              </div>
+              <div style="text-align: center; color: #06b6d4; font-size: 18px; font-weight: bold;">
+                ↓ <span style="font-size: 11px; color: #94a3b8;">.github/workflows/publish-mcp-server.yml</span>
+              </div>
+              <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.4); padding: 12px 16px; border-radius: 8px;">
+                <div style="font-size: 11px; color: #67e8f9; font-weight: 600;">DYNAMIC AUTHOR ATTRIBUTION</div>
+                <div style="font-size: 13px; font-family: monospace; color: #e2e8f0; margin-top: 2px;">--author="$AUTHOR_NAME &lt;$AUTHOR_EMAIL&gt;"</div>
+              </div>
+              <div style="text-align: center; color: #06b6d4; font-size: 18px; font-weight: bold;">↓</div>
+              <div style="background: #181a24; border: 1px solid #334155; padding: 12px 16px; border-radius: 8px;">
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 600;">DISTRIBUTION MIRROR</div>
+                <div style="font-size: 14px; font-weight: 700; color: #38bdf8; margin-top: 2px;">Canadian-Open-Data-Agentic-Platform-MCP-Server</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Distribution Repo Screenshot -->
+          <div class="screenshot-card">
+            <div class="window-header">
+              <div class="window-dots">
+                <div class="w-dot w-red"></div>
+                <div class="w-dot w-yellow"></div>
+                <div class="w-dot w-green"></div>
+              </div>
+              <span>github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server</span>
+              <span>Standalone Distribution</span>
+            </div>
+            <div class="card-content-img">
+              <img src="assets/distribution_mcp.png" alt="Distribution MCP Server Screenshot">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCENE 6: CTA & ENGAGEMENT -->
+      <div class="scene" id="scene-6" data-duration="5">
+        <div class="cta-stage">
+          <div class="cta-badge">🍁 Building CanData-MCP in Public · 7-Week Series</div>
+          <h1 class="cta-question">What Canadian data question would you want an AI agent to answer correctly?</h1>
+          
+          <div class="team-strip">
+            <div class="team-badge">
+              <div class="team-av" style="background: #2563eb;">B</div>
+              <span><strong>Benjamin Sanchez</strong> (Lead / Architect)</span>
+            </div>
+            <div class="team-badge">
+              <div class="team-av" style="background: #059669;">S</div>
+              <span><strong>Samir Ibrahim</strong> (Evals &amp; Viz)</span>
+            </div>
+            <div class="team-badge">
+              <div class="team-av" style="background: #d97706;">Y</div>
+              <span><strong>Yassir Khougali</strong> (Delivery &amp; HITL)</span>
+            </div>
+          </div>
+
+          <div class="link-pill">
+            github.com/neobenjax/Canadian-Open-Data-Agentic-Platform
+          </div>
+
+          <div style="font-size: 14px; color: #818cf8; font-weight: 600; letter-spacing: 0.5px; margin-top: 4px;">
+            #AgenticAI &nbsp; #MCP &nbsp; #LangGraph &nbsp; #OpenData &nbsp; #Canada
+          </div>
+        </div>
+      </div>
+
+      <!-- Hairline Progress Bar -->
+      <div class="hairline-progress" id="hairlineProgress"></div>
+
+      <!-- Bottom Timeline Bar -->
+      <div class="timeline-bar">
+        <button class="btn" id="playPauseBtn" style="padding: 4px 12px; font-size: 11px;">⏸ Pause</button>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="scene-indicators" id="sceneIndicators">
+          <div class="dot active" data-index="0" title="1. Problem Hook"></div>
+          <div class="dot" data-index="1" title="2. Monorepo Engine"></div>
+          <div class="dot" data-index="2" title="3. Agent Gitflow"></div>
+          <div class="dot" data-index="3" title="4. Peer Review Guardrail"></div>
+          <div class="dot" data-index="4" title="5. Distribution Mirror"></div>
+          <div class="dot" data-index="5" title="6. Community CTA"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- External Controller Toolbar -->
+  <div class="controls-strip">
+    <button class="btn" id="prevBtn">⏮ Previous Scene</button>
+    <button class="btn" id="nextBtn">⏭ Next Scene</button>
+    <button class="btn" id="fullscreenBtn">⛶ Fullscreen Presentation</button>
+    <button class="btn btn-record" id="recordBtn">🎥 Record &amp; Export Video (Clean 1080p)</button>
+    <span id="recordStatus" style="font-size: 12px; color: #94a3b8; font-weight: 500;">Ready to record</span>
+  </div>
+
+  <script>
+    const scenes = document.querySelectorAll('.scene');
+    const dots = document.querySelectorAll('.dot');
+    const progressFill = document.getElementById('progressFill');
+    const hairlineProgress = document.getElementById('hairlineProgress');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const recordBtn = document.getElementById('recordBtn');
+    const recordStatus = document.getElementById('recordStatus');
+    const stageWrapper = document.getElementById('stageWrapper');
+
+    let currentScene = 0;
+    let isPlaying = true;
+    let sceneStartTime = performance.now();
+    let durations = Array.from(scenes).map(s => parseFloat(s.getAttribute('data-duration') || '6') * 1000);
+    let totalDuration = durations.reduce((a, b) => a + b, 0);
+
+    function showScene(index) {
+      scenes.forEach((s, i) => {
+        s.classList.toggle('active', i === index);
+      });
+      dots.forEach((d, i) => {
+        d.classList.toggle('active', i === index);
+      });
+      currentScene = index;
+      sceneStartTime = performance.now();
+    }
+
+    function nextScene() {
+      showScene((currentScene + 1) % scenes.length);
+    }
+
+    function prevScene() {
+      showScene((currentScene - 1 + scenes.length) % scenes.length);
+    }
+
+    dots.forEach((dot, idx) => {
+      dot.addEventListener('click', () => showScene(idx));
+    });
+
+    prevBtn.addEventListener('click', prevScene);
+    nextBtn.addEventListener('click', nextScene);
+
+    playPauseBtn.addEventListener('click', () => {
+      isPlaying = !isPlaying;
+      playPauseBtn.textContent = isPlaying ? '⏸ Pause' : '▶ Play';
+    });
+
+    // Fullscreen toggle
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          stageWrapper.requestFullscreen();
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    }
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+    // Keyboard Shortcuts (F: Fullscreen, Space: Pause/Play, Arrows: Navigation)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        isPlaying = !isPlaying;
+        playPauseBtn.textContent = isPlaying ? '⏸ Pause' : '▶ Play';
+      } else if (e.key === 'ArrowRight') {
+        nextScene();
+      } else if (e.key === 'ArrowLeft') {
+        prevScene();
+      }
+    });
+
+    // Direct scene navigation via URL param (?scene=0..5 or #scene-1..6)
+    const urlParams = new URLSearchParams(window.location.search);
+    const sceneParam = urlParams.get('scene');
+    const hashParam = window.location.hash;
+    const isFrameless = urlParams.get('frameless') === 'true';
+
+    if (isFrameless) {
+      document.body.classList.add('frameless');
+    }
+
+    if (sceneParam !== null) {
+      showScene(parseInt(sceneParam, 10));
+      isPlaying = false;
+      playPauseBtn.textContent = '▶ Play';
+    } else if (hashParam) {
+      const targetIndex = Array.from(scenes).findIndex(s => '#' + s.id === hashParam);
+      if (targetIndex !== -1) {
+        showScene(targetIndex);
+        isPlaying = false;
+        playPauseBtn.textContent = '▶ Play';
+      }
+    }
+
+    // Animation Loop
+    function loop(now) {
+      if (isPlaying) {
+        const elapsedInScene = now - sceneStartTime;
+        const currentTarget = durations[currentScene];
+
+        // Overall progress
+        let previousElapsed = durations.slice(0, currentScene).reduce((a, b) => a + b, 0);
+        let currentTotalElapsed = previousElapsed + Math.min(elapsedInScene, currentTarget);
+        let pct = (currentTotalElapsed / totalDuration) * 100;
+        progressFill.style.width = pct + '%';
+        if (hairlineProgress) {
+          hairlineProgress.style.width = pct + '%';
+        }
+
+        if (elapsedInScene >= currentTarget) {
+          nextScene();
+        }
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // Built-in Clean Video Recording
+    let mediaRecorder = null;
+    let recordedChunks = [];
+
+    recordBtn.addEventListener('click', async () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        return;
+      }
+
+      try {
+        recordStatus.textContent = 'Preparing clean recording...';
+        // Hide all external buttons and control bars so the recorded stream is purely the presentation
+        document.body.classList.add('recording-mode');
+
+        showScene(0);
+        isPlaying = true;
+        playPauseBtn.textContent = '⏸ Pause';
+
+        // Prompt user to select this tab/window
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            displaySurface: 'browser',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 60 }
+          },
+          audio: false
+        });
+
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+          ? 'video/webm;codecs=vp9'
+          : 'video/webm';
+
+        mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12000000 });
+        recordedChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        const finishRecording = () => {
+          document.body.classList.remove('recording-mode');
+          stream.getTracks().forEach(track => track.stop());
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'CanData_MCP_LinkedIn_Showcase_Sprint_0.webm';
+          a.click();
+          recordBtn.classList.remove('recording');
+          recordBtn.textContent = '🎥 Record & Export Video';
+          recordStatus.textContent = 'Clean 1080p video exported successfully!';
+        };
+
+        mediaRecorder.onstop = finishRecording;
+        stream.getVideoTracks()[0].onended = finishRecording;
+
+        mediaRecorder.start();
+        recordBtn.classList.add('recording');
+        recordBtn.textContent = '⏹ Stop & Download Video';
+        recordStatus.textContent = 'Recording clean presentation (auto-completes when showcase ends)...';
+
+        // Auto-stop after full showcase
+        setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+          }
+        }, totalDuration + 1000);
+
+      } catch (err) {
+        console.error(err);
+        document.body.classList.remove('recording-mode');
+        recordStatus.textContent = 'Recording cancelled.';
+      }
+    });
+  </script>
+</body>
+</html>
