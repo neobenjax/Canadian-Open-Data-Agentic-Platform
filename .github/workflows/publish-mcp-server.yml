@@ -5,9 +5,9 @@ on:
     branches:
       - main
     paths:
+      - 'distribution/**'
       - 'packages/**'
       - 'tests/**'
-      - 'MCP_README.md'
       - 'ABOUT_THE_TEAM.md'
       - '.cursorrules'
       - '.env.example'
@@ -54,20 +54,18 @@ jobs:
             rm -rf "dist_repo/$bloat"
           done
 
-          echo "Overlaying clean MCP server package files..."
-          # Map MCP_README.md to root README.md
-          if [ -f "MCP_README.md" ]; then
-            cp "MCP_README.md" "dist_repo/README.md"
+          echo "Overlaying distribution assets..."
+          if [ -d "distribution" ]; then
+            cp -r distribution/* dist_repo/
           fi
 
-          # Core configuration and credits
+          echo "Overlaying shared configuration and core packages..."
           for item in "ABOUT_THE_TEAM.md" ".cursorrules" ".env.example" ".gitignore" "LICENSE"; do
             if [ -f "$item" ]; then
               cp "$item" "dist_repo/"
             fi
           done
 
-          # Package and test directories
           for dir in "packages" "tests"; do
             if [ -d "$dir" ]; then
               rm -rf "dist_repo/$dir"
