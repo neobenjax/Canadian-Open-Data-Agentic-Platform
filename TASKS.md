@@ -27,25 +27,25 @@
   - *Goal:* Verify end-to-end Gitflow & Linear synchronization workflow during the onboarding kickoff meeting without altering personal profile tasks.  
   - *Steps:* Pick up `CAN-00` in Linear $\rightarrow$ Set status `IN PROGRESS` $\rightarrow$ Create branch `feat/CAN-00-test-workflow-sandbox` $\rightarrow$ Add or modify test entry in `collaboration/tests/sandbox.md` $\rightarrow$ Push branch $\rightarrow$ Set status `IN REVIEW` $\rightarrow$ Open PR $\rightarrow$ Triangular peer review $\rightarrow$ Merge to `main` $\rightarrow$ Set status `DONE` $\rightarrow$ Purge feature branch.  
   - *Estimate:* 15 min · *Owner:* Benjamin Sanchez Zebadua
-- [ ] **CAN-01 (Benjamin's Onboarding Chore):** [IN REVIEW] 
+- [x] **CAN-01 (Benjamin's Onboarding Chore):** 
   - *Goal:* Verify workflow & update developer bio.  
   - *Steps:* Claim `CAN-01` in Linear $\rightarrow$ Create branch `feat/CAN-01-profile-update` $\rightarrow$ Add personal bio and links in `ABOUT_THE_TEAM.md` $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Samir.  
   - *Estimate:* 1 hour · *Owner:* Benjamin Sanchez Zebadua
-- [ ] **CAN-02 (Samir's Onboarding Chore):** [IN REVIEW] 
+- [x] **CAN-02 (Samir's Onboarding Chore):** 
   - *Goal:* Verify workflow, update bio & draft initial benchmark questions.  
   - *Steps:* Claim `CAN-02` in Linear $\rightarrow$ Create branch `feat/CAN-02-profile-and-benchmarks` $\rightarrow$ Add personal bio in `ABOUT_THE_TEAM.md` and create `collaboration/benchmarks/benchmark_questions_draft.md` with 3 sample housing ground-truth questions $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Yassir.  
   - *Estimate:* 1 hour · *Owner:* Samir Ibrahim
-- [ ] **CAN-03 (Yassir's Onboarding Chore):** [IN REVIEW] 
+- [x] **CAN-03 (Yassir's Onboarding Chore):** 
   - *Goal:* Verify workflow, update bio & add meeting notes template.  
   - *Steps:* Claim `CAN-03` in Linear $\rightarrow$ Create branch `feat/CAN-03-profile-and-meeting-notes` $\rightarrow$ Add personal bio in `ABOUT_THE_TEAM.md` and create `collaboration/meetings/sprint_0_trial_notes.md` with weekly sync template $\rightarrow$ Push branch $\rightarrow$ Open PR $\rightarrow$ Request review from Benjamin.  
   - *Estimate:* 1 hour · *Owner:* Yassir Tagelsir Khougali
-- [ ] **CAN-08 (Linear .env Wizard, Project Hierarchy & PR Automation):** [IN REVIEW] 
+- [x] **CAN-08 (Linear .env Wizard, Project Hierarchy & PR Automation):** 
   - *Goal:* Automated Linear API onboarding wizard, parent project hierarchy reorganization, automated PR creation via GitHub API, and proactive HITL reviewer protocols.  
   - *Steps:* Set up zero-dependency `.env` wizard $\rightarrow$ Reorganize Linear hierarchy into Option 1 $\rightarrow$ Implement automated PR & HITL reviewer protocol $\rightarrow$ Open PR #4 $\rightarrow$ Request review from Samir.  
   - *Estimate:* 2 hours · *Owner:* Benjamin Sanchez Zebadua
 
 ### Feature 0.2: Triangular Peer Review & Branch Protection Verification
-- [ ] **CAN-05 (Branch Protection & PR Approval Test):** [IN REVIEW] 
+- [x] **CAN-05 (Branch Protection & PR Approval Test):** 
   - *Goal:* Verify that GitHub blocks direct pushes to `main` and enforces the 1-approval requirement across the triangular review cycle:
     - Benjamin's PR $\rightarrow$ Reviewed & approved by Samir
     - Samir's PR $\rightarrow$ Reviewed & approved by Yassir

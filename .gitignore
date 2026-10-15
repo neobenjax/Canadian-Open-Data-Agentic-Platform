@@ -110,3 +110,4 @@ Thumbs.db
 scratch/
 *.log
 .agent/
+.wiki_sync_scratch/
