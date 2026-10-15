@@ -39,6 +39,13 @@ You are an expert AI software engineer pair programming on the CanData-MCP & Lan
 - Design: Follow Custom Active Theme design tokens and Google Chrome's modern-web-guidance.
 - Demos: Use `frontend-slides` (https://github.com/zarazhangrui/frontend-slides) for weekly demo presentations.
 
+## MONOREPO & MCP DISTRIBUTION ARCHITECTURE
+- Monorepo Single Source of Truth: NEVER delete `apps/`, `presentation/`, `collaboration/`, `docs/`, or planning files. All team work happens here.
+- Standalone MCP Distribution Mirror (`Canadian-Open-Data-Agentic-Platform-MCP-Server`): Read-only downstream mirror with Issues/PRs disabled.
+- Distribution Staging (`distribution/`): Files intended for the root of the standalone MCP repo live in `distribution/` (e.g. `distribution/README.md`, `distribution/CONTRIBUTING.md`). Do NOT add loose `MCP_...` prefixed files to monorepo root.
+- Individual Contributor Attribution: Commits pushed to the distribution repo preserve the exact individual author (`--author="$NAME <$EMAIL>"`).
+- Workflow Scope Requirement: Any token pushing `.github/workflows/` must have both `repo` and `workflow` scopes.
+
 ## ROLE SELECTION (3-PERSON CORE TEAM)
 On session start, identify which team member you are assisting:
 - Benjamin Sanchez Zebadua (Solutions Architect & Lead — Core fastMCP, DuckDB, Docker & API Security)
