@@ -1,0 +1,81 @@
+name: Sync Documentation to WIKI Repo
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'collaboration/**'
+      - 'docs/**'
+      - 'presentation/**'
+      - 'apps/**'
+      - 'assets/**'
+      - 'ABOUT_THE_TEAM.md'
+      - 'CANADIAN_AGENTIC_DATA_PLATFORM_PLAN.md'
+      - 'General Plan - idea.md'
+      - 'WIKI_README.md'
+      - '.github/workflows/sync-wiki.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-wiki-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync-to-wiki:
+    runs-on: ubuntu-latest
+    name: Sync to Canadian-Open-Data-Agentic-Platform-WIKI
+
+    steps:
+      - name: Checkout Source Repository
+        uses: actions/checkout@v4
+
+      - name: Configure Git Author
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clone and Synchronize to WIKI Repository
+        env:
+          WIKI_SYNC_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN }}
+        run: |
+          if [ -z "$WIKI_SYNC_TOKEN" ]; then
+            echo "::warning ::Secret WIKI_SYNC_TOKEN is not configured in repository secrets."
+            echo "Please add a Personal Access Token (classic with 'repo' scope or fine-grained) as WIKI_SYNC_TOKEN in Settings -> Secrets and variables -> Actions."
+            exit 0
+          fi
+
+          echo "Cloning target WIKI repository..."
+          git clone "https://x-access-token:${WIKI_SYNC_TOKEN}@github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-WIKI.git" wiki_dest
+
+          echo "Synchronizing documentation artifacts..."
+          
+          # Root documentation files
+          if [ -f "WIKI_README.md" ]; then
+            cp "WIKI_README.md" "wiki_dest/README.md"
+          fi
+          
+          for file in "ABOUT_THE_TEAM.md" "CANADIAN_AGENTIC_DATA_PLATFORM_PLAN.md" "General Plan - idea.md"; do
+            if [ -f "$file" ]; then
+              cp "$file" "wiki_dest/"
+            fi
+          done
+
+          # Directories
+          for dir in "collaboration" "docs" "presentation" "apps" "assets"; do
+            if [ -d "$dir" ]; then
+              rm -rf "wiki_dest/$dir"
+              cp -r "$dir" "wiki_dest/"
+            fi
+          done
+
+          cd wiki_dest
+          git add -A
+          
+          if git diff --staged --quiet; then
+            echo "No changes detected. WIKI is already in sync with main."
+          else
+            git commit -m "docs: automated sync from main [${{ github.sha }}]"
+            git push origin main
+            echo "Successfully pushed latest documentation to WIKI repository."
+          fi
