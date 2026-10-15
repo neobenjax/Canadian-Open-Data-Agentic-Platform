@@ -111,3 +111,4 @@ scratch/
 *.log
 .agent/
 .wiki_sync_scratch/
+.mcp_dist_scratch/

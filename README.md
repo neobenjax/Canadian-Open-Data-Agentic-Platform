@@ -1,155 +1,112 @@
-# Canadian Open Data Agentic Platform (CanData-MCP)
+# Canadian Open Data Agentic Platform — Engineering Monorepo
 
+[![MCP Server Distribution](https://img.shields.io/badge/MCP-Distribution%20Repo-orange.svg)](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![FastMCP 2.0](https://img.shields.io/badge/MCP-FastMCP%202.0-orange.svg)](https://modelcontextprotocol.io/)
+[![FastMCP 2.0](https://img.shields.io/badge/protocol-FastMCP%202.0-yellow.svg)](https://modelcontextprotocol.io/)
 [![DuckDB 1.2+](https://img.shields.io/badge/engine-DuckDB%201.2+-yellow.svg)](https://duckdb.org/)
 [![LangGraph 0.2+](https://img.shields.io/badge/orchestrator-LangGraph%200.2+-green.svg)](https://langchain-ai.github.io/langgraph/)
-[![Documentation WIKI](https://img.shields.io/badge/docs-Project%20WIKI-purple.svg)](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-WIKI)
+[![Architecture Status](https://img.shields.io/badge/status-Active%20Sprint-success.svg)]()
 
-Production-grade **Model Context Protocol (MCP)** server and stateful multi-agent system connecting LLMs directly to verified Canadian Open Data sources (**Statistics Canada**, **Bank of Canada**, and **Open Government Canada**).
+Welcome to the **Canadian Open Data Agentic Platform** primary engineering monorepo and collaborative knowledge hub.
 
----
-
-> [!NOTE]
-> ### 📖 Project WIKI & Team Collaboration Hub
-> This repository is the **production MCP server package** intended for installation and agent consumption.  
-> For comprehensive team documentation, meeting notes, agile sprint tracking, evaluation benchmarks, interactive 16:9 presentation slides, and the team portfolio site, visit the official companion repository:  
-> **👉 [Canadian-Open-Data-Agentic-Platform-WIKI](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-WIKI)**
+This repository serves as the **Single Source of Truth** for the core engineering team: containing the FastMCP 2.0 server codebase, LangGraph 0.2+ agent orchestrator, GTA housing evaluation benchmarks, team portfolio web applications, interactive 16:9 demo presentations, and agile sprint tracking.
 
 ---
 
-## ⚡ Core Architecture
+> [!TIP]
+> ### 🚀 Looking for the Standalone MCP Server?
+> If you are an AI developer or external agent looking to install, configure, or use the **CanData-MCP** server in **Claude Desktop**, **Cursor IDE**, or **Google Antigravity**, visit our dedicated zero-bloat distribution repository:  
+> **👉 [Canadian-Open-Data-Agentic-Platform-MCP-Server](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server)**
 
-CanData-MCP provides high-performance data querying with zero-copy memory buffers, preventing LLM context window bloat and eliminating hallucinated statistical figures.
+---
+
+## 🧭 Monorepo Architecture & Directory Map
 
 ```mermaid
-flowchart LR
-    subgraph Client ["AI Agent / Host"]
-        Agent["LLM Agent<br/>(Claude Desktop / Cursor / Antigravity)"]
+graph TD
+    Root["Canadian Open Data Agentic Platform (Monorepo)"]
+
+    subgraph Core ["⚡ Production Packages & Engines"]
+        P1["packages/candata-mcp/ (FastMCP 2.0 Server)"]
+        P2["packages/agent-orchestrator/ (LangGraph Multi-Agent)"]
+        P3["tests/ (Test Suites & CI)"]
     end
 
-    subgraph CanData_MCP ["CanData-MCP Server (FastMCP 2.0)"]
-        Router["Tool Router"]
-        DuckEngine["DuckDB 1.2+ & Arrow Engine<br/>(Zero-Copy In-Memory Slicing)"]
-        Cache["Local Vector & Table Cache"]
+    subgraph Hub ["👥 Collaboration & Knowledge Hub"]
+        T1["ABOUT_THE_TEAM.md (Collective Profiles)"]
+        T2["collaboration/team/ (Detailed Dossiers)"]
+        T3["collaboration/meetings/ (Sprint 0 Sync Notes)"]
+        T4["collaboration/benchmarks/ (GTA Housing Ground Truth)"]
     end
 
-    subgraph Data_Sources ["Official Canadian Data Sources"]
-        StatCan["Statistics Canada WDS API<br/>(Census, Housing, CPI)"]
-        BoC["Bank of Canada Valet API<br/>(Policy Rates, FX, Yields)"]
-        OpenCan["Open Government CKAN API<br/>(Federal Portals & Catalogs)"]
+    subgraph Apps ["🖥️ Interactive Web Apps & Presentations"]
+        A1["presentation/ (16:9 Interactive HTML Slides)"]
+        A2["apps/portfolio-site/ (Responsive Team Showcase)"]
+        A3["apps/docs-portal/ (Documentation Site)"]
     end
 
-    Agent <--> |"MCP Protocol (stdio / SSE)"| Router
-    Router --> DuckEngine
-    DuckEngine <--> Cache
-    DuckEngine <--> |"Async REST Adapters"| Data_Sources
-```
+    subgraph Governance ["🛡️ Architecture & Agile Sprints"]
+        G1["TASKS.md (Linear Sprint Backlog)"]
+        G2["AGENTS.md & .cursorrules (Agent Guardrails)"]
+        G3["docs/ (Engineering & Automation Guides)"]
+    end
 
-### Key Technical Pillars
-- **Zero-Copy Memory Slicing:** Embeds **DuckDB 1.2+** with Apache Arrow streaming buffers to aggregate large federal datasets (e.g., 200MB census tables) into compact (<3KB) deterministic payloads before returning to the model.
-- **FastMCP 2.0 Specification:** Employs MCP 2026 standards including tool annotations (`readOnly`, `idempotent`), runtime sampling, and progress notifications.
-- **Stateful Multi-Agent Orchestration:** Optional `agent-orchestrator` suite built on **LangGraph 0.2+** with SQL verification, citation validation, and Human-in-the-Loop (`interrupt()`) boundary checkpoints.
-
----
-
-## 🚀 Quickstart & Installation
-
-### Option 1: Install with `uv` (Recommended)
-```bash
-# Clone the repository
-git clone https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform.git
-cd Canadian-Open-Data-Agentic-Platform
-
-# Install with dependencies
-uv pip install -e packages/candata-mcp
-```
-
-### Option 2: Run directly with `uvx`
-```bash
-uvx --from git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform.git candata-mcp
+    Root --> Core
+    Root --> Hub
+    Root --> Apps
+    Root --> Governance
 ```
 
 ---
 
-## 🔌 Connecting to AI Hosts
+## 📚 Section Index
 
-### 1. Claude Desktop
-Add to your `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "candata": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/Canadian-Open-Data-Agentic-Platform",
-        "run",
-        "candata-mcp"
-      ],
-      "env": {
-        "PYTHONUNBUFFERED": "1"
-      }
-    }
-  }
-}
-```
+### 1. ⚡ Production Packages
+- **[`packages/candata-mcp/`](packages/candata-mcp/):** Official FastMCP 2.0 server connecting LLMs to Statistics Canada, Bank of Canada, and Open Government Canada via server-side DuckDB 1.2+ Arrow vectorized memory buffers.
+- **[`packages/agent-orchestrator/`](packages/agent-orchestrator/):** LangGraph 0.2+ stateful multi-agent system with SQL calculation nodes, citation validators, and Human-in-the-Loop (`interrupt()`) boundary checkpoints.
+- **[`tests/`](tests/):** Pytest test suites and automated branch protection verification.
 
-### 2. Cursor IDE (`.cursor/mcp.json`)
-```json
-{
-  "mcpServers": {
-    "candata": {
-      "command": "uv",
-      "args": ["run", "candata-mcp"],
-      "cwd": "${workspaceFolder}"
-    }
-  }
-}
-```
+### 2. 👥 Team Dynamics & Collaboration
+- **[`ABOUT_THE_TEAM.md`](ABOUT_THE_TEAM.md):** The core 3-person collective profile of Benjamin, Samir, and Yassir.
+- **[`collaboration/team/benjamin_sanchez_profile.md`](collaboration/team/benjamin_sanchez_profile.md):** Benjamin's solutions architecture dossier.
+- **[`collaboration/team-archive/martin_torres_profile.md`](collaboration/team-archive/martin_torres_profile.md):** Future phase contributor archive.
+- **[`collaboration/meetings/sprint_0_trial_notes.md`](collaboration/meetings/sprint_0_trial_notes.md):** Weekly sync notes, onboarding trials, and team agreements.
+- **[`collaboration/TASKS_3_PERSON_ALIGNMENT.md`](collaboration/TASKS_3_PERSON_ALIGNMENT.md):** Architectural boundaries and sprint responsibilities.
 
-### 3. Google Antigravity / AGY
-Add to your Antigravity MCP server configuration in `~/.gemini/antigravity/mcp/candata-mcp.json`.
+### 3. 📊 Ground-Truth Benchmarks
+- **[`collaboration/benchmarks/benchmark_questions_draft.md`](collaboration/benchmarks/benchmark_questions_draft.md):** CMHC rent and StatCan income benchmark questions across 25 Greater Toronto Area municipalities to eliminate LLM hallucinations.
+- **[`collaboration/tests/sandbox.md`](collaboration/tests/sandbox.md):** Sandbox trial entries and onboarding test logs.
+
+### 4. 🖥️ Interactive Web Apps & Presentations
+- **[`presentation/index.html`](presentation/index.html):** Zero-dependency, fixed 16:9 presentation deck built for weekly demos and stakeholder presentations.
+- **[`apps/portfolio-site/index.html`](apps/portfolio-site/index.html):** Modern responsive web showcase displaying core team profiles, experience cards, and live project demos.
+- **[`apps/docs-portal/`](apps/docs-portal/):** Dedicated documentation portal structure.
+
+### 5. 🛡️ Architecture & Automation Guides
+- **[`docs/DEVELOPER_SETUP_AND_AUTOMATION_GUIDE.md`](docs/DEVELOPER_SETUP_AND_AUTOMATION_GUIDE.md):** Guide to SSH commit signing, git automation, and Linear sync.
+- **[`docs/CAN_08_ONBOARDING_AND_ENV_AUTOMATION.md`](docs/CAN_08_ONBOARDING_AND_ENV_AUTOMATION.md):** Zero-dependency `.env` wizard, Linear project hierarchy, and automated PR creation protocol.
+- **[`docs/CAN_05_BRANCH_PROTECTION_AND_PEER_REVIEW_VERIFICATION.md`](docs/CAN_05_BRANCH_PROTECTION_AND_PEER_REVIEW_VERIFICATION.md):** Verification of triangular peer review loops (`Benjamin -> Samir -> Yassir -> Benjamin`).
+- **[`CANADIAN_AGENTIC_DATA_PLATFORM_PLAN.md`](CANADIAN_AGENTIC_DATA_PLATFORM_PLAN.md):** Full multi-phase architectural roadmap.
 
 ---
 
-## 🛠️ MCP Tool Inventory
+## 🔄 Automated MCP Server Distribution
 
-| Tool Name | Source | Description | Annotations |
-| :--- | :--- | :--- | :--- |
-| `statcan_query_table` | Statistics Canada | Queries StatCan WDS tables with DuckDB filtering and Arrow slicing. | `readOnly: true`, `idempotent: true` |
-| `statcan_search_catalog` | Statistics Canada | Full-text semantic search for StatCan vector and table IDs. | `readOnly: true`, `idempotent: true` |
-| `boc_get_valet_series` | Bank of Canada | Retrieves official daily/monthly policy interest rates, FX, and CPI series. | `readOnly: true`, `idempotent: true` |
-| `boc_list_indicators` | Bank of Canada | Lists available core economic and financial market series from BoC Valet. | `readOnly: true`, `idempotent: true` |
-| `open_canada_search` | Open Government | Queries datasets and CKAN records across Federal Government open data. | `readOnly: true`, `idempotent: true` |
+This monorepo automatically maintains the public standalone MCP server repository:
 
----
-
-## 👥 Core Team & Leadership
-
-The Canadian Open Data Agentic Platform is engineered by a 3-person core collective:
-
-- **[Benjamin Sanchez Zebadua](https://github.com/neobenjax)** — *Project Lead & Solutions Architect* (Architecture, FastMCP 2.0, DuckDB Engine, Monorepo Governance)
-- **[Samir Ibrahim](https://www.linkedin.com/in/samiroibrahim/)** — *Co-Lead, Data Visualization & Agent Evals* (GTA Housing Benchmarks, Multi-Agent Reasoning, Plotly)
-- **[Yassir Tagelsir Khougali](https://www.linkedin.com/in/yassir-tagelsir-khougali/)** — *Tech Delivery, PMO & HITL Transformation* (Human-in-the-Loop workflows, Linear tracking, Lineage Governance)
-
-For detailed biographies, professional experience, and architectural contributions, see [ABOUT_THE_TEAM.md](ABOUT_THE_TEAM.md) or visit the [Team Dossiers on the WIKI](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-WIKI).
+1. **Source of Truth:** All development on `candata-mcp` and `agent-orchestrator` takes place directly within this monorepo.
+2. **Automated Publishing Workflow:** When changes merge into `main` touching `packages/**`, `tests/**`, or `MCP_README.md`, GitHub Actions (`.github/workflows/publish-mcp-server.yml`):
+   - Extracts the original commit author (preserving your GitHub avatar, name, and profile link).
+   - Publishes the updated MCP server package and maps `MCP_README.md` $\rightarrow$ `README.md` on the public [Canadian-Open-Data-Agentic-Platform-MCP-Server](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server) repository.
+3. **Zero Bloat for End-Users:** Internal sprint logs, demo slides, and web apps stay safely inside this monorepo.
 
 ---
 
-## 🛡️ Developer Standards & Guardrails
+## 🤝 The Core Collective
 
-We enforce strict 2026 AI agent and developer guardrails across this codebase:
-- **Branch Protection:** Direct commits to `main` are strictly blocked. All code enters through feature branches and peer review.
-- **AI Agent Guidelines:** Review [AGENTS.md](AGENTS.md) and [.cursorrules](.cursorrules) for automated developer workflows.
-- **Contribution Protocol:** Detailed in [CONTRIBUTING.md](CONTRIBUTING.md).
-- **Task & Backlog Tracking:** Sprints and backlog items are synchronized with Linear via [TASKS.md](TASKS.md).
-
----
-
-## 🔗 Automated WIKI Synchronization
-
-All documentation, presentation decks, and team collaboration records in `docs/`, `collaboration/`, `presentation/`, and `apps/` are continuously mirrored to the [WIKI Repository](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-WIKI) via GitHub Actions on every merge to `main`.
+- **[Benjamin Sanchez Zebadua](https://github.com/neobenjax)** — *Project Lead & Solutions Architect*
+- **[Samir Ibrahim](https://www.linkedin.com/in/samiroibrahim/)** — *Co-Lead, Data Visualization & Agent Evals Lead*
+- **[Yassir Tagelsir Khougali](https://www.linkedin.com/in/yassir-tagelsir-khougali/)** — *Technology Delivery & HITL Transformation Lead*
 
 ---
 
