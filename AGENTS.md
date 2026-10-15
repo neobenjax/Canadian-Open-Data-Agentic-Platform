@@ -43,6 +43,22 @@ uv run ruff check .
 uv run pytest
 ```
 
+### 5. Monorepo-to-MCP-Distribution Architecture Guardrail
+- **The Monorepo is the Single Source of Truth:**
+  - This repository (`Canadian-Open-Data-Agentic-Platform`) houses EVERYTHING: core MCP packages (`packages/`), test suites (`tests/`), team web apps (`apps/`), interactive 16:9 slides (`presentation/`), internal sprint meeting notes and GTA benchmarks (`collaboration/`), architecture guides (`docs/`), and task tracking (`TASKS.md`).
+  - **NEVER delete these folders from this repository.**
+- **The Standalone Distribution Repo:**
+  - `https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git` is an automated, read-only distribution mirror.
+  - Issues and PRs are disabled on the distribution repo. All external community PRs must be opened against this monorepo.
+- **The `distribution/` Staging Directory:**
+  - Files intended for the root of the standalone distribution repo live inside `distribution/` (e.g. `distribution/README.md`, `distribution/CONTRIBUTING.md`).
+  - Do NOT create loose prefixed files (like `MCP_README.md`) in the monorepo root.
+- **Individual Contributor Attribution on Downstream Releases:**
+  - Automated syncs via `.github/workflows/publish-mcp-server.yml` dynamically extract the original commit author (`--author="$AUTHOR_NAME <$AUTHOR_EMAIL>"`).
+  - Whichever developer (Benjamin, Samir, or Yassir) authors the feature commit in the monorepo will appear as the **sole author** of that commit in the standalone MCP Server repository history.
+- **GitHub PAT Scope Requirement:**
+  - Any Personal Access Token used to push workflow files (`.github/workflows/*.yml`) must include both `repo` and `workflow` scopes.
+
 ---
 
 ## 🚀 Automated Feature Execution Protocol (from CONTRIBUTING.md)
