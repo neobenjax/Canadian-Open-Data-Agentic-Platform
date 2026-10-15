@@ -1,0 +1,112 @@
+name: Publish Standalone MCP Server Distribution
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/**'
+      - 'tests/**'
+      - 'MCP_README.md'
+      - 'ABOUT_THE_TEAM.md'
+      - '.cursorrules'
+      - '.env.example'
+      - '.gitignore'
+      - 'LICENSE'
+      - '.github/workflows/publish-mcp-server.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-mcp-server-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish-mcp-server:
+    runs-on: ubuntu-latest
+    name: Publish to Canadian-Open-Data-Agentic-Platform-MCP-Server
+
+    steps:
+      - name: Checkout Monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Clone Distribution Repository
+        env:
+          WIKI_SYNC_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN }}
+        run: |
+          if [ -z "$WIKI_SYNC_TOKEN" ]; then
+            echo "::warning ::Secret WIKI_SYNC_TOKEN is not configured. Skipping MCP Server push."
+            exit 0
+          fi
+
+          echo "Cloning target MCP Server repository..."
+          git clone "https://x-access-token:${WIKI_SYNC_TOKEN}@github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git" dist_repo
+
+      - name: Synchronize MCP Package & Clean Bloat
+        run: |
+          if [ ! -d "dist_repo" ]; then
+            exit 0
+          fi
+
+          echo "Washing out non-MCP bloat from distribution repository..."
+          for bloat in "apps" "presentation" "collaboration" "assets" "CANADIAN_AGENTIC_DATA_PLATFORM_PLAN.md" "General Plan - idea.md" "TASKS.md" "linear_tasks_import.csv"; do
+            rm -rf "dist_repo/$bloat"
+          done
+
+          echo "Overlaying clean MCP server package files..."
+          # Map MCP_README.md to root README.md
+          if [ -f "MCP_README.md" ]; then
+            cp "MCP_README.md" "dist_repo/README.md"
+          fi
+
+          # Core configuration and credits
+          for item in "ABOUT_THE_TEAM.md" ".cursorrules" ".env.example" ".gitignore" "LICENSE"; do
+            if [ -f "$item" ]; then
+              cp "$item" "dist_repo/"
+            fi
+          done
+
+          # Package and test directories
+          for dir in "packages" "tests"; do
+            if [ -d "$dir" ]; then
+              rm -rf "dist_repo/$dir"
+              cp -r "$dir" "dist_repo/"
+            fi
+          done
+
+      - name: Commit and Push with Original Author Attribution
+        run: |
+          if [ ! -d "dist_repo" ]; then
+            exit 0
+          fi
+
+          cd dist_repo
+
+          # Extract original author from git commit
+          AUTHOR_NAME="${{ github.event.head_commit.author.name }}"
+          AUTHOR_EMAIL="${{ github.event.head_commit.author.email }}"
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+
+          if [ -z "$AUTHOR_NAME" ] || [ "$AUTHOR_NAME" = "null" ]; then
+            AUTHOR_NAME="Benjamin Sanchez Zebadua"
+            AUTHOR_EMAIL="besaze@hotmail.com"
+          fi
+
+          if [ -z "$COMMIT_MSG" ] || [ "$COMMIT_MSG" = "null" ]; then
+            COMMIT_MSG="feat: update MCP Server package distribution [skip ci]"
+          fi
+
+          echo "Attributing commit to: $AUTHOR_NAME <$AUTHOR_EMAIL>"
+          git config user.name "$AUTHOR_NAME"
+          git config user.email "$AUTHOR_EMAIL"
+
+          git add -A
+
+          if git diff --staged --quiet; then
+            echo "No changes detected. Distribution repository is already up to date."
+          else
+            git commit --author="$AUTHOR_NAME <$AUTHOR_EMAIL>" -m "$COMMIT_MSG"
+            git push origin main
+            echo "Successfully published latest MCP Server distribution with original author attribution."
+          fi
