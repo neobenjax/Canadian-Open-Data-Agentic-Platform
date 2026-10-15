@@ -2,8 +2,8 @@
 """
 Canadian Open Data Agentic Platform - Standalone MCP Server Distribution Sync Utility
 =====================================================================================
-Synchronizes only the clean MCP Server package, tests, and consumer documentation
-from this engineering monorepo to the standalone distribution repository:
+Synchronizes files from 'distribution/', plus 'packages/', 'tests/', and shared root
+configs from this engineering monorepo to the standalone distribution repository:
   https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git
 
 Preserves contributor attribution (Benjamin Sanchez, Samir Ibrahim, Yassir Khougali).
@@ -17,6 +17,7 @@ Usage:
 import argparse
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -27,23 +28,24 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
 
 # Paths
 ROOT_DIR = Path(__file__).resolve().parent.parent
+DIST_DIR = ROOT_DIR / "distribution"
 SCRATCH_DIR = ROOT_DIR / ".mcp_dist_scratch"
 ENV_FILE = ROOT_DIR / ".env"
 TARGET_REPO_URL = (
     "https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git"
 )
 
-# Files to copy: source relative to monorepo root -> dest relative to distro root
-SYNC_FILES = {
-    "MCP_README.md": "README.md",
-    "ABOUT_THE_TEAM.md": "ABOUT_THE_TEAM.md",
-    ".cursorrules": ".cursorrules",
-    ".env.example": ".env.example",
-    ".gitignore": ".gitignore",
-}
+# Shared root files to copy to distribution root
+SHARED_FILES = [
+    "ABOUT_THE_TEAM.md",
+    ".cursorrules",
+    ".env.example",
+    ".gitignore",
+    "LICENSE",
+]
 
-# Directories to copy
-SYNC_DIRS = [
+# Shared root directories to copy
+SHARED_DIRS = [
     "packages",
     "tests",
 ]
@@ -60,7 +62,25 @@ BLOAT_ITEMS = [
     "TASKS.md",
     "linear_tasks_import.csv",
     "WIKI_README.md",
+    "MCP_README.md",
 ]
+
+
+def on_rm_error(func, path, exc_info):
+    """Handles read-only file deletion on Windows."""
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    except Exception:
+        pass
+
+
+def clean_scratch_dir() -> None:
+    """Safely cleans the scratch directory on Windows and Unix."""
+    if SCRATCH_DIR.exists():
+        shutil.rmtree(SCRATCH_DIR, onerror=on_rm_error)
+    if SCRATCH_DIR.exists():
+        subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(SCRATCH_DIR)], capture_output=True)
 
 
 def load_env_token() -> str | None:
@@ -95,26 +115,6 @@ def run_git(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProc
     )
 
 
-import stat
-
-
-def on_rm_error(func, path, exc_info):
-    """Handles read-only file deletion on Windows."""
-    try:
-        os.chmod(path, stat.S_IWRITE)
-        func(path)
-    except Exception:
-        pass
-
-
-def clean_scratch_dir() -> None:
-    """Safely cleans the scratch directory on Windows and Unix."""
-    if SCRATCH_DIR.exists():
-        shutil.rmtree(SCRATCH_DIR, onerror=on_rm_error)
-    if SCRATCH_DIR.exists():
-        subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(SCRATCH_DIR)], capture_output=True)
-
-
 def sync_mcp_distro(dry_run: bool = False, token: str | None = None) -> int:
     """Synchronizes the MCP Server package to the distribution repository."""
     print("=" * 75)
@@ -130,10 +130,10 @@ def sync_mcp_distro(dry_run: bool = False, token: str | None = None) -> int:
     auth_url = TARGET_REPO_URL.replace("https://", f"https://x-access-token:{auth_token}@")
 
     print(f"\nMonorepo source : {ROOT_DIR}")
+    print(f"Distribution src: {DIST_DIR}")
     print(f"Target repo     : {TARGET_REPO_URL}")
     print(f"Mode            : {'DRY RUN (Simulate only)' if dry_run else 'LIVE WASH & PUBLISH'}")
 
-    # Prepare clean scratch dir
     clean_scratch_dir()
 
     print("\n[1/5] Cloning target MCP Server repository...")
@@ -148,7 +148,7 @@ def sync_mcp_distro(dry_run: bool = False, token: str | None = None) -> int:
     for item in BLOAT_ITEMS:
         item_path = SCRATCH_DIR / item
         if item_path.is_dir():
-            shutil.rmtree(item_path, ignore_errors=True)
+            shutil.rmtree(item_path, onerror=on_rm_error)
             print(f"  [-] Removed folder: {item}/")
             washed_count += 1
         elif item_path.is_file():
@@ -158,30 +158,38 @@ def sync_mcp_distro(dry_run: bool = False, token: str | None = None) -> int:
     if washed_count == 0:
         print("  [*] Target repository is already free of legacy bloat.")
 
-    print("\n[3/5] Overlaying clean MCP Server package files...")
-    # Copy files
-    for src_rel, dest_rel in SYNC_FILES.items():
-        src_path = ROOT_DIR / src_rel
-        dest_path = SCRATCH_DIR / dest_rel
-        if src_path.exists():
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src_path, dest_path)
-            print(f"  [+] Copied file: {src_rel} -> {dest_rel}")
-        else:
-            print(f"  [!] Skipped (not found): {src_rel}")
+    print("\n[3/5] Overlaying distribution folder & shared monorepo packages...")
+    # Copy all files from distribution/ into target root
+    if DIST_DIR.exists():
+        for dist_item in DIST_DIR.iterdir():
+            dest = SCRATCH_DIR / dist_item.name
+            if dist_item.is_file():
+                shutil.copy2(dist_item, dest)
+                print(f"  [+] Copied from distribution/: {dist_item.name} -> {dest.name}")
+            elif dist_item.is_dir():
+                if dest.exists():
+                    shutil.rmtree(dest, onerror=on_rm_error)
+                shutil.copytree(dist_item, dest)
+                print(f"  [+] Copied folder from distribution/: {dist_item.name}/")
 
-    # Copy directories
-    for d in SYNC_DIRS:
+    # Copy shared files
+    for f in SHARED_FILES:
+        src_path = ROOT_DIR / f
+        dest_path = SCRATCH_DIR / f
+        if src_path.exists():
+            shutil.copy2(src_path, dest_path)
+            print(f"  [+] Copied shared file: {f}")
+
+    # Copy shared directories
+    for d in SHARED_DIRS:
         src_dir = ROOT_DIR / d
         dest_dir = SCRATCH_DIR / d
         if src_dir.exists():
             if dest_dir.exists():
-                shutil.rmtree(dest_dir, ignore_errors=True)
+                shutil.rmtree(dest_dir, onerror=on_rm_error)
             shutil.copytree(src_dir, dest_dir)
             file_count = sum(1 for _ in dest_dir.rglob("*") if _.is_file())
-            print(f"  [+] Copied directory: {d}/ ({file_count} files)")
-        else:
-            print(f"  [!] Directory not found: {d}/")
+            print(f"  [+] Copied shared directory: {d}/ ({file_count} files)")
 
     print("\n[4/5] Inspecting distribution git status...")
     run_git(["git", "add", "-A"], cwd=SCRATCH_DIR)
@@ -190,7 +198,7 @@ def sync_mcp_distro(dry_run: bool = False, token: str | None = None) -> int:
 
     if not changes:
         print("[*] No changes detected. MCP Server distribution is already up to date!")
-        shutil.rmtree(SCRATCH_DIR, ignore_errors=True)
+        clean_scratch_dir()
         return 0
 
     print(f"[*] Detected {len(changes)} changes in distribution repo:")
@@ -201,18 +209,17 @@ def sync_mcp_distro(dry_run: bool = False, token: str | None = None) -> int:
 
     if dry_run:
         print("\n[i] DRY RUN COMPLETE: Verification successful. Nothing was pushed.")
-        shutil.rmtree(SCRATCH_DIR, ignore_errors=True)
+        clean_scratch_dir()
         return 0
 
     print("\n[5/5] Committing with multi-contributor attribution & pushing...")
-    # Configure author as Benjamin Sanchez Zebadua
     run_git(["git", "config", "user.name", "Neobenjax"], cwd=SCRATCH_DIR)
     run_git(["git", "config", "user.email", "besaze@hotmail.com"], cwd=SCRATCH_DIR)
 
     commit_body = (
-        "feat: standalone distribution release of Canadian Open Data FastMCP 2.0 Server\n\n"
-        "Production-grade MCP server and LangGraph orchestrator connecting LLMs directly\n"
-        "to Statistics Canada, Bank of Canada, and Open Government Canada.\n\n"
+        "docs: add CONTRIBUTING redirect and update distribution metadata\n\n"
+        "Configures contribution guidelines redirecting developers to the primary\n"
+        "engineering monorepo for issue tracking and PR submissions.\n\n"
         "Co-authored-by: Samir Ibrahim <samiroibrahim@users.noreply.github.com>\n"
         "Co-authored-by: Yassir Tagelsir Khougali <yassirtmk@users.noreply.github.com>"
     )
@@ -220,14 +227,14 @@ def sync_mcp_distro(dry_run: bool = False, token: str | None = None) -> int:
     run_git(["git", "commit", "-m", commit_body], cwd=SCRATCH_DIR)
 
     push_res = run_git(["git", "push", "origin", "main"], cwd=SCRATCH_DIR)
+    clean_scratch_dir()
+
     if push_res.returncode == 0:
-        print("\n[SUCCESS] Standalone MCP Server published successfully to GitHub!")
+        print("\n[SUCCESS] Standalone MCP Server updated successfully on GitHub!")
         print(f"👉 URL: {TARGET_REPO_URL}")
-        shutil.rmtree(SCRATCH_DIR, ignore_errors=True)
         return 0
     else:
         print(f"\n[ERROR] Push failed:\n{push_res.stderr}")
-        shutil.rmtree(SCRATCH_DIR, ignore_errors=True)
         return 1
 
 
