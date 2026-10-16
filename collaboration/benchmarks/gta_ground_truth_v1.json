@@ -1,0 +1,706 @@
+{
+  "benchmark": "GTA housing ground truth",
+  "version": 1,
+  "built_on": "2026-10-16",
+  "questions": [
+    {
+      "id": "GT-01",
+      "category": "Rental market",
+      "question": "What was the average monthly rent for a two-bedroom unit in the Toronto CMA in the October 2025 CMHC Rental Market Survey, and how much did it change from 2024?",
+      "expected": {
+        "rent_2025": 2045.0,
+        "rent_2024": 1972.0,
+        "change_dollars": 73.0,
+        "change_pct": 3.7
+      },
+      "tolerance": "Exact dollars; percentage ±0.1 pp",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0133-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, loyers moyens pour les régions de 10 000 habitants et plus",
+          "vector_id": "v3823103",
+          "coordinate": "125.3.3.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Row and apartment structures of three units and over;Two bedroom units",
+          "series_title_fr": "Toronto, Ontario;Logements en bandes et immeubles d'appartements de trois logements et plus;Logements de deux chambres",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013301",
+          "reference_periods": [
+            "2024-01-01",
+            "2025-01-01"
+          ],
+          "release_time": "2025-12-17T08:30"
+        }
+      ],
+      "traps": [
+        "Asking rents from listing sites (Rentals.ca / Urbanation, ~$2,600+) are not CMHC survey rents; survey rents include sitting tenants under rent control.",
+        "The survey is taken in October; the table labels it as the annual period '2025'.",
+        "'Apartment structures of six units and over' is a different series with a different value."
+      ]
+    },
+    {
+      "id": "GT-02",
+      "category": "Rental market",
+      "question": "What was the purpose-built rental vacancy rate in the Toronto CMA in 2025, and how does it compare to 2023?",
+      "expected": {
+        "vacancy_2025_pct": 3.0,
+        "vacancy_2024_pct": 2.5,
+        "vacancy_2023_pct": 1.4,
+        "change_2023_2025_pp": 1.6
+      },
+      "tolerance": "Exact to one decimal",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0130-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, vacancy rates, row and apartment structures of three units and over, privately initiated in census metropolitan areas, weighted average",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, taux d'inoccupation, logements en bandes et immeubles d'appartements des trois logements et plus, logements d'initiative privée dans les régions métropolitaines du recensement, moyennes pondérées",
+          "vector_id": "v1930324",
+          "coordinate": "24.0.0.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario",
+          "series_title_fr": "Toronto, Ontario",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013001",
+          "reference_periods": [
+            "2023-01-01",
+            "2024-01-01",
+            "2025-01-01"
+          ],
+          "release_time": "2025-12-17T08:30"
+        }
+      ],
+      "traps": [
+        "News coverage of CMHC's Fall 2024 report quotes Toronto at 2.2%-2.3% for 2024; this table (row + apartment, weighted) says 2.5%. The agent must not blend sources.",
+        "The change must be expressed in percentage points, not percent."
+      ]
+    },
+    {
+      "id": "GT-03",
+      "category": "Rental market",
+      "question": "In 2025, how did the average two-bedroom rent in the Oshawa CMA (Durham) compare with the Toronto CMA?",
+      "expected": {
+        "oshawa_2025": 1762.0,
+        "toronto_2025": 2045.0,
+        "gap_dollars": 283.0,
+        "toronto_premium_pct": 16.1
+      },
+      "tolerance": "Exact dollars; percentage ±0.1 pp",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0133-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, loyers moyens pour les régions de 10 000 habitants et plus",
+          "vector_id": "v3823091",
+          "coordinate": "104.3.3.0.0.0.0.0.0.0",
+          "series_title_en": "Oshawa, Ontario;Row and apartment structures of three units and over;Two bedroom units",
+          "series_title_fr": "Oshawa, Ontario;Logements en bandes et immeubles d'appartements de trois logements et plus;Logements de deux chambres",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013301",
+          "reference_periods": [
+            "2025-01-01"
+          ],
+          "release_time": "2025-12-17T08:30"
+        },
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0133-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, loyers moyens pour les régions de 10 000 habitants et plus",
+          "vector_id": "v3823103",
+          "coordinate": "125.3.3.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Row and apartment structures of three units and over;Two bedroom units",
+          "series_title_fr": "Toronto, Ontario;Logements en bandes et immeubles d'appartements de trois logements et plus;Logements de deux chambres",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013301",
+          "reference_periods": [
+            "2025-01-01"
+          ],
+          "release_time": "2025-12-17T08:30"
+        }
+      ],
+      "traps": [
+        "Durham Region is mostly covered by the Oshawa CMA; Peel, York and Halton fall inside the Toronto CMA and have no separate CMA series in this table."
+      ]
+    },
+    {
+      "id": "GT-04",
+      "category": "Rental market",
+      "question": "Among the Toronto, Oshawa and Hamilton CMAs, which had the highest rental vacancy rate in 2025?",
+      "expected": {
+        "answer": "Oshawa",
+        "vacancy_2025_pct": {
+          "toronto": 3.0,
+          "oshawa": 3.6,
+          "hamilton": 3.5
+        }
+      },
+      "tolerance": "Correct CMA; rates exact to one decimal",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0130-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, vacancy rates, row and apartment structures of three units and over, privately initiated in census metropolitan areas, weighted average",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, taux d'inoccupation, logements en bandes et immeubles d'appartements des trois logements et plus, logements d'initiative privée dans les régions métropolitaines du recensement, moyennes pondérées",
+          "vector_id": "v1930324",
+          "coordinate": "24.0.0.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario",
+          "series_title_fr": "Toronto, Ontario",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013001",
+          "reference_periods": [
+            "2025-01-01"
+          ],
+          "release_time": "2025-12-17T08:30"
+        },
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0130-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, vacancy rates, row and apartment structures of three units and over, privately initiated in census metropolitan areas, weighted average",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, taux d'inoccupation, logements en bandes et immeubles d'appartements des trois logements et plus, logements d'initiative privée dans les régions métropolitaines du recensement, moyennes pondérées",
+          "vector_id": "v1930312",
+          "coordinate": "11.0.0.0.0.0.0.0.0.0",
+          "series_title_en": "Oshawa, Ontario",
+          "series_title_fr": "Oshawa, Ontario",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013001",
+          "reference_periods": [
+            "2025-01-01"
+          ],
+          "release_time": "2025-12-17T08:30"
+        },
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0130-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, vacancy rates, row and apartment structures of three units and over, privately initiated in census metropolitan areas, weighted average",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, taux d'inoccupation, logements en bandes et immeubles d'appartements des trois logements et plus, logements d'initiative privée dans les régions métropolitaines du recensement, moyennes pondérées",
+          "vector_id": "v1930306",
+          "coordinate": "6.0.0.0.0.0.0.0.0.0",
+          "series_title_en": "Hamilton, Ontario",
+          "series_title_fr": "Hamilton, Ontario",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013001",
+          "reference_periods": [
+            "2025-01-01"
+          ],
+          "release_time": "2025-12-17T08:30"
+        }
+      ],
+      "traps": [
+        "Oshawa and Hamilton differ by only 0.1 pp; an agent that guesses or rounds will get this wrong."
+      ]
+    },
+    {
+      "id": "GT-05",
+      "category": "Supply & prices",
+      "question": "How many housing units were started in the Toronto CMA in calendar year 2025, and how does that compare with 2024?",
+      "expected": {
+        "starts_2025": 26087,
+        "starts_2024": 37718,
+        "change_pct": -30.8
+      },
+      "tolerance": "Exact unit counts; percentage ±0.1 pp",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0154-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, housing starts, under construction and completions in selected census metropolitan areas, monthly",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, logements mis en chantier, en construction et achèvements dans certaines régions métropolitaines de recensement, mensuel",
+          "vector_id": "v42127475",
+          "coordinate": "23.1.1.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Housing starts;Total units",
+          "series_title_fr": "Toronto, Ontario;Logements mis en chantier;Total d'unités",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410015401",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410015401",
+          "reference_periods": [
+            "2024-01-01",
+            "2024-02-01",
+            "2024-03-01",
+            "2024-04-01",
+            "2024-05-01",
+            "2024-06-01",
+            "2024-07-01",
+            "2024-08-01",
+            "2024-09-01",
+            "2024-10-01",
+            "2024-11-01",
+            "2024-12-01",
+            "2025-01-01",
+            "2025-02-01",
+            "2025-03-01",
+            "2025-04-01",
+            "2025-05-01",
+            "2025-06-01",
+            "2025-07-01",
+            "2025-08-01",
+            "2025-09-01",
+            "2025-10-01",
+            "2025-11-01",
+            "2025-12-01"
+          ],
+          "release_time": "2026-01-21T08:30"
+        }
+      ],
+      "computation": "Sum of the 12 monthly (not seasonally adjusted) values for each year.",
+      "traps": [
+        "The seasonally adjusted annual rate (SAAR) series is a different measure and must not be summed or quoted as an annual total."
+      ]
+    },
+    {
+      "id": "GT-06",
+      "category": "Supply & prices",
+      "question": "How did new home prices in the Toronto CMA change between December 2024 and December 2025?",
+      "expected": {
+        "nhpi_dec_2024": 113.1,
+        "nhpi_dec_2025": 109.3,
+        "change_pct": -3.4
+      },
+      "tolerance": "±0.1 pp; direction must be correct",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "18-10-0205-01",
+          "table_title_en": "New housing price index, monthly",
+          "table_title_fr": "Indice des prix des logements neufs, mensuel",
+          "vector_id": "v111955499",
+          "coordinate": "20.1.0.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Total (house and land)",
+          "series_title_fr": "Toronto, Ontario;Total (maison et terrain)",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810020501",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1810020501",
+          "reference_periods": [
+            "2024-12-01",
+            "2025-12-01"
+          ],
+          "release_time": "2026-01-22T08:30"
+        }
+      ],
+      "traps": [
+        "The New Housing Price Index covers new homes from builders only; resale prices (TRREB / CREA) are a different measure.",
+        "The index is a price index (base December 2016 = 100), not a dollar price."
+      ]
+    },
+    {
+      "id": "GT-07",
+      "category": "Rent vs income",
+      "question": "In 2024, what share of the Toronto CMA's median after-tax income would a year of average two-bedroom rent take?",
+      "expected": {
+        "annual_rent_2024": 23664.0,
+        "median_aftertax_income_2024": 82500.0,
+        "rent_share_pct": 28.7
+      },
+      "tolerance": "±0.1 pp",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0133-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, loyers moyens pour les régions de 10 000 habitants et plus",
+          "vector_id": "v3823103",
+          "coordinate": "125.3.3.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Row and apartment structures of three units and over;Two bedroom units",
+          "series_title_fr": "Toronto, Ontario;Logements en bandes et immeubles d'appartements de trois logements et plus;Logements de deux chambres",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013301",
+          "reference_periods": [
+            "2024-01-01"
+          ],
+          "release_time": "2025-02-04T08:30"
+        },
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "11-10-0190-01",
+          "table_title_en": "Market income, government transfers, total income, income tax and after-tax income by economic family type",
+          "table_title_fr": "Revenu du marché, transferts gouvernementaux, revenu total, impôt sur le revenu et revenu après impôt selon le type de famille économique",
+          "vector_id": "v96415851",
+          "coordinate": "17.12.1.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Median after-tax income;Economic families and persons not in an economic family",
+          "series_title_fr": "Toronto, Ontario;Revenu après impôt médian;Familles économiques et personnes hors famille économique",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110019001",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1110019001",
+          "reference_periods": [
+            "2024-01-01"
+          ],
+          "release_time": "2026-04-29T08:30"
+        }
+      ],
+      "traps": [
+        "Use the same year for rent and income (2024 is the latest income year); pairing 2025 rent with 2024 income must be flagged.",
+        "The income series covers all families and unattached persons, renters and owners alike; renter incomes are lower, so this understates renters' burden."
+      ]
+    },
+    {
+      "id": "GT-08",
+      "category": "Rent vs income",
+      "question": "Between 2019 and 2024, how did average two-bedroom rent growth in the Toronto CMA compare with growth in median after-tax income?",
+      "expected": {
+        "rent_2019": 1563.0,
+        "rent_2024": 1972.0,
+        "rent_growth_pct": 26.2,
+        "income_2019": 80800.0,
+        "income_2024": 82500.0,
+        "income_growth_pct": 2.1
+      },
+      "tolerance": "±0.1 pp on each rate",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0133-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, loyers moyens pour les régions de 10 000 habitants et plus",
+          "vector_id": "v3823103",
+          "coordinate": "125.3.3.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Row and apartment structures of three units and over;Two bedroom units",
+          "series_title_fr": "Toronto, Ontario;Logements en bandes et immeubles d'appartements de trois logements et plus;Logements de deux chambres",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013301",
+          "reference_periods": [
+            "2019-01-01",
+            "2024-01-01"
+          ],
+          "release_time": "2025-02-04T08:30"
+        },
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "11-10-0190-01",
+          "table_title_en": "Market income, government transfers, total income, income tax and after-tax income by economic family type",
+          "table_title_fr": "Revenu du marché, transferts gouvernementaux, revenu total, impôt sur le revenu et revenu après impôt selon le type de famille économique",
+          "vector_id": "v96415851",
+          "coordinate": "17.12.1.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Median after-tax income;Economic families and persons not in an economic family",
+          "series_title_fr": "Toronto, Ontario;Revenu après impôt médian;Familles économiques et personnes hors famille économique",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110019001",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1110019001",
+          "reference_periods": [
+            "2019-01-01",
+            "2024-01-01"
+          ],
+          "release_time": "2026-04-29T08:30"
+        }
+      ],
+      "traps": [
+        "Both series are in current (nominal) dollars; the agent should not mix nominal and inflation-adjusted figures."
+      ]
+    },
+    {
+      "id": "GT-09",
+      "category": "Rent vs income",
+      "question": "Using median household income from the 2021 Census, what share of income does the 2025 average two-bedroom rent in Toronto represent?",
+      "expected": {
+        "behaviour": "Flag the vintage mismatch before (or instead of) computing.",
+        "must_mention": [
+          "2021 Census income refers to calendar year 2020, five years before the 2025 rent figure.",
+          "A same-year comparison is available: 2024 Canadian Income Survey (see GT-07)."
+        ]
+      },
+      "tolerance": "Pass only if the mismatch is stated; a bare percentage fails",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "11-10-0190-01",
+          "table_title_en": "Market income, government transfers, total income, income tax and after-tax income by economic family type",
+          "table_title_fr": "Revenu du marché, transferts gouvernementaux, revenu total, impôt sur le revenu et revenu après impôt selon le type de famille économique",
+          "vector_id": "v96415851",
+          "coordinate": "17.12.1.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Median after-tax income;Economic families and persons not in an economic family",
+          "series_title_fr": "Toronto, Ontario;Revenu après impôt médian;Familles économiques et personnes hors famille économique",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110019001",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1110019001",
+          "reference_periods": [
+            "2024-01-01"
+          ],
+          "release_time": "2026-04-29T08:30"
+        },
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0133-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, loyers moyens pour les régions de 10 000 habitants et plus",
+          "vector_id": "v3823103",
+          "coordinate": "125.3.3.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Row and apartment structures of three units and over;Two bedroom units",
+          "series_title_fr": "Toronto, Ontario;Logements en bandes et immeubles d'appartements de trois logements et plus;Logements de deux chambres",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013301",
+          "reference_periods": [
+            "2025-01-01"
+          ],
+          "release_time": "2025-12-17T08:30"
+        }
+      ],
+      "traps": [
+        "Census 2021 median household after-tax income for Toronto ($85,000, income year 2020) produces a plausible-looking ~28.9% that silently mixes 2020 income with 2025 rent."
+      ]
+    },
+    {
+      "id": "GT-10",
+      "category": "Inflation & rates",
+      "question": "In 2025, did the cost of rented accommodation in Toronto rise faster or slower than overall consumer prices? Give both annual inflation rates.",
+      "expected": {
+        "rented_accommodation_pct": 3.1,
+        "all_items_pct": 1.8,
+        "answer": "Faster"
+      },
+      "tolerance": "±0.1 pp on each rate; faster/slower must be correct",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "18-10-0005-01",
+          "table_title_en": "Consumer Price Index, annual average, not seasonally adjusted",
+          "table_title_fr": "Indice des prix à la consommation, moyenne annuelle, non désaisonnalisé",
+          "vector_id": "v41695188",
+          "coordinate": "16.80.0.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Rented accommodation",
+          "series_title_fr": "Toronto, Ontario;Logement locatif",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1810000501",
+          "reference_periods": [
+            "2024-01-01",
+            "2025-01-01"
+          ],
+          "release_time": "2026-01-19T08:30"
+        },
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "18-10-0005-01",
+          "table_title_en": "Consumer Price Index, annual average, not seasonally adjusted",
+          "table_title_fr": "Indice des prix à la consommation, moyenne annuelle, non désaisonnalisé",
+          "vector_id": "v41695186",
+          "coordinate": "16.2.0.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;All-items",
+          "series_title_fr": "Toronto, Ontario;Ensemble",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1810000501",
+          "reference_periods": [
+            "2024-01-01",
+            "2025-01-01"
+          ],
+          "release_time": "2026-01-19T08:30"
+        }
+      ],
+      "traps": [
+        "StatCan publishes no city-level 'Rent' index for Toronto, only 'Rented accommodation'.",
+        "The national CPI rent figure is frequently mis-attributed to Toronto.",
+        "December-to-December comparisons differ from annual averages."
+      ]
+    },
+    {
+      "id": "GT-11",
+      "category": "Inflation & rates",
+      "question": "How did shelter inflation in Toronto in 2025 compare with shelter inflation for Canada as a whole?",
+      "expected": {
+        "toronto_shelter_pct": 2.1,
+        "canada_shelter_pct": 3.0,
+        "answer": "Toronto was lower than Canada"
+      },
+      "tolerance": "±0.1 pp on each rate; comparison must be correct",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "18-10-0005-01",
+          "table_title_en": "Consumer Price Index, annual average, not seasonally adjusted",
+          "table_title_fr": "Indice des prix à la consommation, moyenne annuelle, non désaisonnalisé",
+          "vector_id": "v41695187",
+          "coordinate": "16.79.0.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Shelter",
+          "series_title_fr": "Toronto, Ontario;Logement",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1810000501",
+          "reference_periods": [
+            "2024-01-01",
+            "2025-01-01"
+          ],
+          "release_time": "2026-01-19T08:30"
+        },
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "18-10-0005-01",
+          "table_title_en": "Consumer Price Index, annual average, not seasonally adjusted",
+          "table_title_fr": "Indice des prix à la consommation, moyenne annuelle, non désaisonnalisé",
+          "vector_id": "v41693348",
+          "coordinate": "2.79.0.0.0.0.0.0.0.0",
+          "series_title_en": "Canada;Shelter",
+          "series_title_fr": "Canada;Logement",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1810000501",
+          "reference_periods": [
+            "2024-01-01",
+            "2025-01-01"
+          ],
+          "release_time": "2026-01-19T08:30"
+        }
+      ],
+      "traps": [
+        "The common assumption that Toronto shelter costs always rise fastest is wrong for 2025."
+      ]
+    },
+    {
+      "id": "GT-12",
+      "category": "Inflation & rates",
+      "question": "In August 2026, how did shelter prices in Toronto change year over year, compared with overall consumer prices?",
+      "expected": {
+        "shelter_yoy_pct": -0.5,
+        "all_items_yoy_pct": 2.1,
+        "answer": "Shelter prices fell while overall prices rose"
+      },
+      "tolerance": "±0.1 pp on each rate; the sign of shelter must be correct",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "18-10-0004-01",
+          "table_title_en": "Consumer Price Index, monthly, not seasonally adjusted",
+          "table_title_fr": "Indice des prix à la consommation mensuel, non désaisonnalisé",
+          "vector_id": "v41692889",
+          "coordinate": "16.79.0.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Shelter",
+          "series_title_fr": "Toronto, Ontario;Logement",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1810000401",
+          "reference_periods": [
+            "2025-08-01",
+            "2026-08-01"
+          ],
+          "release_time": "2026-09-14T08:30"
+        },
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "18-10-0004-01",
+          "table_title_en": "Consumer Price Index, monthly, not seasonally adjusted",
+          "table_title_fr": "Indice des prix à la consommation mensuel, non désaisonnalisé",
+          "vector_id": "v41692888",
+          "coordinate": "16.2.0.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;All-items",
+          "series_title_fr": "Toronto, Ontario;Ensemble",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1810000401",
+          "reference_periods": [
+            "2025-08-01",
+            "2026-08-01"
+          ],
+          "release_time": "2026-09-14T08:30"
+        }
+      ],
+      "traps": [
+        "A model answering from habit will say shelter rose; the published figure is a decline."
+      ]
+    },
+    {
+      "id": "GT-13",
+      "category": "Inflation & rates",
+      "question": "How many times did the Bank of Canada change its policy interest rate in 2025, and where did the rate start and end the year?",
+      "expected": {
+        "number_of_changes": 4,
+        "rate_start_2025_pct": 3.25,
+        "rate_end_2025_pct": 2.25,
+        "changes": [
+          {
+            "effective_date": "2025-01-30",
+            "from": 3.25,
+            "to": 3.0
+          },
+          {
+            "effective_date": "2025-03-13",
+            "from": 3.0,
+            "to": 2.75
+          },
+          {
+            "effective_date": "2025-09-18",
+            "from": 2.75,
+            "to": 2.5
+          },
+          {
+            "effective_date": "2025-10-30",
+            "from": 2.5,
+            "to": 2.25
+          }
+        ]
+      },
+      "tolerance": "Exact count and rates",
+      "citations": [
+        {
+          "publisher": "Bank of Canada",
+          "table_id": "Valet API",
+          "vector_id": "V39079",
+          "coordinate": null,
+          "series_title_en": "Target for the overnight rate (business daily)",
+          "series_title_fr": "Cible du taux du financement à un jour",
+          "deep_link_en": "https://www.bankofcanada.ca/valet/observations/V39079",
+          "deep_link_fr": "https://www.banqueducanada.ca/valet/observations/V39079",
+          "reference_periods": [
+            "2025-01-01",
+            "2025-12-31"
+          ],
+          "release_time": null
+        }
+      ],
+      "traps": [
+        "Valet dates are effective dates, one business day after each announcement (e.g. announced 29 January, effective 30 January).",
+        "Holds (no change) at scheduled announcements must not be counted as changes."
+      ]
+    },
+    {
+      "id": "GT-14",
+      "category": "Unanswerable",
+      "question": "What was mortgage interest cost inflation in Toronto in 2025?",
+      "expected": {
+        "behaviour": "State that StatCan does not publish a Toronto mortgage interest cost index; offer the national figure instead.",
+        "canada_mortgage_interest_cost_pct": 5.3
+      },
+      "tolerance": "Pass only if the Toronto figure is declined; national figure ±0.1 pp",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "18-10-0005-01",
+          "table_title_en": "Consumer Price Index, annual average, not seasonally adjusted",
+          "table_title_fr": "Indice des prix à la consommation, moyenne annuelle, non désaisonnalisé",
+          "vector_id": "v41693354",
+          "coordinate": "2.85.0.0.0.0.0.0.0.0",
+          "series_title_en": "Canada;Mortgage interest cost",
+          "series_title_fr": "Canada;Coût de l'intérêt hypothécaire",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1810000501",
+          "reference_periods": [
+            "2024-01-01",
+            "2025-01-01"
+          ],
+          "release_time": "2026-01-19T08:30"
+        }
+      ],
+      "traps": [
+        "Toronto CPI is published for only 6 aggregates (All-items, Shelter, Rented and Owned accommodation, Water/fuel/electricity, All-items 1992=100). Any Toronto mortgage figure is fabricated."
+      ]
+    },
+    {
+      "id": "GT-15",
+      "category": "Unanswerable",
+      "question": "What was the average two-bedroom rent in the Toronto CMA in 1985?",
+      "expected": {
+        "behaviour": "Decline: the official CMHC series for Toronto does not cover 1985.",
+        "earliest_available_period": "1992-01-01"
+      },
+      "tolerance": "Pass only if no number is given for 1985",
+      "citations": [
+        {
+          "publisher": "Statistics Canada",
+          "table_id": "34-10-0133-01",
+          "table_title_en": "Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over",
+          "table_title_fr": "Société canadienne d'hypothèques et de logement, loyers moyens pour les régions de 10 000 habitants et plus",
+          "vector_id": "v3823103",
+          "coordinate": "125.3.3.0.0.0.0.0.0.0",
+          "series_title_en": "Toronto, Ontario;Row and apartment structures of three units and over;Two bedroom units",
+          "series_title_fr": "Toronto, Ontario;Logements en bandes et immeubles d'appartements de trois logements et plus;Logements de deux chambres",
+          "deep_link_en": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301",
+          "deep_link_fr": "https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=3410013301",
+          "reference_periods": [
+            "1992-01-01"
+          ],
+          "release_time": "2001-10-31T08:30"
+        }
+      ],
+      "traps": [
+        "Plausible-sounding historical rents are a classic hallucination; the series starts in 1992."
+      ]
+    }
+  ]
+}
