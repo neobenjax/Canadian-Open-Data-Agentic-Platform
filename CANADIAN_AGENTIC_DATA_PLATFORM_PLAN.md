@@ -13,7 +13,7 @@
 We are building **CanData-MCP**: a high-speed, open-source AI bridge and multi-agent system connecting autonomous LLM agents (Claude, Cursor, custom agents) directly to official Canadian public APIs (**Statistics Canada Web Data Service**, **Bank of Canada Valet API**, and **Open Government Canada CKAN API**).
 
 It solves the **"Truth & Token Economics"** gap in Canadian public data:
-- **Zero Hallucination:** Models stop guessing on Canadian municipal housing and inflation numbers by enforcing verified table citations.
+- **Zero Hallucination & Release Tracking:** Models stop guessing on Canadian municipal housing, inflation, and policy rates by enforcing verified table citations. To prevent "silent temporal drift" when official figures undergo scheduled revisions, every citation is anchored to a deterministic 4-part Citation Tuple: `(table_id, vector_id/coordinate, reference_period, release_or_revision_date)` with bilingual En/Fr titles and canonical deep-links.
 - **Token Compression:** Slices massive 200MB CSV cubes down to clean `<3KB` summaries in under 1.5 seconds using in-memory **DuckDB 1.2+** with Apache Arrow zero-copy memory buffers.
 - **Deterministic Math:** Executes exact SQL aggregations instead of unreliable LLM mental math.
 - **Multi-Agent Synthesis:** A **LangGraph 0.2+** multi-agent graph coordinates specialized sub-agents (extractor, analyst, citation verifier) with durable state checkpointing (`AsyncSqliteSaver`).
