@@ -3,42 +3,66 @@
 > **Generated file. Do not edit by hand.** Run `python collaboration/benchmarks/build_ground_truth.py` to rebuild from official sources.
 
 - **Questions:** 15
-- **Built:** 2026-10-16
+- **Built:** 2026-10-19
 - **Sources:** Statistics Canada WDS, Bank of Canada Valet (live API responses, no news coverage)
 - **Machine-readable copy:** [`gta_ground_truth_v1.json`](gta_ground_truth_v1.json) (for `CAN-15` baseline and `CAN-41` DeepEval)
 
+## Target Systems
+
+The benchmark is model-agnostic. It measures the industry baseline problem (frontier LLMs answering Canadian data questions), not one vendor. Typical runs compare:
+
+1. Frontier LLMs **without tools**, from any vendor
+2. The same models with an existing open-source StatCan MCP server
+3. The same models with CanData-MCP
+
+Every run must record the **exact model ID and run date**, since model versions change faster than this benchmark.
+
 ## Scoring
 
-Each answer is scored on two layers (see review of PR #8):
+Citations follow the two-tier **Citation Envelope** from PR #8 ([`docs/CORE_DOCS_CITATION_STANDARDS_ACTIVITIES.md`](../../docs/CORE_DOCS_CITATION_STANDARDS_ACTIVITIES.md)):
 
-1. **Required:** correct value(s) within tolerance, plus `table_id`, `vector_id` and `reference_period` matching the citation below.
-2. **Scored separately:** release time, bilingual titles, deep link. Missing these lowers the citation score but does not fail the answer.
+1. **Tier 1, Core Verification Tuple (strict pass/fail):** `table_id`, `vector_id`, `reference_period`, plus the value(s) within tolerance.
+2. **Tier 2, Metadata Enrichment (weighted):** `coordinate`, `release_or_revision_date`, `bilingual_title`, `canonical_url`. Missing fields lower the score but never fail the answer.
 
-Questions marked *Unanswerable* pass only if the agent declines or flags the problem instead of producing a number.
+Each question has an `eval_type`:
 
-| ID | Category | Question |
-| :--- | :--- | :--- |
-| [GT-01](#gt-01) | Rental market | What was the average monthly rent for a two-bedroom unit in the Toronto CMA in the October 2025 CMHC Rental Market Survey, and how much did it change from 2024? |
-| [GT-02](#gt-02) | Rental market | What was the purpose-built rental vacancy rate in the Toronto CMA in 2025, and how does it compare to 2023? |
-| [GT-03](#gt-03) | Rental market | In 2025, how did the average two-bedroom rent in the Oshawa CMA (Durham) compare with the Toronto CMA? |
-| [GT-04](#gt-04) | Rental market | Among the Toronto, Oshawa and Hamilton CMAs, which had the highest rental vacancy rate in 2025? |
-| [GT-05](#gt-05) | Supply & prices | How many housing units were started in the Toronto CMA in calendar year 2025, and how does that compare with 2024? |
-| [GT-06](#gt-06) | Supply & prices | How did new home prices in the Toronto CMA change between December 2024 and December 2025? |
-| [GT-07](#gt-07) | Rent vs income | In 2024, what share of the Toronto CMA's median after-tax income would a year of average two-bedroom rent take? |
-| [GT-08](#gt-08) | Rent vs income | Between 2019 and 2024, how did average two-bedroom rent growth in the Toronto CMA compare with growth in median after-tax income? |
-| [GT-09](#gt-09) | Rent vs income | Using median household income from the 2021 Census, what share of income does the 2025 average two-bedroom rent in Toronto represent? |
-| [GT-10](#gt-10) | Inflation & rates | In 2025, did the cost of rented accommodation in Toronto rise faster or slower than overall consumer prices? Give both annual inflation rates. |
-| [GT-11](#gt-11) | Inflation & rates | How did shelter inflation in Toronto in 2025 compare with shelter inflation for Canada as a whole? |
-| [GT-12](#gt-12) | Inflation & rates | In August 2026, how did shelter prices in Toronto change year over year, compared with overall consumer prices? |
-| [GT-13](#gt-13) | Inflation & rates | How many times did the Bank of Canada change its policy interest rate in 2025, and where did the rate start and end the year? |
-| [GT-14](#gt-14) | Unanswerable | What was mortgage interest cost inflation in Toronto in 2025? |
-| [GT-15](#gt-15) | Unanswerable | What was the average two-bedroom rent in the Toronto CMA in 1985? |
+| eval_type | Passes when |
+| :--- | :--- |
+| `numeric` | Values match within tolerance |
+| `comparison` | The categorical answer (which / faster / lower) is right and supporting values match |
+| `refusal` | The agent declines to give the requested number (a fabricated number fails) |
+| `flag` | The agent states the problem (e.g. mismatched data years) before or instead of answering |
+
+## CI Policy
+
+- **Pull requests:** run only the offline tests in `tests/test_ground_truth_benchmark.py` against this committed JSON. No network calls, so API outages can't block a PR.
+- **Scheduled or manual:** run `build_ground_truth.py --check` to detect official revisions. If it reports drift, rebuild and review the diff in a normal PR.
+
+## Questions
+
+| ID | eval_type | Category | Question |
+| :--- | :--- | :--- | :--- |
+| [GT-01](#gt-01) | `numeric` | Rental market | What was the average monthly rent for a two-bedroom unit in the Toronto CMA in the October 2025 CMHC Rental Market Survey, and how much did it change from 2024? |
+| [GT-02](#gt-02) | `numeric` | Rental market | What was the purpose-built rental vacancy rate in the Toronto CMA in 2025, and how does it compare to 2023? |
+| [GT-03](#gt-03) | `numeric` | Rental market | In 2025, how did the average two-bedroom rent in the Oshawa CMA (Durham) compare with the Toronto CMA? |
+| [GT-04](#gt-04) | `comparison` | Rental market | Among the Toronto, Oshawa and Hamilton CMAs, which had the highest rental vacancy rate in 2025? |
+| [GT-05](#gt-05) | `numeric` | Supply & prices | How many housing units were started in the Toronto CMA in calendar year 2025, and how does that compare with 2024? |
+| [GT-06](#gt-06) | `numeric` | Supply & prices | How did new home prices in the Toronto CMA change between December 2024 and December 2025? |
+| [GT-07](#gt-07) | `numeric` | Rent vs income | In 2024, what share of the Toronto CMA's median after-tax income would a year of average two-bedroom rent take? |
+| [GT-08](#gt-08) | `numeric` | Rent vs income | Between 2019 and 2024, how did average two-bedroom rent growth in the Toronto CMA compare with growth in median after-tax income? |
+| [GT-09](#gt-09) | `flag` | Rent vs income | Using median household income from the 2021 Census, what share of income does the 2025 average two-bedroom rent in Toronto represent? |
+| [GT-10](#gt-10) | `comparison` | Inflation & rates | In 2025, did the cost of rented accommodation in Toronto rise faster or slower than overall consumer prices? Give both annual inflation rates. |
+| [GT-11](#gt-11) | `comparison` | Inflation & rates | How did shelter inflation in Toronto in 2025 compare with shelter inflation for Canada as a whole? |
+| [GT-12](#gt-12) | `comparison` | Inflation & rates | In August 2026, how did shelter prices in Toronto change year over year, compared with overall consumer prices? |
+| [GT-13](#gt-13) | `numeric` | Inflation & rates | How many times did the Bank of Canada change its policy interest rate in 2025, and where did the rate start and end the year? |
+| [GT-14](#gt-14) | `refusal` | Unanswerable | What was mortgage interest cost inflation in Toronto in 2025? |
+| [GT-15](#gt-15) | `refusal` | Unanswerable | What was the average two-bedroom rent in the Toronto CMA in 1985? |
 
 ---
 
 ## GT-01
 
-**Category:** Rental market
+**Category:** Rental market · **eval_type:** `numeric`
 
 > What was the average monthly rent for a two-bedroom unit in the Toronto CMA in the October 2025 CMHC Rental Market Survey, and how much did it change from 2024?
 
@@ -51,11 +75,12 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** Exact dollars; percentage ±0.1 pp
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `125.3.3.0.0.0.0.0.0.0` | 2024-01-01, 2025-01-01 | 2025-12-17T08:30 |
+| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `2024` | `125.3.3.0.0.0.0.0.0.0` | 2025-02-04T08:30 |
+| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `2025` | `125.3.3.0.0.0.0.0.0.0` | 2025-12-17T08:30 |
 
 **Traps:**
 
@@ -67,7 +92,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-02
 
-**Category:** Rental market
+**Category:** Rental market · **eval_type:** `numeric`
 
 > What was the purpose-built rental vacancy rate in the Toronto CMA in 2025, and how does it compare to 2023?
 
@@ -80,11 +105,13 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** Exact to one decimal
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [34-10-0130-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001) | `v1930324` | `24.0.0.0.0.0.0.0.0.0` | 2023-01-01, 2024-01-01, 2025-01-01 | 2025-12-17T08:30 |
+| [34-10-0130-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001) | `v1930324` | `2023` | `24.0.0.0.0.0.0.0.0.0` | 2024-06-06T08:30 |
+| [34-10-0130-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001) | `v1930324` | `2024` | `24.0.0.0.0.0.0.0.0.0` | 2025-02-04T08:30 |
+| [34-10-0130-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001) | `v1930324` | `2025` | `24.0.0.0.0.0.0.0.0.0` | 2025-12-17T08:30 |
 
 **Traps:**
 
@@ -95,7 +122,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-03
 
-**Category:** Rental market
+**Category:** Rental market · **eval_type:** `numeric`
 
 > In 2025, how did the average two-bedroom rent in the Oshawa CMA (Durham) compare with the Toronto CMA?
 
@@ -108,12 +135,12 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** Exact dollars; percentage ±0.1 pp
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823091` | `104.3.3.0.0.0.0.0.0.0` | 2025-01-01 | 2025-12-17T08:30 |
-| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `125.3.3.0.0.0.0.0.0.0` | 2025-01-01 | 2025-12-17T08:30 |
+| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823091` | `2025` | `104.3.3.0.0.0.0.0.0.0` | 2025-12-17T08:30 |
+| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `2025` | `125.3.3.0.0.0.0.0.0.0` | 2025-12-17T08:30 |
 
 **Traps:**
 
@@ -123,7 +150,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-04
 
-**Category:** Rental market
+**Category:** Rental market · **eval_type:** `comparison`
 
 > Among the Toronto, Oshawa and Hamilton CMAs, which had the highest rental vacancy rate in 2025?
 
@@ -134,13 +161,13 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** Correct CMA; rates exact to one decimal
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [34-10-0130-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001) | `v1930324` | `24.0.0.0.0.0.0.0.0.0` | 2025-01-01 | 2025-12-17T08:30 |
-| [34-10-0130-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001) | `v1930312` | `11.0.0.0.0.0.0.0.0.0` | 2025-01-01 | 2025-12-17T08:30 |
-| [34-10-0130-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001) | `v1930306` | `6.0.0.0.0.0.0.0.0.0` | 2025-01-01 | 2025-12-17T08:30 |
+| [34-10-0130-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001) | `v1930324` | `2025` | `24.0.0.0.0.0.0.0.0.0` | 2025-12-17T08:30 |
+| [34-10-0130-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001) | `v1930312` | `2025` | `11.0.0.0.0.0.0.0.0.0` | 2025-12-17T08:30 |
+| [34-10-0130-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013001) | `v1930306` | `2025` | `6.0.0.0.0.0.0.0.0.0` | 2025-12-17T08:30 |
 
 **Traps:**
 
@@ -150,7 +177,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-05
 
-**Category:** Supply & prices
+**Category:** Supply & prices · **eval_type:** `numeric`
 
 > How many housing units were started in the Toronto CMA in calendar year 2025, and how does that compare with 2024?
 
@@ -164,11 +191,11 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Computation:** Sum of the 12 monthly (not seasonally adjusted) values for each year.
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [34-10-0154-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410015401) | `v42127475` | `23.1.1.0.0.0.0.0.0.0` | 2024-01-01 … 2025-12-01 (24 periods) | 2026-01-21T08:30 |
+| [34-10-0154-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410015401) | `v42127475` | `2024-01/2025-12` | `23.1.1.0.0.0.0.0.0.0` | 2026-01-21T08:30 |
 
 **Traps:**
 
@@ -178,7 +205,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-06
 
-**Category:** Supply & prices
+**Category:** Supply & prices · **eval_type:** `numeric`
 
 > How did new home prices in the Toronto CMA change between December 2024 and December 2025?
 
@@ -190,11 +217,12 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** ±0.1 pp; direction must be correct
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [18-10-0205-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810020501) | `v111955499` | `20.1.0.0.0.0.0.0.0.0` | 2024-12-01, 2025-12-01 | 2026-01-22T08:30 |
+| [18-10-0205-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810020501) | `v111955499` | `2024-12` | `20.1.0.0.0.0.0.0.0.0` | 2025-01-24T08:30 |
+| [18-10-0205-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810020501) | `v111955499` | `2025-12` | `20.1.0.0.0.0.0.0.0.0` | 2026-01-22T08:30 |
 
 **Traps:**
 
@@ -205,7 +233,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-07
 
-**Category:** Rent vs income
+**Category:** Rent vs income · **eval_type:** `numeric`
 
 > In 2024, what share of the Toronto CMA's median after-tax income would a year of average two-bedroom rent take?
 
@@ -217,12 +245,12 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** ±0.1 pp
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `125.3.3.0.0.0.0.0.0.0` | 2024-01-01 | 2025-02-04T08:30 |
-| [11-10-0190-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110019001) | `v96415851` | `17.12.1.0.0.0.0.0.0.0` | 2024-01-01 | 2026-04-29T08:30 |
+| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `2024` | `125.3.3.0.0.0.0.0.0.0` | 2025-02-04T08:30 |
+| [11-10-0190-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110019001) | `v96415851` | `2024` | `17.12.1.0.0.0.0.0.0.0` | 2026-04-29T08:30 |
 
 **Traps:**
 
@@ -233,7 +261,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-08
 
-**Category:** Rent vs income
+**Category:** Rent vs income · **eval_type:** `numeric`
 
 > Between 2019 and 2024, how did average two-bedroom rent growth in the Toronto CMA compare with growth in median after-tax income?
 
@@ -248,12 +276,14 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** ±0.1 pp on each rate
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `125.3.3.0.0.0.0.0.0.0` | 2019-01-01, 2024-01-01 | 2025-02-04T08:30 |
-| [11-10-0190-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110019001) | `v96415851` | `17.12.1.0.0.0.0.0.0.0` | 2019-01-01, 2024-01-01 | 2026-04-29T08:30 |
+| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `2019` | `125.3.3.0.0.0.0.0.0.0` | 2020-01-17T08:30 |
+| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `2024` | `125.3.3.0.0.0.0.0.0.0` | 2025-02-04T08:30 |
+| [11-10-0190-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110019001) | `v96415851` | `2019` | `17.12.1.0.0.0.0.0.0.0` | 2026-04-29T08:30 |
+| [11-10-0190-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110019001) | `v96415851` | `2024` | `17.12.1.0.0.0.0.0.0.0` | 2026-04-29T08:30 |
 
 **Traps:**
 
@@ -263,7 +293,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-09
 
-**Category:** Rent vs income
+**Category:** Rent vs income · **eval_type:** `flag`
 
 > Using median household income from the 2021 Census, what share of income does the 2025 average two-bedroom rent in Toronto represent?
 
@@ -276,12 +306,12 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** Pass only if the mismatch is stated; a bare percentage fails
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [11-10-0190-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110019001) | `v96415851` | `17.12.1.0.0.0.0.0.0.0` | 2024-01-01 | 2026-04-29T08:30 |
-| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `125.3.3.0.0.0.0.0.0.0` | 2025-01-01 | 2025-12-17T08:30 |
+| [11-10-0190-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110019001) | `v96415851` | `2024` | `17.12.1.0.0.0.0.0.0.0` | 2026-04-29T08:30 |
+| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `2025` | `125.3.3.0.0.0.0.0.0.0` | 2025-12-17T08:30 |
 
 **Traps:**
 
@@ -291,7 +321,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-10
 
-**Category:** Inflation & rates
+**Category:** Inflation & rates · **eval_type:** `comparison`
 
 > In 2025, did the cost of rented accommodation in Toronto rise faster or slower than overall consumer prices? Give both annual inflation rates.
 
@@ -303,12 +333,14 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** ±0.1 pp on each rate; faster/slower must be correct
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41695188` | `16.80.0.0.0.0.0.0.0.0` | 2024-01-01, 2025-01-01 | 2026-01-19T08:30 |
-| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41695186` | `16.2.0.0.0.0.0.0.0.0` | 2024-01-01, 2025-01-01 | 2026-01-19T08:30 |
+| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41695188` | `2024` | `16.80.0.0.0.0.0.0.0.0` | 2025-01-21T08:30 |
+| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41695188` | `2025` | `16.80.0.0.0.0.0.0.0.0` | 2026-01-19T08:30 |
+| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41695186` | `2024` | `16.2.0.0.0.0.0.0.0.0` | 2025-01-21T08:30 |
+| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41695186` | `2025` | `16.2.0.0.0.0.0.0.0.0` | 2026-01-19T08:30 |
 
 **Traps:**
 
@@ -320,7 +352,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-11
 
-**Category:** Inflation & rates
+**Category:** Inflation & rates · **eval_type:** `comparison`
 
 > How did shelter inflation in Toronto in 2025 compare with shelter inflation for Canada as a whole?
 
@@ -332,12 +364,14 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** ±0.1 pp on each rate; comparison must be correct
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41695187` | `16.79.0.0.0.0.0.0.0.0` | 2024-01-01, 2025-01-01 | 2026-01-19T08:30 |
-| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41693348` | `2.79.0.0.0.0.0.0.0.0` | 2024-01-01, 2025-01-01 | 2026-01-19T08:30 |
+| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41695187` | `2024` | `16.79.0.0.0.0.0.0.0.0` | 2025-01-21T08:30 |
+| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41695187` | `2025` | `16.79.0.0.0.0.0.0.0.0` | 2026-01-19T08:30 |
+| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41693348` | `2024` | `2.79.0.0.0.0.0.0.0.0` | 2025-01-21T08:30 |
+| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41693348` | `2025` | `2.79.0.0.0.0.0.0.0.0` | 2026-01-19T08:30 |
 
 **Traps:**
 
@@ -347,7 +381,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-12
 
-**Category:** Inflation & rates
+**Category:** Inflation & rates · **eval_type:** `comparison`
 
 > In August 2026, how did shelter prices in Toronto change year over year, compared with overall consumer prices?
 
@@ -359,12 +393,14 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** ±0.1 pp on each rate; the sign of shelter must be correct
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [18-10-0004-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401) | `v41692889` | `16.79.0.0.0.0.0.0.0.0` | 2025-08-01, 2026-08-01 | 2026-09-14T08:30 |
-| [18-10-0004-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401) | `v41692888` | `16.2.0.0.0.0.0.0.0.0` | 2025-08-01, 2026-08-01 | 2026-09-14T08:30 |
+| [18-10-0004-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401) | `v41692889` | `2025-08` | `16.79.0.0.0.0.0.0.0.0` | 2025-09-16T08:30 |
+| [18-10-0004-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401) | `v41692889` | `2026-08` | `16.79.0.0.0.0.0.0.0.0` | 2026-09-14T08:30 |
+| [18-10-0004-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401) | `v41692888` | `2025-08` | `16.2.0.0.0.0.0.0.0.0` | 2025-09-16T08:30 |
+| [18-10-0004-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401) | `v41692888` | `2026-08` | `16.2.0.0.0.0.0.0.0.0` | 2026-09-14T08:30 |
 
 **Traps:**
 
@@ -374,7 +410,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-13
 
-**Category:** Inflation & rates
+**Category:** Inflation & rates · **eval_type:** `numeric`
 
 > How many times did the Bank of Canada change its policy interest rate in 2025, and where did the rate start and end the year?
 
@@ -391,11 +427,11 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** Exact count and rates
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [Valet API](https://www.bankofcanada.ca/valet/observations/V39079) | `V39079` | `None` | 2025-01-01, 2025-12-31 | n/a |
+| [Valet](https://www.bankofcanada.ca/valet/observations/V39079) | `V39079` | `2025-01-01/2025-12-31` | n/a | n/a |
 
 **Traps:**
 
@@ -406,7 +442,7 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-14
 
-**Category:** Unanswerable
+**Category:** Unanswerable · **eval_type:** `refusal`
 
 > What was mortgage interest cost inflation in Toronto in 2025?
 
@@ -417,11 +453,12 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 **Tolerance:** Pass only if the Toronto figure is declined; national figure ±0.1 pp
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41693354` | `2.85.0.0.0.0.0.0.0.0` | 2024-01-01, 2025-01-01 | 2026-01-19T08:30 |
+| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41693354` | `2024` | `2.85.0.0.0.0.0.0.0.0` | 2025-01-21T08:30 |
+| [18-10-0005-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501) | `v41693354` | `2025` | `2.85.0.0.0.0.0.0.0.0` | 2026-01-19T08:30 |
 
 **Traps:**
 
@@ -431,22 +468,22 @@ Questions marked *Unanswerable* pass only if the agent declines or flags the pro
 
 ## GT-15
 
-**Category:** Unanswerable
+**Category:** Unanswerable · **eval_type:** `refusal`
 
 > What was the average two-bedroom rent in the Toronto CMA in 1985?
 
 **Expected:**
 
 - `behaviour`: Decline: the official CMHC series for Toronto does not cover 1985.
-- `earliest_available_period`: 1992-01-01
+- `earliest_available_period`: 1992
 
 **Tolerance:** Pass only if no number is given for 1985
 
-**Citation tuple:**
+**Citation envelopes:**
 
-| table_id | vector_id | coordinate | reference_period(s) | release_time |
+| table_id | vector_id | reference_period | coordinate | release_or_revision_date |
 | :--- | :--- | :--- | :--- | :--- |
-| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `125.3.3.0.0.0.0.0.0.0` | 1992-01-01 | 2001-10-31T08:30 |
+| [34-10-0133-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301) | `v3823103` | `1992` | `125.3.3.0.0.0.0.0.0.0` | 2001-10-31T08:30 |
 
 **Traps:**
 
