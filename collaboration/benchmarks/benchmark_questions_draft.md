@@ -6,15 +6,17 @@ Every expected answer below was pulled directly from the official Statistics Can
 
 ---
 
-## 📐 Question Format
+## 📐 Question Format & Citation Tuple Standard
+
+Every benchmark question requires the agent to return the verified numerical answer alongside the complete **Citation Tuple**:
 
 | Field | Purpose |
 | :--- | :--- |
 | **Question** | Natural-language prompt sent to the agent, exactly as written. |
 | **Expected answer** | Ground-truth value(s) the agent must return. |
 | **Tolerance** | Acceptable deviation for numeric grading. |
-| **Source** | StatCan table ID + vector ID the agent must cite (checked by the Citation Verifier, `CAN-24`). |
-| **Traps** | Known ways an agent can be confidently wrong — used to log hallucinations in `CAN-15`. |
+| **Citation Tuple** | Verified metadata tuple required from the agent (checked by Citation Verifier, `CAN-24`):<br>• **Core Keys (Strict Evaluation):** Table ID & Vector ID (e.g. `34-10-0133-01` / `v3823103`) and Reference Period (e.g. `2025` for annual table 34-10-0133-01 or `2025-10` for monthly series).<br>• **Enrichment Keys (Scored Evaluation):** Coordinate (e.g. `125.3.3.0.0.0.0.0.0.0` for `v3823103`), Release / Revision Date (timestamp of latest official release to prevent stale quotes from revised series), Bilingual Titles, and Canonical URL. |
+| **Traps** | Known ways an agent can be confidently wrong (e.g. confusing turnover asking rent with CMHC sitting rent, or citing unrevised stale figures) — used to log hallucinations in `CAN-15` and DeepEval in `CAN-41`. |
 
 ---
 

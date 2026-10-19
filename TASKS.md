@@ -60,8 +60,8 @@
 **Goal:** Working FastMCP 2.0 server with DuckDB 1.2+ querying StatCan and Bank of Canada REST APIs; first 15 benchmark questions with ground truth.
 
 ### Feature 1.1: Official Canadian REST Connectors
-- [ ] **CAN-11:** Implement async HTTPX client for Statistics Canada WDS API (metadata discovery, vector lookup, SDMX cube slice with HTTP caching). *(Owner: Benjamin / Yassir · 2h)*
-- [ ] **CAN-12:** Implement async client for Bank of Canada Valet API (policy rate, inflation target, CPI series). *(Owner: Yassir / Benjamin · 2h)*
+- [ ] **CAN-11:** Implement async HTTPX client for Statistics Canada WDS API (metadata discovery, vector lookup, SDMX cube slice with HTTP caching, and structured temporal metadata extraction: `table_id`, `vector_id`, `coordinate`, `reference_period`, `release_time`, bilingual En/Fr titles, and canonical portal deep-link). *(Owner: Benjamin / Yassir · 2h)*
+- [ ] **CAN-12:** Implement async client for Bank of Canada Valet API (policy rate, inflation target, CPI series, observation dates, and series publication/revision metadata with Valet portal deep-links). *(Owner: Yassir / Benjamin · 2h)*
 
 ### Feature 1.2: In-Memory DuckDB Slicing Engine
 - [ ] **CAN-13:** Build FastMCP 2.0 server with in-memory DuckDB Arrow streams reducing 200MB payloads to <3KB with tool annotations (`readOnly`, `idempotent`). *(Owner: Benjamin · 3h)*
@@ -69,7 +69,7 @@
 ### Feature 1.3: Benchmark Suite & Security Baseline
 - [ ] **CAN-14:** Curate 15 ground-truth benchmark questions based on GTA housing, rent vs income, and inflation metrics. *(Owner: Samir · 2h)*
 - [ ] **CAN-15:** Run baseline benchmark comparing plain Claude 3.5 Sonnet vs existing `mcp-statcan` vs CanData-MCP; log hallucinations and citation coverage. *(Owner: Samir / Yassir · 2h)*
-- [ ] **CAN-16:** Conduct API security, rate limit, and data provenance audit for Canadian public endpoints. *(Owner: Benjamin / Yassir · 2h)*
+- [ ] **CAN-16:** Conduct API security, rate limit, and official data verification audit for Canadian public endpoints; codify the Citation Envelope: Core Verification Tuple `(table_id, vector_id, reference_period)` paired with Enrichment Metadata `(release_or_revision_date, coordinate, bilingual_title, deep_link)` to prevent silent temporal drift on revised official series. *(Owner: Benjamin / Yassir · 2h)*
 
 ---
 
@@ -81,7 +81,7 @@
 - [ ] **CAN-21:** Define typed `AgentState` with Pydantic v2 schemas and `AsyncSqliteSaver` checkpointer for time-travel debugging. *(Owner: Samir / Benjamin · 2.5h)*
 - [ ] **CAN-22:** Implement Supervisor agent node that decomposes complex queries into deterministic tool calls. *(Owner: Samir · 2.5h)*
 - [ ] **CAN-23:** Implement Data Analyst node executing exact DuckDB SQL math (no mental math). *(Owner: Benjamin · 2.5h)*
-- [ ] **CAN-24:** Implement Citation Verifier node checking statistics against official StatCan/BoC table IDs. *(Owner: Samir · 2h)*
+- [ ] **CAN-24:** Implement Citation Verifier node validating statistics against official StatCan/BoC Core Verification Tuples `(table_id, vector_id, reference_period)` and cross-examining release/revision timestamps before answering. *(Owner: Samir · 2h)*
 
 ### Feature 2.2: Observability & Telemetry
 - [ ] **CAN-25:** Set up OpenTelemetry-native Arize Phoenix & LangSmith tracing to measure step latency and token costs per sub-agent. *(Owner: Yassir / Benjamin · 2h)*
@@ -109,8 +109,8 @@
 **Goal:** Automated regression testing in GitHub Actions with DeepEval and NIST/Inspect AI standards, plus Pydantic guardrails.
 
 ### Feature 4.1: Automated Evaluation Pipeline
-- [ ] **CAN-41:** Implement DeepEval automated test harness running against 30 ground-truth questions. *(Owner: Samir · 2.5h)*
-- [ ] **CAN-42:** Configure GitHub Actions CI pipeline running Ruff, Pyright, and DeepEval scoring on every PR. *(Owner: Benjamin · 2.5h)*
+- [ ] **CAN-41:** Implement DeepEval automated test harness running against 30 ground-truth questions with 2-tier scoring (strict pass/fail on Core Verification Tuple; separate score on metadata enrichment and revision freshness). *(Owner: Samir · 2.5h)*
+- [ ] **CAN-42:** Configure GitHub Actions CI pipeline running Ruff, Pyright, and DeepEval scoring (including revision freshness and citation validation) on every PR. *(Owner: Benjamin · 2.5h)*
 
 ### Feature 4.2: AI Security Guardrails & Containerization
 - [ ] **CAN-43:** Implement Pydantic v2 output validators and prompt injection defense; audit LLM tool calls. *(Owner: Samir · 2.5h)*
