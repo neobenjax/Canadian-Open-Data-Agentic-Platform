@@ -1,40 +1,33 @@
-# Implementation Task Tracker: Core Citation & Release Standards
+# Architectural Decision & Review Resolution Record: Official Citation & Release Standards
 
-This task document tracks the activities required to codify official citation metadata standards (table ID, vector ID, coordinate, reference period, release/revision timestamp) across `TASKS.md`, `CANADIAN_AGENTIC_DATA_PLATFORM_PLAN.md`, and presentation slides.
+This document tracks the rationale, technical specification, and peer-review resolution for codifying the **Citation Envelope** and release tracking standards across the Canadian Open Data Agentic Platform.
 
 ---
 
-## Activities Checklist
+## 1. Specification Overview
 
-### Phase 1: Planning & Setup
-- [x] Create Implementation Plan artifact.
-- [x] Create this Task Tracker document (`docs/CORE_DOCS_CITATION_STANDARDS_ACTIVITIES.md`).
-- [x] Incorporate required fields:
-  - Vector Coordinate paths (e.g., `1.1.2.0.0.0.0.0.0.0`)
-  - Bilingual En/Fr metadata (`cubeTitleEn`, `cubeTitleFr`)
-  - Canonical official deep-link URLs to StatCan / BoC web portals
-  - Presentation highlight in `presentation/index.html` with CanData-MCP tone
-- [x] Checkout general documentation branch `docs/core-citation-and-release-standards`.
+### Two-Tier Citation Envelope
+To balance strict hallucination prevention with realistic LLM evaluation (preventing missing optional metadata like French translations from failing an answer just as severely as wrong numerical data), the citation schema is split into:
 
-### Phase 2: Task Specifications & Architecture Updates
-- [x] Update `TASKS.md` under Milestone 1 (`CAN-11`, `CAN-12`, `CAN-16`):
-  - Add explicit acceptance criteria for `table_id`, `vector_id`, `coordinate`, `reference_period`, `release_time` / `revision_timestamp`, bilingual En/Fr titles, and canonical portal deep-links.
-- [x] Update `TASKS.md` under Milestone 2 (`CAN-24`):
-  - Require Citation Verifier sub-agent to validate the complete Citation Tuple against in-memory DuckDB Arrow slices.
-- [x] Update `TASKS.md` under Milestone 4 (`CAN-41`, `CAN-42`):
-  - Include automated DeepEval citation accuracy, groundedness, and revision freshness metrics.
-- [x] Update `CANADIAN_AGENTIC_DATA_PLATFORM_PLAN.md` Section 1.1 to document release tracking and citation standards.
-- [x] Update `presentation/index.html` Slide 2 and Slide 5 to highlight "Nobody Trusts AI Without Receipts & Timestamps" in CanData tone.
-- [x] Update `collaboration/benchmarks/benchmark_questions_draft.md` Question Format table to include Reference Period, Revision Timestamp, Coordinate, and Canonical URL.
+1. **Tier 1 — Core Verification Tuple (Strict Pass/Fail):**
+   - `table_id` (e.g. `34-10-0133-01`)
+   - `vector_id` (e.g. `v3823103`)
+   - `reference_period` (e.g. `2025` for annual series, or `2025-10` for monthly)
+2. **Tier 2 — Metadata Enrichment (Weighted Scoring):**
+   - `coordinate` (e.g. `125.3.3.0.0.0.0.0.0.0` for `v3823103`)
+   - `release_or_revision_date` (official release timestamp from WDS / Valet API)
+   - `bilingual_title` (`cubeTitleEn`, `cubeTitleFr`)
+   - `canonical_url` (direct official portal deep-link)
 
-### Phase 3: Verification & Walkthrough
-- [x] Validate `python scripts/sync_tasks.py --status` parses all tasks cleanly without formatting regression.
-- [x] Verify no syntax/parser regressions across modified markdown and presentation files.
-- [x] Write detailed Walkthrough Guide explaining the changes and how to manually verify them.
-- [ ] Present changes to the user for review and approval.
+---
 
-### Phase 4: Gitflow & GitHub Sync (Only after User Approval)
-- [ ] Commit changes formatted as core documentation: `docs: codify official citation metadata and release tracking standards across roadmap`.
-- [ ] Push branch `docs/core-citation-and-release-standards`.
-- [ ] Ask user for approval to merge into `main`, update versions, and publish to GitHub.
-- [ ] Purge merged feature branch.
+## 2. Review Feedback & Resolution Log (PR #8)
+
+| Item | Reviewer Feedback (Samir) | Status | Resolution Detail |
+| :--- | :--- | :---: | :--- |
+| **Fix 1: Benchmark Coordinate & Period** | Coordinate for `v3823103` is `125.3.3.0.0.0.0.0.0.0`, and table `34-10-0133-01` is annual (`2025`). | ✅ Resolved | Updated `collaboration/benchmarks/benchmark_questions_draft.md` with live API verified coordinate and annual period. |
+| **Fix 2: Broken Local Link** | Walkthrough contained a hardcoded local `file:///` path to the tracker. | ✅ Resolved | Converted to relative markdown link in `docs/CORE_DOCS_CITATION_STANDARDS_WALKTHROUGH.md`. |
+| **Suggestion 3: Single Tuple Definition** | Reconcile varying tuple lengths (4-part vs 7-field). | ✅ Resolved | Unified across `CANADIAN_AGENTIC_DATA_PLATFORM_PLAN.md` and `TASKS.md` around the 2-tier Citation Envelope. |
+| **Suggestion 4: Eval Scoring Strictness** | Split required vs scored fields for `CAN-41`. | ✅ Resolved | Codified 2-tier evaluation in `CAN-41` and `CAN-16` (strict on Core Tuple, scored on Enrichment). |
+| **Suggestion 5: Activity Checklist Scaffolding** | Checklist contained transient agent steps. | ✅ Resolved | Refactored into this permanent Architectural Decision & Resolution Record. |
+| **Suggestion 6: Nuance & Tone** | Note that many (not all) series are revised, and soften Slide 2 copy. | ✅ Resolved | Updated Slide 2 copy in `presentation/index.html` to *"Many official series are revised"* and *"sets off inaccurate policy or investment conclusions"*. |

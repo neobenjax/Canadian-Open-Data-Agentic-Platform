@@ -13,34 +13,30 @@ This walkthrough documents the technical and task-level updates made to codify t
 - **`CAN-12` (Bank of Canada Valet API Client):**
   Added explicit acceptance criteria for observation dates, series IDs, publication timestamps, and Valet portal deep-links.
 - **`CAN-16` (Official Data Verification & Security Audit):**
-  Codified the full **Citation Tuple**:
-  $$\text{Citation} = \langle \text{table\_id}, \, \text{vector\_id}, \, \text{coordinate}, \, \text{reference\_period}, \, \text{release\_or\_revision\_date}, \, \text{bilingual\_title}, \, \text{deep\_link} \rangle$$
+  Codified the **Citation Envelope**:
+  - **Core Verification Tuple (Strict Pass/Fail):** $\langle \text{table\_id}, \, \text{vector\_id}, \, \text{reference\_period} \rangle$
+  - **Enrichment Metadata (Scored):** $\langle \text{release\_or\_revision\_date}, \, \text{coordinate}, \, \text{bilingual\_title}, \, \text{canonical\_link} \rangle$
 - **`CAN-24` (LangGraph Citation Verifier Node):**
-  Updated to require cross-examining statistics against the full Citation Tuple to prevent stale revision quotes.
+  Updated to validate statistics against Core Verification Tuples and cross-examine release/revision timestamps.
 - **`CAN-41` & `CAN-42` (DeepEval CI/CD Pipeline):**
-  Added automated citation accuracy, faithfulness, and revision freshness metrics to GitHub Actions regression tests.
+  Added 2-tier evaluation (strict accuracy on core tuple vs partial credit on metadata enrichment) to prevent severe grading penalties for missing optional enrichment.
 
 ### 2. `CANADIAN_AGENTIC_DATA_PLATFORM_PLAN.md`
-- **Section 1.1:** Updated to *"Zero Hallucination & Release Tracking"*, formally defining how CanData-MCP prevents "silent temporal drift" when official series undergo scheduled revisions.
+- **Section 1.1:** Updated to *"Zero Hallucination & Release Tracking"*, formally defining the Citation Envelope and 2-tier verification structure.
 
 ### 3. `presentation/index.html` (Interactive Slide Deck)
 - **Slide 2 ("Nobody Trusts AI Without Receipts & Timestamps"):**
-  Updated card badge to `CITATIONS & REVISIONS` with CanData's punchy tone:
-  > *"Official figures get revised, and unanchored citations go stale. In central banking and policy, one number quoted without release dates and coordinates sets off the wrong market reading."*
+  Updated card badge to `CITATIONS & REVISIONS` with nuanced, professional tone:
+  > *"Many official series are revised, and unanchored citations go stale. In central banking and policy, one number quoted without release dates and coordinates sets off inaccurate policy or investment conclusions."*
   > *"🎯 CanData Citation Tuple: Table ID · Vector · Coordinate · Ref Period · Release Timestamp · Bilingual En/Fr Deep-link."*
 - **Slide 5 (Architecture / LangGraph item 4):**
   Updated to specify the Citation Verifier sub-agent cross-examining revision dates against official release timestamps.
 
 ### 4. `collaboration/benchmarks/benchmark_questions_draft.md`
-- Updated the **Question Format & Citation Tuple Standard** table to mandate evaluating:
-  - Table ID & Vector ID
-  - Coordinate path
-  - Reference Period
-  - Release / Revision Date
-  - Bilingual En/Fr Titles & Canonical URL
+- Updated the **Question Format & Citation Tuple Standard** table with accurate coordinate (`125.3.3.0.0.0.0.0.0.0` for `v3823103`) and annual reference period (`2025` for Table `34-10-0133-01`) verified against live StatCan WDS API.
 
 ### 5. Task Activity Tracker
-- Documented all implementation phases in [`docs/CORE_DOCS_CITATION_STANDARDS_ACTIVITIES.md`](file:///d:/AI/PARTY%20PROJECTS/AI%20Engineer%20-%20Collaboration/docs/CORE_DOCS_CITATION_STANDARDS_ACTIVITIES.md).
+- Documented all implementation and review resolution phases in [`CORE_DOCS_CITATION_STANDARDS_ACTIVITIES.md`](CORE_DOCS_CITATION_STANDARDS_ACTIVITIES.md).
 
 ---
 
