@@ -1,0 +1,589 @@
+"""Async client for the Statistics Canada Web Data Service (WDS) API (CAN-11).
+
+Provides metadata discovery, coordinate resolution, observation slicing, vector queries,
+in-memory TTL metadata caching, and Two-Tier Citation Envelope generation matching the
+official Canadian Open Data Agentic Platform benchmark standards.
+"""
+
+import asyncio
+import time
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
+from types import TracebackType
+from typing import Any, Self
+
+import httpx
+
+from candata_mcp.citation import (
+    BilingualTitle,
+    CitationEnvelope,
+    CoreVerificationTuple,
+    MetadataEnrichment,
+)
+
+STATCAN_WDS_BASE_URL = "https://www150.statcan.gc.ca/t1/wds/rest"
+PUBLISHER = "Statistics Canada"
+
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+
+FREQUENCY_NAMES: Mapping[int, str] = {
+    1: "daily",
+    2: "weekly",
+    4: "bi-weekly",
+    6: "monthly",
+    7: "quarterly",
+    9: "semi-annual",
+    12: "annual",
+}
+
+
+class StatCanError(Exception):
+    """Base class for all errors raised by the Statistics Canada WDS client."""
+
+
+class StatCanRequestError(StatCanError):
+    """Transport error, network timeout, or connection failure."""
+
+
+class StatCanHTTPError(StatCanError):
+    """StatCan WDS returned an HTTP error status code."""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(f"StatCan WDS returned HTTP {status_code}: {message}")
+        self.status_code = status_code
+        self.message = message
+
+
+class StatCanNotFoundError(StatCanHTTPError):
+    """The requested product, vector, or table does not exist (404)."""
+
+
+class StatCanResponseError(StatCanError):
+    """StatCan WDS returned 200 OK but the payload indicated failure or invalid JSON."""
+
+
+class StatCanMemberNotFoundError(StatCanError):
+    """A dimension member name could not be resolved in the cube metadata."""
+
+
+def format_table_id(product_id: int | str) -> str:
+    """Format an 8-digit or 10-digit StatCan product ID as a standard hyphenated table ID.
+
+    Example: 18100004 -> "18-10-0004-01"
+    """
+    s = str(product_id).strip()
+    if len(s) == 8:
+        return f"{s[0:2]}-{s[2:4]}-{s[4:8]}-01"
+    if len(s) == 10:
+        return f"{s[0:2]}-{s[2:4]}-{s[4:8]}-{s[8:10]}"
+    return s
+
+
+def normalize_vector_id(vector_id: int | str) -> int:
+    """Normalize a vector ID (e.g. 'v41690973' or 41690973) to integer 41690973."""
+    if isinstance(vector_id, int):
+        return vector_id
+    cleaned = vector_id.strip().lstrip("vV")
+    if not cleaned.isdigit():
+        raise ValueError(f"invalid vector ID {vector_id!r}; must be numeric or 'v'-prefixed")
+    return int(cleaned)
+
+
+def normalize_product_id(product_id: int | str) -> int:
+    """Normalize a product ID (e.g. '1810000401' or 18100004) to an 8-digit integer."""
+    s = str(product_id).strip().replace("-", "")
+    if len(s) == 10 and s.endswith("01"):
+        s = s[:8]
+    if not s.isdigit():
+        raise ValueError(f"invalid product ID {product_id!r}")
+    return int(s)
+
+
+@dataclass(frozen=True, slots=True)
+class DimensionMember:
+    member_id: int
+    parent_member_id: int | None
+    name_en: str
+    name_fr: str | None
+    member_uom_code: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class Dimension:
+    position_id: int
+    name_en: str
+    name_fr: str | None
+    has_uom: bool
+    members: tuple[DimensionMember, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CubeMetadata:
+    product_id: int
+    cansim_id: str | None
+    title_en: str
+    title_fr: str | None
+    start_date: str | None
+    end_date: str | None
+    release_time: str | None
+    frequency_code: int
+    frequency_name: str
+    dimensions: tuple[Dimension, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Observation:
+    ref_per: str
+    value: float | None
+    decimals: int | None
+    release_time: str | None
+    scalar_factor_code: int | None
+    frequency_code: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class StatCanSeriesResult:
+    """Result for one series/coordinate slice, chronologically ordered (oldest first)."""
+
+    product_id: int
+    coordinate: str
+    vector_id: int
+    title_en: str
+    title_fr: str | None
+    frequency_code: int
+    unit: str | None
+    observations: tuple[Observation, ...]
+    fetched_at: str
+
+    def citation(self) -> CitationEnvelope:
+        if not self.observations:
+            raise ValueError(f"no observations to cite for vector v{self.vector_id}")
+        first, last = self.observations[0], self.observations[-1]
+        first_per = self._period(first.ref_per, self.frequency_code)
+        last_per = self._period(last.ref_per, self.frequency_code)
+        period = first_per if first_per == last_per else f"{first_per}/{last_per}"
+
+        # StatCan requires release_or_revision_date to be populated
+        release_date = last.release_time or first.release_time
+
+        return CitationEnvelope(
+            publisher=PUBLISHER,
+            core=CoreVerificationTuple(
+                table_id=format_table_id(self.product_id),
+                vector_id=f"v{self.vector_id}",
+                reference_period=period,
+            ),
+            enrichment=MetadataEnrichment(
+                coordinate=self.coordinate,
+                release_or_revision_date=release_date,
+                bilingual_title=BilingualTitle(en=self.title_en, fr=self.title_fr),
+                canonical_url=(
+                    f"https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid={self.product_id}01"
+                ),
+            ),
+        )
+
+    @staticmethod
+    def _period(ref_per: str, frequency_code: int) -> str:
+        if frequency_code == 12:  # annual
+            return ref_per[:4]
+        if frequency_code == 6:  # monthly
+            return ref_per[:7]
+        if frequency_code == 1:  # daily
+            return ref_per[:10]
+        return ref_per[:7] if len(ref_per) >= 7 else ref_per
+
+
+@dataclass(frozen=True, slots=True)
+class SeriesInfo:
+    vector_id: int
+    product_id: int
+    coordinate: str
+    frequency_code: int
+    scalar_factor_code: int | None
+    decimals: int | None
+    title_en: str
+    title_fr: str | None
+    member_uom_code: int | None
+
+
+class StatCanClient:
+    """Async client for Statistics Canada Web Data Service (WDS) API."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str = STATCAN_WDS_BASE_URL,
+        timeout: float = 30.0,
+        retries: int = 2,
+        backoff: float = 0.5,
+        metadata_ttl_seconds: float = 3600.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._retries = retries
+        self._backoff = backoff
+        self._metadata_ttl = metadata_ttl_seconds
+        self._metadata_cache: dict[int, tuple[CubeMetadata, float]] = {}
+        self._owns_client = client is None
+        self._client = client or httpx.AsyncClient(
+            timeout=timeout,
+            headers={"Accept": "application/json", "User-Agent": "candata-mcp"},
+        )
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        if self._owns_client:
+            await self._client.aclose()
+
+    def clear_cache(self) -> None:
+        """Clear the in-memory metadata TTL cache."""
+        self._metadata_cache.clear()
+
+    async def get_cube_metadata(
+        self, product_id: int | str, *, bypass_cache: bool = False
+    ) -> CubeMetadata:
+        """Fetch cube metadata, dimensions, members, and publication dates with TTL caching."""
+        pid = normalize_product_id(product_id)
+        now = time.monotonic()
+
+        if not bypass_cache and pid in self._metadata_cache:
+            meta, cached_time = self._metadata_cache[pid]
+            if now - cached_time < self._metadata_ttl:
+                return meta
+
+        body = [{"productId": pid}]
+        response_data, _ = await self._post_json("getCubeMetadata", body)
+        cube_obj = self._extract_first_success_object(response_data, f"product {pid}")
+
+        meta = self._parse_cube_metadata(cube_obj, pid)
+        self._metadata_cache[pid] = (meta, now)
+        return meta
+
+    async def resolve_coordinate(
+        self, product_id: int | str, member_names: Sequence[str]
+    ) -> str:
+        """Resolve human-readable dimension member names into a StatCan 10-part coordinate string.
+
+        Example: resolve_coordinate(18100004, ["Canada", "All-items"]) -> "2.2.0.0.0.0.0.0.0.0"
+        """
+        meta = await self.get_cube_metadata(product_id)
+        member_ids: list[int] = []
+
+        for pos, name in enumerate(member_names, start=1):
+            dim = next((d for d in meta.dimensions if d.position_id == pos), None)
+            if dim is None:
+                raise StatCanMemberNotFoundError(
+                    f"dimension position {pos} does not exist in table {meta.product_id}"
+                )
+            name_norm = name.strip().lower()
+            matched_member = next(
+                (
+                    m
+                    for m in dim.members
+                    if m.name_en.strip().lower() == name_norm
+                    or (m.name_fr and m.name_fr.strip().lower() == name_norm)
+                ),
+                None,
+            )
+            if matched_member is None:
+                raise StatCanMemberNotFoundError(
+                    f"member {name!r} not found in dimension {pos} "
+                    f"({dim.name_en!r}) of table {meta.product_id}"
+                )
+            member_ids.append(matched_member.member_id)
+
+        padded = member_ids + [0] * (10 - len(member_ids))
+        return ".".join(str(i) for i in padded)
+
+    async def get_data_from_cube(
+        self,
+        product_id: int | str,
+        coordinate: str,
+        latest_n: int = 1,
+    ) -> StatCanSeriesResult:
+        """Fetch observations by product ID and 10-part coordinate for the latest N periods."""
+        pid = normalize_product_id(product_id)
+        coord = coordinate.strip()
+        body = [{"productId": pid, "coordinate": coord, "latestN": latest_n}]
+
+        response_data, fetched_at = await self._post_json(
+            "getDataFromCubePidCoordAndLatestNPeriods", body
+        )
+        data_obj = self._extract_first_success_object(response_data, f"cube {pid} coord {coord}")
+
+        meta = await self.get_cube_metadata(pid)
+
+        vector_id_raw = _int(data_obj, "vectorId")
+        observations = self._parse_observations(data_obj.get("vectorDataPoint"))
+
+        return StatCanSeriesResult(
+            product_id=pid,
+            coordinate=coord,
+            vector_id=vector_id_raw,
+            title_en=meta.title_en,
+            title_fr=meta.title_fr,
+            frequency_code=meta.frequency_code,
+            unit=None,
+            observations=observations,
+            fetched_at=fetched_at,
+        )
+
+    async def get_data_from_vectors(
+        self,
+        vector_ids: Sequence[int | str],
+        latest_n: int = 1,
+    ) -> tuple[StatCanSeriesResult, ...]:
+        """Fetch observations for one or more vector IDs for the latest N periods."""
+        normalized_ids = [normalize_vector_id(vid) for vid in vector_ids]
+        body = [{"vectorId": vid, "latestN": latest_n} for vid in normalized_ids]
+
+        response_data, fetched_at = await self._post_json(
+            "getDataFromVectorsAndLatestNPeriods", body
+        )
+        raw_items = _dict_list(response_data)
+
+        results: list[StatCanSeriesResult] = []
+        for item_dict in raw_items:
+            if item_dict.get("status") != "SUCCESS":
+                msg = str(item_dict.get("object") or item_dict.get("status"))
+                raise StatCanResponseError(f"StatCan WDS vector query failed: {msg}")
+
+            obj_dict = _dict(item_dict.get("object"))
+
+            vid = _int(obj_dict, "vectorId")
+            pid_raw = obj_dict.get("productId")
+            if pid_raw is None:
+                raise StatCanResponseError(f"invalid vector result payload: {obj_dict}")
+            pid = normalize_product_id(str(pid_raw))
+            coord = _text(obj_dict, "coordinate", "")
+
+            meta = await self.get_cube_metadata(pid)
+            observations = self._parse_observations(obj_dict.get("vectorDataPoint"))
+
+            results.append(
+                StatCanSeriesResult(
+                    product_id=pid,
+                    coordinate=coord,
+                    vector_id=vid,
+                    title_en=meta.title_en,
+                    title_fr=meta.title_fr,
+                    frequency_code=meta.frequency_code,
+                    unit=None,
+                    observations=observations,
+                    fetched_at=fetched_at,
+                )
+            )
+
+        return tuple(results)
+
+    async def get_series_info(self, vector_id: int | str) -> SeriesInfo:
+        """Fetch series metadata and dimension coordinate for a given vector ID."""
+        vid = normalize_vector_id(vector_id)
+        body = [{"vectorId": vid}]
+        response_data, _ = await self._post_json("getSeriesInfoFromVector", body)
+        info_obj = self._extract_first_success_object(response_data, f"vector v{vid}")
+
+        pid_raw = info_obj.get("productId")
+        if pid_raw is None:
+            raise StatCanResponseError(f"getSeriesInfoFromVector missing 'productId': {info_obj}")
+        pid = normalize_product_id(str(pid_raw))
+
+        return SeriesInfo(
+            vector_id=vid,
+            product_id=pid,
+            coordinate=_text(info_obj, "coordinate", ""),
+            frequency_code=_int(info_obj, "frequencyCode", 0),
+            scalar_factor_code=_optional_int(info_obj, "scalarFactorCode"),
+            decimals=_optional_int(info_obj, "decimals"),
+            title_en=_text(info_obj, "SeriesTitleEn", ""),
+            title_fr=_optional_text(info_obj, "SeriesTitleFr"),
+            member_uom_code=_optional_int(info_obj, "memberUomCode"),
+        )
+
+    async def _post_json(
+        self, endpoint: str, body: list[dict[str, Any]]
+    ) -> tuple[Any, str]:
+        url = f"{self._base_url}/{endpoint}"
+        response: httpx.Response | None = None
+
+        for attempt in range(self._retries + 1):
+            last_attempt = attempt == self._retries
+            try:
+                response = await self._client.post(url, json=body)
+            except httpx.TransportError as exc:
+                if last_attempt:
+                    raise StatCanRequestError(f"request to {url} failed: {exc!r}") from exc
+            else:
+                if response.status_code not in _RETRY_STATUSES or last_attempt:
+                    break
+            await asyncio.sleep(self._backoff * (2**attempt))
+
+        assert response is not None
+
+        if response.status_code >= 400:
+            error = StatCanNotFoundError if response.status_code == 404 else StatCanHTTPError
+            raise error(response.status_code, response.text)
+
+        try:
+            data: Any = response.json()
+        except ValueError as exc:
+            raise StatCanResponseError(f"response from {url} is not valid JSON") from exc
+
+        return data, _fetched_at(response)
+
+    @staticmethod
+    def _extract_first_success_object(response_data: Any, context: str) -> dict[str, Any]:
+        raw_items = _dict_list(response_data)
+        if not raw_items:
+            raise StatCanResponseError(f"expected non-empty list for {context}")
+        item_dict = raw_items[0]
+        status = item_dict.get("status")
+        if status != "SUCCESS":
+            msg = str(item_dict.get("object") or status)
+            raise StatCanResponseError(f"WDS call failed for {context}: {msg}")
+        return _dict(item_dict.get("object"))
+
+    @staticmethod
+    def _parse_cube_metadata(obj: dict[str, Any], pid: int) -> CubeMetadata:
+        freq_code = _int(obj, "frequencyCode", 0)
+        freq_name = FREQUENCY_NAMES.get(freq_code, f"code_{freq_code}")
+
+        dimensions: list[Dimension] = []
+        dim_list = _optional_dict_list(obj.get("dimension"))
+        for d_dict in dim_list:
+            pos_id = _int(d_dict, "dimensionPositionId", 0)
+            d_name_en = _text(d_dict, "dimensionNameEn", "")
+            d_name_fr = _optional_text(d_dict, "dimensionNameFr")
+            has_uom = bool(d_dict.get("hasUom", False))
+
+            members: list[DimensionMember] = []
+            m_list = _optional_dict_list(d_dict.get("member"))
+            for m_dict in m_list:
+                members.append(
+                    DimensionMember(
+                        member_id=_int(m_dict, "memberId", 0),
+                        parent_member_id=_optional_int(m_dict, "parentMemberId"),
+                        name_en=_text(m_dict, "memberNameEn", ""),
+                        name_fr=_optional_text(m_dict, "memberNameFr"),
+                        member_uom_code=_optional_int(m_dict, "memberUomCode"),
+                    )
+                )
+            dimensions.append(
+                Dimension(
+                    position_id=pos_id,
+                    name_en=d_name_en,
+                    name_fr=d_name_fr,
+                    has_uom=has_uom,
+                    members=tuple(members),
+                )
+            )
+
+        return CubeMetadata(
+            product_id=pid,
+            cansim_id=_optional_text(obj, "cansimId"),
+            title_en=_text(obj, "cubeTitleEn", ""),
+            title_fr=_optional_text(obj, "cubeTitleFr"),
+            start_date=_optional_text(obj, "cubeStartDate"),
+            end_date=_optional_text(obj, "cubeEndDate"),
+            release_time=_optional_text(obj, "releaseTime"),
+            frequency_code=freq_code,
+            frequency_name=freq_name,
+            dimensions=tuple(dimensions),
+        )
+
+    @staticmethod
+    def _parse_observations(points: Any) -> tuple[Observation, ...]:
+        obs_list: list[Observation] = []
+        raw_points = _optional_dict_list(points)
+        for p_dict in raw_points:
+            ref_per = _text(p_dict, "refPer", "")
+            raw_val = p_dict.get("value")
+            val: float | None = None
+            if raw_val is not None and raw_val != "":
+                try:
+                    val = float(str(raw_val))
+                except (ValueError, TypeError):
+                    val = None
+
+            obs_list.append(
+                Observation(
+                    ref_per=ref_per,
+                    value=val,
+                    decimals=_optional_int(p_dict, "decimals"),
+                    release_time=_optional_text(p_dict, "releaseTime"),
+                    scalar_factor_code=_optional_int(p_dict, "scalarFactorCode"),
+                    frequency_code=_optional_int(p_dict, "frequencyCode"),
+                )
+            )
+
+        obs_list.sort(key=lambda o: o.ref_per)
+        return tuple(obs_list)
+
+
+def _dict(source: Any) -> dict[str, Any]:
+    if not isinstance(source, dict):
+        raise StatCanResponseError(f"expected JSON object, got {type(source).__name__}")
+    return source  # pyright: ignore[reportUnknownVariableType]
+
+
+def _dict_list(source: Any) -> list[dict[str, Any]]:
+    if not isinstance(source, list):
+        raise StatCanResponseError(f"expected JSON list, got {type(source).__name__}")
+    return [x for x in source if isinstance(x, dict)]  # pyright: ignore[reportUnknownVariableType]
+
+
+def _optional_dict_list(source: Any) -> list[dict[str, Any]]:
+    if not isinstance(source, list):
+        return []
+    return [x for x in source if isinstance(x, dict)]  # pyright: ignore[reportUnknownVariableType]
+
+
+def _text(source: Mapping[str, Any], key: str, default: str) -> str:
+    value = source.get(key)
+    return str(value) if isinstance(value, str) else default
+
+
+def _optional_text(source: Mapping[str, Any], key: str) -> str | None:
+    value = source.get(key)
+    return str(value) if isinstance(value, str) else None
+
+
+def _int(source: Mapping[str, Any], key: str, default: int = 0) -> int:
+    value = source.get(key)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return default
+
+
+def _optional_int(source: Mapping[str, Any], key: str) -> int | None:
+    value = source.get(key)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
+def _fetched_at(response: httpx.Response) -> str:
+    header = response.headers.get("date")
+    if header:
+        try:
+            return parsedate_to_datetime(header).astimezone(UTC).isoformat(timespec="seconds")
+        except (TypeError, ValueError):
+            pass
+    return datetime.now(UTC).isoformat(timespec="seconds")
