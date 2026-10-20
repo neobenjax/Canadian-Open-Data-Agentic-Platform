@@ -110,6 +110,7 @@ class Series:
     title: BilingualTitle
     canonical_url: str
     frequency: Frequency
+    unit: str
     points: dict[str, float]  # API reference date (YYYY-MM-DD) -> value
     release_times: dict[str, str] = field(default_factory=dict)
 
@@ -180,6 +181,9 @@ STATCAN: dict[str, StatCanSeries] = {
 }
 
 BOC_POLICY_RATE = "V39079"
+# Valet has no French labels (`?lang=fr` returns HTTP 400); this is the Bank's own
+# French term, from https://www.banqueducanada.ca/grandes-fonctions/politique-monetaire/taux-directeur/
+BOC_POLICY_RATE_TITLE_FR = "Taux cible du financement à un jour"
 
 
 def _post(endpoint: str, body: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -198,6 +202,16 @@ def _table_id(product_id: int) -> str:
 
 
 _metadata_cache: dict[int, dict[str, Any]] = {}
+_units: dict[int, str] = {}
+
+
+def _unit(uom_code: int) -> str:
+    if not _units:
+        request = urllib.request.Request(WDS + "getCodeSets")
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            for u in json.load(response)["object"]["uom"]:
+                _units[int(u["memberUomCode"])] = u["memberUomEn"]
+    return _units[uom_code]
 
 
 def _metadata(product_id: int) -> dict[str, Any]:
@@ -238,6 +252,9 @@ def fetch_statcan(key: str, spec: StatCanSeries) -> Series:
             }
         ],
     )[0]["object"]
+    info = _post("getSeriesInfoFromVector", [{"vectorId": data["vectorId"]}])[0][
+        "object"
+    ]
     points: dict[str, float] = {}
     releases: dict[str, str] = {}
     for point in data["vectorDataPoint"]:
@@ -255,6 +272,7 @@ def fetch_statcan(key: str, spec: StatCanSeries) -> Series:
         title=BilingualTitle(meta["cubeTitleEn"], meta["cubeTitleFr"]),
         canonical_url=f"https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid={spec.product_id}01",
         frequency=_FREQUENCIES[meta["frequencyCode"]],
+        unit=_unit(info["memberUomCode"]),
         points=points,
         release_times=releases,
     )
@@ -272,9 +290,10 @@ def fetch_boc_policy_rate(start: str, end: str) -> Series:
         table_id="Valet",
         vector_id=BOC_POLICY_RATE,
         coordinate=None,
-        title=BilingualTitle(detail["label"], "Cible du taux du financement à un jour"),
+        title=BilingualTitle(detail["label"], BOC_POLICY_RATE_TITLE_FR),
         canonical_url=f"https://www.bankofcanada.ca/valet/observations/{BOC_POLICY_RATE}",
         frequency="daily",
+        unit=detail["metadata"]["unit"],
         points=points,
     )
 
@@ -352,8 +371,15 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
             },
             "tolerance": "Exact dollars; percentage ±0.1 pp",
             "citations": cite(r, year(2024), year(2025)),
+            "external_figures": [
+                {
+                    "value": "$2,632",
+                    "what": "Rentals.ca average asking rent, all apartment types, Toronto, December 2024 (listings, not the CMHC survey)",
+                    "source": "https://www.cp24.com/local/toronto/2025/01/10/the-cost-to-rent-a-toronto-apartment-fell-by-about-7-per-cent-last-year-report/",
+                }
+            ],
             "traps": [
-                "Asking rents from listing sites (Rentals.ca / Urbanation, ~$2,600+) are not CMHC survey rents; survey rents include sitting tenants under rent control.",
+                "Asking rents from listing sites (Rentals.ca / Urbanation, ~$2,600) are not CMHC survey rents; survey rents include sitting tenants under rent control.",
                 "The survey is taken in October; the table labels it as the annual period '2025'.",
                 "'Apartment structures of six units and over' is a different series with a different value.",
             ],
@@ -376,9 +402,16 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
                 ),
             },
             "tolerance": "Exact to one decimal",
+            "external_figures": [
+                {
+                    "value": "2.2%",
+                    "what": "CMHC national average purpose-built vacancy rate, October 2024 (not Toronto)",
+                    "source": "https://assets.cmhc-schl.gc.ca/sites/cmhc/professional/housing-markets-data-and-research/market-reports/rental-market-report/fall-2024/rental-market-report-fall-2024-en.pdf",
+                }
+            ],
             "citations": cite(v, year(2023), year(2024), year(2025)),
             "traps": [
-                "News coverage of CMHC's Fall 2024 report quotes Toronto at 2.2%-2.3% for 2024; this table (row + apartment, weighted) says 2.5%. The agent must not blend sources.",
+                f"CMHC's Fall 2024 report gives a national purpose-built average of 2.2% for 2024, and news coverage sometimes places it next to Toronto; this table (Toronto, row + apartment, weighted) says {v.points[year(2024)]}%. The agent must not blend sources.",
                 "The change must be expressed in percentage points, not percent.",
             ],
         }
@@ -473,7 +506,7 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
             "citations": cite(n, month(2024, 12), month(2025, 12)),
             "traps": [
                 "The New Housing Price Index covers new homes from builders only; resale prices (TRREB / CREA) are a different measure.",
-                "The index is a price index (base December 2016 = 100), not a dollar price.",
+                f"The value is an index ({n.unit}), not a dollar price.",
             ],
         }
     )
@@ -541,6 +574,13 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
                 ],
             },
             "tolerance": "Pass only if the mismatch is stated; a bare percentage fails",
+            "external_figures": [
+                {
+                    "value": "$85,000",
+                    "what": "2021 Census median household after-tax income, Toronto CMA (income year 2020)",
+                    "source": "https://www150.statcan.gc.ca/n1/daily-quotidien/220713/mc-d002-eng.htm",
+                }
+            ],
             "citations": [*cite(inc, year(2024)), *cite(r, year(2025))],
             "traps": [
                 "Census 2021 median household after-tax income for Toronto ($85,000, income year 2020) produces a plausible-looking ~28.9% that silently mixes 2020 income with 2025 rent.",
@@ -693,7 +733,7 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
             "tolerance": "Pass only if no number is given for 1985",
             "citations": cite(r, first_year),
             "traps": [
-                "Plausible-sounding historical rents are a classic hallucination; the series starts in 1992."
+                f"Plausible-sounding historical rents are a classic hallucination; the series starts in {_period(r, first_year)}."
             ],
         }
     )
@@ -744,7 +784,13 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "## CI Policy",
         "",
         "- **Pull requests:** run only the offline tests in `tests/test_ground_truth_benchmark.py` against this committed JSON. No network calls, so API outages can't block a PR.",
-        "- **Scheduled or manual:** run `build_ground_truth.py --check` to detect official revisions. If it reports drift, rebuild and review the diff in a normal PR.",
+        "- **Scheduled or manual:** run `build_ground_truth.py --check` to detect official revisions. It compares each question's expected answer, every citation's core tuple, and every `release_or_revision_date`. If it reports drift, rebuild and review the diff in a normal PR.",
+        "",
+        "## Source Notes",
+        "",
+        "- **Statistics Canada:** every citation carries the WDS `releaseTime` of its reference period as `release_or_revision_date`, and the table titles from `getCubeMetadata` (English and French).",
+        "- **Bank of Canada (Valet):** Valet publishes no release or revision time, so `release_or_revision_date` is `null` and Tier 2 is always partial for BoC series. Valet also has no French labels (`?lang=fr` returns HTTP 400); the French title is the Bank's own term from its [French policy-rate page](https://www.banqueducanada.ca/grandes-fonctions/politique-monetaire/taux-directeur/). `table_id` is `Valet` and `vector_id` is the series name.",
+        "- **External figures:** a few traps mention numbers from outside the official tables (news, listing sites, the Census). They are listed under each question's *External figures* with their source. `--check` cannot verify them.",
         "",
         "## Questions",
         "",
@@ -799,6 +845,12 @@ def render_markdown(payload: dict[str, Any]) -> str:
             )
         lines += ["", "**Traps:**", ""]
         lines += [f"- {t}" for t in q["traps"]]
+        if q.get("external_figures"):
+            lines += ["", "**External figures (not covered by `--check`):**", ""]
+            lines += [
+                f"- {f['value']}: {f['what']} ([source]({f['source']}))"
+                for f in q["external_figures"]
+            ]
         lines.append("")
     return "\n".join(lines)
 
@@ -821,6 +873,17 @@ def build() -> dict[str, Any]:
     )
 
 
+def _fingerprint(question: dict[str, Any]) -> dict[str, Any]:
+    """The parts of a question that must match official sources."""
+    return {
+        "expected": question["expected"],
+        "reference_periods": [c["core"] for c in question["citations"]],
+        "release_dates": [
+            c["enrichment"]["release_or_revision_date"] for c in question["citations"]
+        ],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -836,14 +899,17 @@ def main() -> int:
 
     if args.check:
         committed = json.loads(JSON_OUT.read_text())
-        old = {q["id"]: q["expected"] for q in committed["questions"]}
-        drifted = [
-            q["id"] for q in payload["questions"] if old.get(q["id"]) != q["expected"]
-        ]
+        old = {q["id"]: _fingerprint(q) for q in committed["questions"]}
+        drifted: list[str] = []
+        for q in payload["questions"]:
+            before, after = old.get(q["id"], {}), _fingerprint(q)
+            changed = [part for part in after if before.get(part) != after[part]]
+            if changed:
+                drifted.append(f"{q['id']} ({', '.join(changed)})")
         if drifted:
-            print(
-                f"Ground truth drifted for: {', '.join(drifted)}. Re-run without --check and review."
-            )
+            print("Ground truth drifted:")
+            print("\n".join(f"  - {d}" for d in drifted))
+            print("Re-run without --check and review the diff.")
             return 1
         print("Ground truth matches official sources.")
         return 0

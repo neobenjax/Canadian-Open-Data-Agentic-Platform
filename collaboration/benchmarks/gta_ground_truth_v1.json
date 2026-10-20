@@ -1,7 +1,7 @@
 {
   "benchmark": "GTA housing ground truth",
   "version": 1,
-  "built_on": "2026-10-19",
+  "built_on": "2026-10-20",
   "questions": [
     {
       "id": "GT-01",
@@ -51,8 +51,15 @@
           }
         }
       ],
+      "external_figures": [
+        {
+          "value": "$2,632",
+          "what": "Rentals.ca average asking rent, all apartment types, Toronto, December 2024 (listings, not the CMHC survey)",
+          "source": "https://www.cp24.com/local/toronto/2025/01/10/the-cost-to-rent-a-toronto-apartment-fell-by-about-7-per-cent-last-year-report/"
+        }
+      ],
       "traps": [
-        "Asking rents from listing sites (Rentals.ca / Urbanation, ~$2,600+) are not CMHC survey rents; survey rents include sitting tenants under rent control.",
+        "Asking rents from listing sites (Rentals.ca / Urbanation, ~$2,600) are not CMHC survey rents; survey rents include sitting tenants under rent control.",
         "The survey is taken in October; the table labels it as the annual period '2025'.",
         "'Apartment structures of six units and over' is a different series with a different value."
       ]
@@ -69,6 +76,13 @@
         "change_2023_2025_pp": 1.6
       },
       "tolerance": "Exact to one decimal",
+      "external_figures": [
+        {
+          "value": "2.2%",
+          "what": "CMHC national average purpose-built vacancy rate, October 2024 (not Toronto)",
+          "source": "https://assets.cmhc-schl.gc.ca/sites/cmhc/professional/housing-markets-data-and-research/market-reports/rental-market-report/fall-2024/rental-market-report-fall-2024-en.pdf"
+        }
+      ],
       "citations": [
         {
           "publisher": "Statistics Canada",
@@ -123,7 +137,7 @@
         }
       ],
       "traps": [
-        "News coverage of CMHC's Fall 2024 report quotes Toronto at 2.2%-2.3% for 2024; this table (row + apartment, weighted) says 2.5%. The agent must not blend sources.",
+        "CMHC's Fall 2024 report gives a national purpose-built average of 2.2% for 2024, and news coverage sometimes places it next to Toronto; this table (Toronto, row + apartment, weighted) says 2.5%. The agent must not blend sources.",
         "The change must be expressed in percentage points, not percent."
       ]
     },
@@ -334,7 +348,7 @@
       ],
       "traps": [
         "The New Housing Price Index covers new homes from builders only; resale prices (TRREB / CREA) are a different measure.",
-        "The index is a price index (base December 2016 = 100), not a dollar price."
+        "The value is an index (Index, 201612=100), not a dollar price."
       ]
     },
     {
@@ -490,6 +504,13 @@
         ]
       },
       "tolerance": "Pass only if the mismatch is stated; a bare percentage fails",
+      "external_figures": [
+        {
+          "value": "$85,000",
+          "what": "2021 Census median household after-tax income, Toronto CMA (income year 2020)",
+          "source": "https://www150.statcan.gc.ca/n1/daily-quotidien/220713/mc-d002-eng.htm"
+        }
+      ],
       "citations": [
         {
           "publisher": "Statistics Canada",
@@ -833,7 +854,7 @@
             "release_or_revision_date": null,
             "bilingual_title": {
               "en": "Target for the overnight rate (business daily)",
-              "fr": "Cible du taux du financement à un jour"
+              "fr": "Taux cible du financement à un jour"
             },
             "canonical_url": "https://www.bankofcanada.ca/valet/observations/V39079"
           }

@@ -3,7 +3,7 @@
 > **Generated file. Do not edit by hand.** Run `python collaboration/benchmarks/build_ground_truth.py` to rebuild from official sources.
 
 - **Questions:** 15
-- **Built:** 2026-10-19
+- **Built:** 2026-10-20
 - **Sources:** Statistics Canada WDS, Bank of Canada Valet (live API responses, no news coverage)
 - **Machine-readable copy:** [`gta_ground_truth_v1.json`](gta_ground_truth_v1.json) (for `CAN-15` baseline and `CAN-41` DeepEval)
 
@@ -36,7 +36,13 @@ Each question has an `eval_type`:
 ## CI Policy
 
 - **Pull requests:** run only the offline tests in `tests/test_ground_truth_benchmark.py` against this committed JSON. No network calls, so API outages can't block a PR.
-- **Scheduled or manual:** run `build_ground_truth.py --check` to detect official revisions. If it reports drift, rebuild and review the diff in a normal PR.
+- **Scheduled or manual:** run `build_ground_truth.py --check` to detect official revisions. It compares each question's expected answer, every citation's core tuple, and every `release_or_revision_date`. If it reports drift, rebuild and review the diff in a normal PR.
+
+## Source Notes
+
+- **Statistics Canada:** every citation carries the WDS `releaseTime` of its reference period as `release_or_revision_date`, and the table titles from `getCubeMetadata` (English and French).
+- **Bank of Canada (Valet):** Valet publishes no release or revision time, so `release_or_revision_date` is `null` and Tier 2 is always partial for BoC series. Valet also has no French labels (`?lang=fr` returns HTTP 400); the French title is the Bank's own term from its [French policy-rate page](https://www.banqueducanada.ca/grandes-fonctions/politique-monetaire/taux-directeur/). `table_id` is `Valet` and `vector_id` is the series name.
+- **External figures:** a few traps mention numbers from outside the official tables (news, listing sites, the Census). They are listed under each question's *External figures* with their source. `--check` cannot verify them.
 
 ## Questions
 
@@ -84,9 +90,13 @@ Each question has an `eval_type`:
 
 **Traps:**
 
-- Asking rents from listing sites (Rentals.ca / Urbanation, ~$2,600+) are not CMHC survey rents; survey rents include sitting tenants under rent control.
+- Asking rents from listing sites (Rentals.ca / Urbanation, ~$2,600) are not CMHC survey rents; survey rents include sitting tenants under rent control.
 - The survey is taken in October; the table labels it as the annual period '2025'.
 - 'Apartment structures of six units and over' is a different series with a different value.
+
+**External figures (not covered by `--check`):**
+
+- $2,632: Rentals.ca average asking rent, all apartment types, Toronto, December 2024 (listings, not the CMHC survey) ([source](https://www.cp24.com/local/toronto/2025/01/10/the-cost-to-rent-a-toronto-apartment-fell-by-about-7-per-cent-last-year-report/))
 
 ---
 
@@ -115,8 +125,12 @@ Each question has an `eval_type`:
 
 **Traps:**
 
-- News coverage of CMHC's Fall 2024 report quotes Toronto at 2.2%-2.3% for 2024; this table (row + apartment, weighted) says 2.5%. The agent must not blend sources.
+- CMHC's Fall 2024 report gives a national purpose-built average of 2.2% for 2024, and news coverage sometimes places it next to Toronto; this table (Toronto, row + apartment, weighted) says 2.5%. The agent must not blend sources.
 - The change must be expressed in percentage points, not percent.
+
+**External figures (not covered by `--check`):**
+
+- 2.2%: CMHC national average purpose-built vacancy rate, October 2024 (not Toronto) ([source](https://assets.cmhc-schl.gc.ca/sites/cmhc/professional/housing-markets-data-and-research/market-reports/rental-market-report/fall-2024/rental-market-report-fall-2024-en.pdf))
 
 ---
 
@@ -227,7 +241,7 @@ Each question has an `eval_type`:
 **Traps:**
 
 - The New Housing Price Index covers new homes from builders only; resale prices (TRREB / CREA) are a different measure.
-- The index is a price index (base December 2016 = 100), not a dollar price.
+- The value is an index (Index, 201612=100), not a dollar price.
 
 ---
 
@@ -316,6 +330,10 @@ Each question has an `eval_type`:
 **Traps:**
 
 - Census 2021 median household after-tax income for Toronto ($85,000, income year 2020) produces a plausible-looking ~28.9% that silently mixes 2020 income with 2025 rent.
+
+**External figures (not covered by `--check`):**
+
+- $85,000: 2021 Census median household after-tax income, Toronto CMA (income year 2020) ([source](https://www150.statcan.gc.ca/n1/daily-quotidien/220713/mc-d002-eng.htm))
 
 ---
 
