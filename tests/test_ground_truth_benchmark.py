@@ -94,3 +94,16 @@ def test_statcan_citations_use_ten_part_coordinates() -> None:
         if citation["publisher"] == "Statistics Canada":
             assert len(citation["enrichment"]["coordinate"].split(".")) == 10, qid
             assert citation["core"]["vector_id"].startswith("v"), qid
+
+
+def test_statcan_citations_have_a_release_date() -> None:
+    for qid, citation in citations():
+        if citation["publisher"] == "Statistics Canada":
+            assert citation["enrichment"]["release_or_revision_date"], qid
+
+
+def test_external_figures_name_their_source() -> None:
+    for q in load()["questions"]:
+        for figure in q.get("external_figures", []):
+            assert figure["value"] and figure["what"], q["id"]
+            assert figure["source"].startswith("https://"), q["id"]
