@@ -74,17 +74,19 @@ jobs:
           done
 
       - name: Commit and Push with Original Author Attribution
+        # Pass event data through env, never as inline expressions in the script:
+        # commit messages with quotes, backticks or $(...) would otherwise be
+        # executed as shell (GitHub Actions script injection).
+        env:
+          AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+          AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           if [ ! -d "dist_repo" ]; then
             exit 0
           fi
 
           cd dist_repo
-
-          # Extract original author from git commit
-          AUTHOR_NAME="${{ github.event.head_commit.author.name }}"
-          AUTHOR_EMAIL="${{ github.event.head_commit.author.email }}"
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
 
           if [ -z "$AUTHOR_NAME" ] || [ "$AUTHOR_NAME" = "null" ]; then
             AUTHOR_NAME="Benjamin Sanchez Zebadua"
