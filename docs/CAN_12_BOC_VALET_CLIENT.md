@@ -45,7 +45,7 @@ One acceptance criterion is only partly achievable: the task asks for "series pu
 | `core.reference_period` | `2025-10-30`, `2026-09`, or an interval `start/end`; granularity follows the series' `dateFormat` |
 | `enrichment.coordinate` | `None` (not a StatCan concept) |
 | `enrichment.release_or_revision_date` | `None` (not published by Valet) |
-| `enrichment.bilingual_title` | `en` from Valet; `fr` is `None` |
+| `enrichment.bilingual_title` | `en` from Valet; `fr` from `FRENCH_TITLES` (currently only `V39079`: "Taux cible du financement à un jour"), otherwise `None` |
 | `enrichment.canonical_url` | `https://www.bankofcanada.ca/valet/observations/<series>` |
 
 ### 2.3 Errors and input checks
@@ -70,12 +70,12 @@ All errors derive from `ValetError`: `ValetNotFoundError` (404), `ValetHTTPError
 
 ## 4. Known Gaps and Open Questions
 
-These are open with Benjamin and Samir (raised in the review on [PR #9](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform/pull/9)). Each answer lands in one place, noted below.
+Resolved in review on [PR #13](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform/pull/13) (items 1-2) or still open (item 3). Items 4-5 are approved as written.
 
-1. **Inflation target.** `TASKS.md` lists "inflation target", but Valet has no target series. It is **not implemented**; it is not decided here whether to add a documented constant, drop it, or use another source.
-2. **Revision metadata and French titles.** Series and observation responses contain only label, description, frequency and unit. There is no publication or revision timestamp, no `Last-Modified` header, and `?lang=fr` is rejected ("query parameters are invalid: lang"). `release_or_revision_date` and `bilingual_title.fr` are therefore `None`. If the team chooses a different convention, it changes `ObservationSet.citation()` only.
-3. **Where the shared citation model lives.** `citation.py` mirrors `CitationEnvelope` from CAN-14 (`collaboration/benchmarks/build_ground_truth.py`, PR #9, not merged at the time of writing). It differs in one place: `BilingualTitle.fr` may be `None`. If the team moves the model into this package, `citation.py` is the only file to replace.
-4. **`pyproject.toml` ownership.** None existed on `main`; CAN-51 (Sprint 5) covers packaging. This PR adds a minimal root file; it may need merging with CAN-11's.
+1. **Inflation target (resolved).** The 2% target is a policy framework agreement, not a Valet series. `boc_valet.py` exposes `INFLATION_TARGET_PCT = 2.0` and `INFLATION_TARGET_RANGE = (1.0, 3.0)` as documented constants, with the Bank's framework URL. The current agreement runs to the end of 2026; re-verify when the renewal is announced.
+2. **Revision metadata and French titles (resolved).** Valet publishes no publication or revision timestamp, no `Last-Modified` header, and rejects `?lang=fr`. `release_or_revision_date` stays `None` (`fetched_at` records when it was read). French titles come from the sourced `FRENCH_TITLES` table (`V39079` only) and are `None` for any other series.
+3. **Where the shared citation model lives (open).** `citation.py` mirrors `CitationEnvelope` from CAN-14 (`collaboration/benchmarks/build_ground_truth.py`, PR #9, since merged). Samir proposes a Pydantic v2 model in `packages/candata-mcp`. It differs in one place: `BilingualTitle.fr` may be `None`. If the team moves the model into this package, `citation.py` is the only file to replace.
+4. **`pyproject.toml` ownership (approved).** None existed on `main`; CAN-51 (Sprint 5) covers packaging. This PR adds a minimal root file, and CAN-11 will build on it.
 5. **Ruff scope.** `uv run ruff check .` reported 165 findings in existing files (`scripts/sync_tasks.py` alone has 114). Those six files are listed in `extend-exclude` in `pyproject.toml` so the command passes for the code that is clean. Remove each entry as the file is cleaned.
 
 ---

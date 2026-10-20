@@ -1,9 +1,10 @@
 """Async client for the Bank of Canada Valet API (CAN-12).
 
 Valet publishes series values, labels and units but no release or revision timestamp and no
-French labels, so those citation fields are left empty rather than guessed. Every result
-carries ``fetched_at`` (the server's HTTP ``Date``) so a figure can still be pinned to the
-moment it was read.
+French labels, so ``release_or_revision_date`` is left empty rather than guessed and French
+titles come only from the sourced ``FRENCH_TITLES`` table. Every result carries
+``fetched_at`` (the server's HTTP ``Date``) so a figure can still be pinned to the moment it
+was read.
 """
 
 import asyncio
@@ -30,6 +31,19 @@ PUBLISHER = "Bank of Canada"
 TABLE_ID = "Valet"
 
 POLICY_RATE_SERIES = "V39079"
+
+# The inflation target is a monetary policy framework agreement, not a Valet series, so it is
+# exposed as constants instead of being fetched. Source:
+# https://www.bankofcanada.ca/core-functions/monetary-policy/inflation/
+# The current agreement runs to the end of 2026; re-verify when the renewal is announced.
+INFLATION_TARGET_PCT: float = 2.0
+INFLATION_TARGET_RANGE: tuple[float, float] = (1.0, 3.0)
+
+# Valet has no ``?lang=fr``, so French titles are the Bank's own published terms, by series.
+FRENCH_TITLES: Mapping[str, str] = {
+    POLICY_RATE_SERIES: "Taux cible du financement à un jour",
+}
+
 CPI_SERIES: Mapping[str, str] = {
     "total": "V41690973",
     "total_sa": "V41690914",
@@ -134,7 +148,9 @@ class ObservationSet:
             enrichment=MetadataEnrichment(
                 coordinate=None,
                 release_or_revision_date=None,
-                bilingual_title=BilingualTitle(en=self.series.label, fr=None),
+                bilingual_title=BilingualTitle(
+                    en=self.series.label, fr=FRENCH_TITLES.get(self.series.name)
+                ),
                 canonical_url=f"{VALET_BASE_URL}/observations/{self.series.name}",
             ),
         )

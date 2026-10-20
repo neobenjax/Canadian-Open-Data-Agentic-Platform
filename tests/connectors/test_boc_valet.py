@@ -15,6 +15,8 @@ import respx
 
 from candata_mcp.connectors.boc_valet import (
     CPI_SERIES,
+    INFLATION_TARGET_PCT,
+    INFLATION_TARGET_RANGE,
     POLICY_RATE_SERIES,
     VALET_BASE_URL,
     ValetClient,
@@ -315,7 +317,33 @@ async def test_citation_leaves_unpublished_fields_empty(valet: ValetClient) -> N
 
     assert enrichment.coordinate is None
     assert enrichment.release_or_revision_date is None
-    assert enrichment.bilingual_title.fr is None
+
+
+@respx.mock
+async def test_policy_rate_citation_has_french_title(valet: ValetClient) -> None:
+    respx.get(f"{VALET_BASE_URL}/observations/V39079/json").mock(
+        return_value=ok("observations_V39079_jan2025")
+    )
+    result = await valet.get_policy_rate(recent=1)
+
+    title = result.citation().enrichment.bilingual_title
+
+    assert title.fr == "Taux cible du financement à un jour"
+
+
+@respx.mock
+async def test_series_without_sourced_french_title_gets_none(valet: ValetClient) -> None:
+    respx.get(f"{VALET_BASE_URL}/observations/CPI_TRIM/json").mock(
+        return_value=ok("observations_CPI_TRIM_recent3")
+    )
+    result = await valet.get_cpi("trim", recent=1)
+
+    assert result.citation().enrichment.bilingual_title.fr is None
+
+
+def test_inflation_target_constants() -> None:
+    assert INFLATION_TARGET_PCT == 2.0
+    assert INFLATION_TARGET_RANGE == (1.0, 3.0)
 
 
 @respx.mock
