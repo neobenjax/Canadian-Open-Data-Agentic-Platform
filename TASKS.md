@@ -61,7 +61,7 @@
 
 ### Feature 1.1: Official Canadian REST Connectors
 - [ ] **CAN-11:** Implement async HTTPX client for Statistics Canada WDS API (metadata discovery, vector lookup, SDMX cube slice with HTTP caching, and structured temporal metadata extraction: `table_id`, `vector_id`, `coordinate`, `reference_period`, `release_time`, bilingual En/Fr titles, and canonical portal deep-link). *(Owner: Benjamin / Yassir · 2h)*
-- [ ] **CAN-12:** Implement async client for Bank of Canada Valet API (policy rate, inflation target, CPI series, observation dates, and series publication/revision metadata with Valet portal deep-links). *(Owner: Yassir / Benjamin · 2h)*
+- [ ] **CAN-12:** [IN PROGRESS] Implement async client for Bank of Canada Valet API (policy rate, inflation target, CPI series, observation dates, and series publication/revision metadata with Valet portal deep-links). *(Owner: Yassir / Benjamin · 2h)*
 
 ### Feature 1.2: In-Memory DuckDB Slicing Engine
 - [ ] **CAN-13:** Build FastMCP 2.0 server with in-memory DuckDB Arrow streams reducing 200MB payloads to <3KB with tool annotations (`readOnly`, `idempotent`). *(Owner: Benjamin · 3h)*

@@ -1,0 +1,4 @@
+{
+    "message": "Bad recent observations request parameters, must be numeric",
+    "docs": "https://www.bankofcanada.ca/valet/docs#/Series/get_observations__seriesNames___format_"
+}

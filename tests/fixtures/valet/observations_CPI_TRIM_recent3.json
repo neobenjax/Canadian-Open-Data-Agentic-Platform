@@ -1,0 +1,40 @@
+{
+    "terms": {
+        "url": "https://www.bankofcanada.ca/terms/"
+    },
+    "seriesDetail": {
+        "CPI_TRIM": {
+            "label": "CPI-trim",
+            "description": "The monthly value of the trim component of the Consumer Price Index (CPI). This measure excludes CPI components whose rates of change in a given month are located in the tails of the distribution of price changes.",
+            "dimension": {
+                "key": "d",
+                "name": "Date"
+            },
+            "dateFormat": "monthly",
+            "metadata": {
+                "unit": "Percent",
+                "frequency": "Monthly"
+            }
+        }
+    },
+    "observations": [
+        {
+            "d": "2026-09-01",
+            "CPI_TRIM": {
+                "v": "1.8"
+            }
+        },
+        {
+            "d": "2026-08-01",
+            "CPI_TRIM": {
+                "v": "1.9"
+            }
+        },
+        {
+            "d": "2026-07-01",
+            "CPI_TRIM": {
+                "v": "1.9"
+            }
+        }
+    ]
+}
