@@ -3,8 +3,9 @@
 **Linear Task:** `BEN-10` / `CAN-11`  
 **Owner:** Benjamin Sanchez Zebadua (Solutions Architect & Lead)  
 **Branch:** `feat/CAN-11-statcan-wds-client`  
+**Pull Request:** [#16](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform/pull/16)  
 **Reviewer:** Samir Omer (`@samiromer2`)  
-**Status:** 🟢 **IMPLEMENTATION & VERIFICATION COMPLETE**
+**Status:** 🟡 **IN REVIEW (PR #16 Open)**
 
 ---
 
@@ -58,8 +59,8 @@
 ### Phase 5: Documentation & Gitflow Review
 - [x] 5.1 Write linked deliverable guide `docs/CAN_11_STATCAN_WDS_CLIENT.md`.
 - [x] 5.2 Create detailed walkthrough with manual testing steps.
-- [ ] 5.3 Present changes to user for review and approval.
-- [ ] 5.4 Commit with Linear formatting: `[CAN-11] feat: add async Statistics Canada WDS API client`.
-- [ ] 5.5 Push feature branch: `git push -u origin feat/CAN-11-statcan-wds-client`.
-- [ ] 5.6 Mark task `IN REVIEW` in Linear and `TASKS.md`: `python scripts/sync_tasks.py --mark-in-review CAN-11`.
-- [ ] 5.7 Proactively offer automated PR creation with Samir Omer (`@samiromer2`) as reviewer.
+- [x] 5.3 Present changes to user for review and approval.
+- [x] 5.4 Commit with Linear formatting: `[CAN-11] feat: add async Statistics Canada WDS API client`.
+- [x] 5.5 Push feature branch: `git push -u origin feat/CAN-11-statcan-wds-client`.
+- [x] 5.6 Mark task `IN REVIEW` in Linear and `TASKS.md`: `python scripts/sync_tasks.py --mark-in-review CAN-11`.
+- [x] 5.7 Proactively offer automated PR creation with Samir Omer (`@samiromer2`) as reviewer (Created PR #16).
