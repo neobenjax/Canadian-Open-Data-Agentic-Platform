@@ -67,6 +67,18 @@ uv run pytest
 - **Strict Identifier Validation (Zero-Tolerance for Bogus Defaults):** Required identifiers (e.g., `vectorId`, `productId`, `series_id`) MUST strictly validate as positive/non-empty values and fail loud on malformed payloads, rather than defaulting to `0` or `""` which generates hallucinated citations (e.g., `v0`).
 - **Provenance, Operating Windows & Timezone Awareness:** Official data releases are referenced to specific release schedules. StatCan WDS release times are Eastern Time (`America/Toronto` / ET); connectors must handle daily maintenance windows (HTTP 409 between 00:00-08:30 ET) with clear actionable errors and declare descriptive user agents (`CanDataMCP/...`).
 
+### 7. In-Memory Embedded Engine Sandboxing (Zero-Trust Local Execution)
+- Embedded query engines (DuckDB, SQLite, Python REPLs) MUST explicitly disable external filesystem, network, and configuration access via driver-level flags:
+  `duckdb.connect(":memory:", config={"enable_external_access": False, "lock_configuration": True})`.
+- Keyword regex blocklists (`INSERT`, `DROP`, `DELETE`) are strictly a secondary defense layer; driver-level sandboxing is mandatory to defeat prompt injection and arbitrary file read (AFR) table functions (`read_text`, `read_csv`, `glob`).
+
+### 8. Temporal Boundary Normalization Standard
+- Slicing and filtering tools accepting partial ISO dates (`YYYY`, `YYYY-MM`) must normalize bounds (`YYYY` -> `YYYY-01-01` to `< (YYYY+1)-01-01`) before comparison.
+- Never perform raw string comparisons on variable-length dates, which silently excludes observations (e.g. `"2025-01-01" <= "2025"` evaluates to False).
+
+### 9. Mandatory PR Author Assignee Rule (Housekeeping)
+- Every PR opened or managed by an agent MUST set the PR author as the primary Assignee (`neobenjax` for Benjamin, `samiromer2` for Samir, `yassirtmk` for Yassir). `scripts/sync_tasks.py --create-pr` automatically enforces this.
+
 ---
 
 ## 🚀 Automated Feature Execution Protocol (from CONTRIBUTING.md)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock
 
+import duckdb
 import pytest
 
 from candata_mcp.citation import (
@@ -190,12 +191,25 @@ def test_payload_clamp_budget_enforcement(engine: DuckDBSlicingEngine) -> None:
     assert "citation" in clamped
 
 
+def test_payload_clamp_immutability(engine: DuckDBSlicingEngine) -> None:
+    original_data = [{"date": "2024-01-01", "value": 1.0}, {"date": "2024-01-02", "value": 2.0}]
+    payload = {
+        "source": "Statistics Canada",
+        "data": original_data,
+        "returned_count": 2,
+    }
+    # Force truncation with small max_bytes
+    clamped = engine.clamp_payload(payload, max_bytes=50)
+    assert clamped is not payload
+    assert len(payload["data"]) == 2  # Original remains unmutated
+
+
 def test_invalid_date_format_rejection(
     engine: DuckDBSlicingEngine,
     sample_valet_result: ObservationSet,
 ) -> None:
     table = engine.table_from_valet(sample_valet_result)
-    with pytest.raises(ValueError, match="Invalid start_date format"):
+    with pytest.raises(ValueError, match="Invalid date format"):
         engine.slice_table(table, start_date="bad-date-format")
 
 
@@ -225,3 +239,67 @@ def test_execute_analytics_security_guardrails(
     # Rejects forbidden keywords
     with pytest.raises(ValueError, match="forbidden SQL"):
         engine.execute_analytics(table, "SELECT * FROM series; DELETE FROM series")
+
+
+def test_duckdb_sandbox_blocks_filesystem_access(
+    engine: DuckDBSlicingEngine,
+    sample_statcan_result: StatCanSeriesResult,
+) -> None:
+    """Security probe test: verify in-memory sandbox completely forbids file and config access."""
+    table = engine.table_from_statcan(sample_statcan_result)
+
+    # Probing read_text should fail with PermissionException
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_text('pyproject.toml')")
+
+    # Probing read_csv should fail with PermissionException
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_csv('pyproject.toml')")
+
+    # Probing glob should fail with PermissionException
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT file FROM glob('*')")
+
+    # Non-SELECT statements are rejected by query parser
+    with pytest.raises(ValueError, match="Only read-only SELECT or WITH"):
+        engine.execute_analytics(table, "SET enable_external_access=true")
+
+    # If executed directly on underlying connection, configuration is locked
+    with pytest.raises(duckdb.InvalidInputException, match="the configuration has been locked"):
+        engine.connection.execute("SET enable_external_access=true")
+
+
+def test_date_boundary_normalization_includes_own_period(
+    engine: DuckDBSlicingEngine,
+    sample_statcan_result: StatCanSeriesResult,
+) -> None:
+    """Verify that end_date='2024' includes all 12 months of 2024 (avoiding period drop)."""
+    table = engine.table_from_statcan(sample_statcan_result)
+
+    # End date as year YYYY should include all 2024 records
+    records, summary = engine.slice_table(table, end_date="2024", limit=100)
+    assert len(records) == 12
+    assert summary["filtered_count"] == 12
+
+    # Matching start_date and end_date on same year
+    records, summary = engine.slice_table(table, start_date="2024", end_date="2024", limit=100)
+    assert len(records) == 12
+
+    # Month boundary: end_date='2024-06' should include 2024-01 through 2024-06
+    records, summary = engine.slice_table(table, end_date="2024-06", limit=100, descending=False)
+    assert len(records) == 6
+    assert records[-1]["date"] == "2024-06"
+
+
+def test_date_range_diagnostic_note_when_preceding_window(
+    engine: DuckDBSlicingEngine,
+    sample_statcan_result: StatCanSeriesResult,
+) -> None:
+    """Verify diagnostic note is returned when requested range precedes earliest observation."""
+    table = engine.table_from_statcan(sample_statcan_result)
+
+    # Requesting start_date='2010' against 2024 data
+    records, summary = engine.slice_table(table, start_date="2010", end_date="2012")
+    assert len(records) == 0
+    assert "data_window_note" in summary
+    assert "precedes earliest fetched observation" in summary["data_window_note"]

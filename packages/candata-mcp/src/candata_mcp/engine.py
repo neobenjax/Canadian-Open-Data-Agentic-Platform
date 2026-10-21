@@ -9,6 +9,8 @@ to prevent LLM context exhaustion.
 
 from __future__ import annotations
 
+import copy
+import datetime
 import json
 import re
 from dataclasses import asdict
@@ -36,12 +38,54 @@ _FORBIDDEN_SQL_KEYWORDS = re.compile(
 MAX_PAYLOAD_BYTES: int = 3072
 
 
+def normalize_date_bound(date_str: str, *, is_end: bool) -> tuple[str, str]:
+    """Normalize a partial or full ISO date string into an operator and date literal.
+
+    Returns:
+        (operator, normalized_date) where operator is one of ('>=', '<=', '<').
+    """
+    clean_date = date_str.strip()
+    if not _DATE_REGEX.match(clean_date):
+        raise ValueError(f"Invalid date format: '{date_str}'. Expected YYYY[-MM[-DD]].")
+
+    parts = clean_date.split("-")
+    if not is_end:
+        if len(parts) == 1:
+            return ">=", f"{parts[0]}-01-01"
+        elif len(parts) == 2:
+            return ">=", f"{parts[0]}-{parts[1]}-01"
+        else:
+            return ">=", clean_date
+    else:
+        if len(parts) == 1:
+            next_year = int(parts[0]) + 1
+            return "<", f"{next_year:04d}-01-01"
+        elif len(parts) == 2:
+            year, month = int(parts[0]), int(parts[1])
+            if month == 12:
+                next_year, next_month = year + 1, 1
+            else:
+                next_year, next_month = year, month + 1
+            return "<", f"{next_year:04d}-{next_month:02d}-01"
+        else:
+            return "<=", clean_date
+
+
 class DuckDBSlicingEngine:
     """In-memory DuckDB engine with Arrow streaming for zero-copy analytical queries."""
 
     def __init__(self, connection: duckdb.DuckDBPyConnection | None = None) -> None:
-        """Initialize an in-memory DuckDB connection."""
-        self._con: duckdb.DuckDBPyConnection = connection or duckdb.connect(":memory:")
+        """Initialize in-memory DuckDB connection locked down against filesystem/network access."""
+        if connection is not None:
+            self._con: duckdb.DuckDBPyConnection = connection
+        else:
+            self._con: duckdb.DuckDBPyConnection = duckdb.connect(
+                ":memory:",
+                config={
+                    "enable_external_access": False,
+                    "lock_configuration": True,
+                },
+            )
 
     @property
     def connection(self) -> duckdb.DuckDBPyConnection:
@@ -101,37 +145,34 @@ class DuckDBSlicingEngine:
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """Slice an Arrow table by date range and limit, returning records and summary.
 
-        Uses Arrow streaming into DuckDB to avoid large allocations.
+        Uses Arrow streaming into DuckDB to avoid large allocations and normalizes
+        temporal boundaries to avoid period exclusion bugs.
         """
         if limit <= 0:
             limit = 12
-
-        # Validate date parameters against ISO date regex to prevent query injection
-        if start_date and not _DATE_REGEX.match(start_date):
-            raise ValueError(f"Invalid start_date format: '{start_date}'. Expected YYYY[-MM[-DD]].")
-        if end_date and not _DATE_REGEX.match(end_date):
-            raise ValueError(f"Invalid end_date format: '{end_date}'. Expected YYYY[-MM[-DD]].")
 
         temp_name = "current_series"
         self._con.register(temp_name, table)
 
         try:
+            date_expr = "TRY_CAST(substr(date || '-01-01', 1, 10) AS DATE)"
             where_clauses: list[str] = []
             params: list[Any] = []
+            norm_start_str: str | None = None
 
             if start_date:
-                where_clauses.append("date >= ?")
-                params.append(start_date)
+                op, norm_start_str = normalize_date_bound(start_date, is_end=False)
+                where_clauses.append(f"{date_expr} {op} ?::DATE")
+                params.append(norm_start_str)
             if end_date:
-                where_clauses.append("date <= ?")
-                params.append(end_date)
+                op, norm_end = normalize_date_bound(end_date, is_end=True)
+                where_clauses.append(f"{date_expr} {op} ?::DATE")
+                params.append(norm_end)
 
             where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
             order_sql = "DESC" if descending else "ASC"
 
-            data_query = (
-                f"SELECT * FROM {temp_name} {where_sql} ORDER BY date {order_sql} LIMIT ?"
-            )
+            data_query = f"SELECT * FROM {temp_name} {where_sql} ORDER BY date {order_sql} LIMIT ?"
             data_params = [*params, limit]
 
             # Execute streaming Arrow reader into records
@@ -164,6 +205,20 @@ class DuckDBSlicingEngine:
                 if summary_row and summary_row[5] is not None
                 else None,
             }
+
+            # Diagnostic note when requested date range precedes fetched observation window
+            if start_date and norm_start_str:
+                earliest_row = self._con.execute(
+                    f"SELECT min({date_expr}) FROM {temp_name}"
+                ).fetchone()
+                earliest_fetched = earliest_row[0] if earliest_row else None
+                if earliest_fetched is not None:
+                    req_start = datetime.date.fromisoformat(norm_start_str)
+                    if req_start < earliest_fetched:
+                        summary["data_window_note"] = (
+                            f"Requested start_date '{start_date}' precedes earliest fetched "
+                            f"observation ('{earliest_fetched}'). Earlier data exists upstream."
+                        )
 
             return records, summary
         finally:
@@ -274,24 +329,37 @@ class DuckDBSlicingEngine:
         payload: dict[str, Any],
         max_bytes: int = MAX_PAYLOAD_BYTES,
     ) -> dict[str, Any]:
-        """Guarantee payload strictly complies with the <3KB budget.
+        """Guarantee payload strictly complies with the <3KB budget immutably.
 
         If payload exceeds max_bytes, progressively pops data rows while
-        preserving the summary statistics and Two-Tier Citation Envelope.
+        preserving summary statistics and the Two-Tier Citation Envelope.
         """
-        encoded_len = len(json.dumps(payload, default=str).encode("utf-8"))
+        clamped = copy.deepcopy(payload)
+        encoded_len = len(json.dumps(clamped, default=str).encode("utf-8"))
         if encoded_len <= max_bytes:
-            return payload
+            return clamped
 
         # Payload exceeds budget; truncate data rows
-        data = payload.get("data")
+        data = clamped.get("data")
         if isinstance(data, list) and data:
             truncated_data: list[Any] = list(data)
             while truncated_data and encoded_len > max_bytes:
                 truncated_data.pop()
-                payload["data"] = truncated_data
-                payload["returned_count"] = len(truncated_data)
-                payload["truncated"] = True
-                encoded_len = len(json.dumps(payload, default=str).encode("utf-8"))
+                clamped["data"] = truncated_data
+                clamped["returned_count"] = len(truncated_data)
+                clamped["truncated"] = True
+                encoded_len = len(json.dumps(clamped, default=str).encode("utf-8"))
 
-        return payload
+        # If metadata alone still exceeds max_bytes, clamp metadata strings deterministically
+        if encoded_len > max_bytes:
+            clamped["data"] = []
+            clamped["returned_count"] = 0
+            clamped["truncated"] = True
+            for field in ["title", "citation", "summary"]:
+                if field in clamped and isinstance(clamped[field], dict):
+                    for subk, subv in clamped[field].items():
+                        if isinstance(subv, str) and len(subv) > 80:
+                            clamped[field][subk] = subv[:80] + "..."
+            encoded_len = len(json.dumps(clamped, default=str).encode("utf-8"))
+
+        return clamped

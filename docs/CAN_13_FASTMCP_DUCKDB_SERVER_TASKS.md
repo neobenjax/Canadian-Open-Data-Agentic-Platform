@@ -2,9 +2,10 @@
 
 **Linear Task:** `BEN-12` / `CAN-13`  
 **Owner:** Benjamin Sanchez Zebadua (Solutions Architect & Lead)  
-**Branch:** `feat/CAN-13-fastmcp-duckdb-server` (branched from `feat/CAN-11-statcan-wds-client` / PR #16)  
+**Branch:** `feat/CAN-13-fastmcp-duckdb-server`  
 **Reviewer:** Samir Omer (`@samiromer2`)  
-**Status:** 🟢 **IMPLEMENTATION & VERIFICATION COMPLETE (Awaiting User Review)**
+**Assignee:** Benjamin Sanchez Zebadua (`@neobenjax`)  
+**Status:** 🟢 **REMEDIATION & VERIFICATION COMPLETE (Awaiting User Review)**
 
 ---
 
@@ -24,9 +25,9 @@ The engine slices large upstream datasets down to strictly <3KB payloads suited 
 - [x] 1.4 Mark CAN-13 `IN PROGRESS` in Linear and `TASKS.md`.
 
 ### Phase 2: In-Memory DuckDB Slicing Engine (`engine.py`)
-- [x] 2.1 Design `DuckDBSlicingEngine` class managing an in-memory DuckDB connection (`duckdb.connect(":memory:")`).
+- [x] 2.1 Design `DuckDBSlicingEngine` class managing an in-memory DuckDB connection.
 - [x] 2.2 Implement PyArrow Table / RecordBatch conversion from connector observation streams.
-- [x] 2.3 Implement analytical and temporal slicing queries (date window filtering, ordering, pagination/limit, summary aggregation).
+- [x] 2.3 Implement analytical and temporal slicing queries.
 - [x] 2.4 Implement strict payload size enforcement (<3KB) with truncation guards, row capping, and metadata indicators.
 - [x] 2.5 Ensure citation envelope preservation through streaming transforms.
 
@@ -43,17 +44,24 @@ The engine slices large upstream datasets down to strictly <3KB payloads suited 
 
 ### Phase 4: Unit, Integration & Benchmark Test Suite
 - [x] 4.1 Create test fixtures for Arrow streaming and DuckDB slicing.
-- [x] 4.2 Write unit tests in `tests/test_duckdb_engine.py` (payload sizing <3KB, Arrow conversion, SQL execution, error handling).
-- [x] 4.3 Write unit tests in `tests/test_server.py` verifying tool definitions, schemas, annotations, and execution with mocked connectors.
+- [x] 4.2 Write unit tests in `tests/test_duckdb_engine.py`.
+- [x] 4.3 Write unit tests in `tests/test_server.py`.
 - [x] 4.4 Write integration tests verifying real/mocked two-tier citation envelopes on all tool outputs.
 - [x] 4.5 Verify full offline test suite passing (81 passed, 0 failures).
 
-### Phase 5: Verification & Walkthrough Deliverables
+### Phase 5: Verification & Initial PR Submission
 - [x] 5.1 Run full pre-flight verification: `uv run ruff check .`, `uv run pyright`, and `uv run pytest`.
 - [x] 5.2 Create linked documentation deliverable `docs/CAN_13_FASTMCP_DUCKDB_SERVER.md`.
 - [x] 5.3 Write detailed walkthrough guide with manual testing instructions for the developer.
-- [x] 5.4 Present implementation to user for approval prior to commit/push.
-- [x] 5.5 Commit with Linear formatting: `[CAN-13] feat: implement FastMCP 2.0 server with in-memory DuckDB Arrow engine`.
-- [x] 5.6 Push feature branch: `git push -u origin feat/CAN-13-fastmcp-duckdb-server`.
-- [x] 5.7 Mark task `IN REVIEW` in Linear and `TASKS.md`: `python scripts/sync_tasks.py --mark-in-review CAN-13`.
-- [x] 5.8 Proactively offer automated PR creation with Samir Omer (`@samiromer2`) as reviewer.
+- [x] 5.4 Submit PR #17 to GitHub and assign reviewer `@samiromer2`.
+
+### Phase 6: PR #17 Review Remediation & Engine Hardening
+- [x] 6.1 **Housekeeping:** Assign author `@neobenjax` to PR #17 (and assign authors to PR #18 and #19).
+- [x] 6.2 **Git Rebase:** Rebase `feat/CAN-13-fastmcp-duckdb-server` onto latest `origin/main` (integrating merged PR #16).
+- [x] 6.3 **Security Sandbox Hardening:** Configure DuckDB connection with `enable_external_access=False` and `lock_configuration=True`. Add negative unit tests probing `read_text`, `read_csv`, `glob`, and `SET enable_external_access`.
+- [x] 6.4 **Temporal Boundary Normalization:** Implement `normalize_date_bound` so `end_date="2024"` includes full 2024 calendar year. Add unit test.
+- [x] 6.5 **Temporal Window Diagnostics:** Return diagnostic note when requested range is older than fetched observation window.
+- [x] 6.6 **Deterministic Payload Clamping:** Make `clamp_payload` immutable and guarantee strict <3KB payload under large metadata scenarios.
+- [x] 6.7 **Formatting & Lint Hygiene:** Ensure 100% compliance with `ruff format` and `ruff check`.
+- [x] 6.8 **Codify Agent Guardrails:** Update `AGENTS.md` and `scripts/sync_tasks.py` with mandatory engine sandboxing, date boundary rules, and automatic PR author assignment.
+- [x] 6.9 **Pre-Flight Verification & Walkthrough:** Verify `pytest` (89 passing), `pyright` (0 errors), `ruff` (all checks passed), and provide testing walkthrough for user review.
