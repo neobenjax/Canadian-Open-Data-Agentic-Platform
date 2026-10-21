@@ -7,11 +7,13 @@ from candata_mcp.citation import (
     MetadataEnrichment,
 )
 from candata_mcp.connectors import StatCanAmbiguousMemberError, StatCanClient, ValetClient
+from candata_mcp.engine import DuckDBSlicingEngine
 
 __all__ = [
     "BilingualTitle",
     "CitationEnvelope",
     "CoreVerificationTuple",
+    "DuckDBSlicingEngine",
     "MetadataEnrichment",
     "StatCanAmbiguousMemberError",
     "StatCanClient",

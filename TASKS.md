@@ -64,7 +64,7 @@
 - [ ] **CAN-12:** [IN REVIEW] Implement async client for Bank of Canada Valet API (policy rate, inflation target, CPI series, observation dates, and series publication/revision metadata with Valet portal deep-links). *(Owner: Yassir / Benjamin · 2h)*
 
 ### Feature 1.2: In-Memory DuckDB Slicing Engine
-- [ ] **CAN-13:** Build FastMCP 2.0 server with in-memory DuckDB Arrow streams reducing 200MB payloads to <3KB with tool annotations (`readOnly`, `idempotent`). *(Owner: Benjamin · 3h)*
+- [ ] **CAN-13:** [IN PROGRESS] Build FastMCP 2.0 server with in-memory DuckDB Arrow streams reducing 200MB payloads to <3KB with tool annotations (`readOnly`, `idempotent`). *(Owner: Benjamin · 3h)*
 
 ### Feature 1.3: Benchmark Suite & Security Baseline
 - [x] **CAN-14:** Curate 15 ground-truth benchmark questions based on GTA housing, rent vs income, and inflation metrics. *(Owner: Samir · 2h)*
