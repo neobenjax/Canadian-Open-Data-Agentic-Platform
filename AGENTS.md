@@ -40,6 +40,8 @@ This file defines the mandatory operating rules, developer guardrails, and perso
 Before suggesting to push or open a PR, verify:
 ```bash
 uv run ruff check .
+uv run ruff format --check .
+uv run pyright
 uv run pytest
 ```
 
@@ -58,6 +60,12 @@ uv run pytest
   - Whichever developer (Benjamin, Samir, or Yassir) authors the feature commit in the monorepo will appear as the **sole author** of that commit in the standalone MCP Server repository history.
 - **GitHub PAT Scope Requirement:**
   - Any Personal Access Token used to push workflow files (`.github/workflows/*.yml`) must include both `repo` and `workflow` scopes.
+
+### 6. Official Data Connector & Evaluation Standards (Evals-First Guardrails)
+- **Data Quality & Reliability Fidelity:** Never drop official quality, reliability, or confidentiality flags (e.g., StatCan `statusCode`, `symbolCode` like A-F data quality grades, `..` not available). Connectors and observation containers MUST carry them so downstream evaluation agents can distinguish reliable figures from "use with caution" or suppressed estimates.
+- **Fail-Loud Ambiguity Resolution:** Never silently select the first match (`.first()`) when resolving hierarchical dimension members (e.g., duplicate geography names across municipalities/CMA boundaries like Smiths Falls, Abbotsford-Mission). Connectors MUST detect ambiguity and raise an informative `AmbiguousMemberError` listing candidate IDs.
+- **Strict Identifier Validation (Zero-Tolerance for Bogus Defaults):** Required identifiers (e.g., `vectorId`, `productId`, `series_id`) MUST strictly validate as positive/non-empty values and fail loud on malformed payloads, rather than defaulting to `0` or `""` which generates hallucinated citations (e.g., `v0`).
+- **Provenance, Operating Windows & Timezone Awareness:** Official data releases are referenced to specific release schedules. StatCan WDS release times are Eastern Time (`America/Toronto` / ET); connectors must handle daily maintenance windows (HTTP 409 between 00:00-08:30 ET) with clear actionable errors and declare descriptive user agents (`CanDataMCP/...`).
 
 ---
 

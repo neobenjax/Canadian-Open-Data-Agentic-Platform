@@ -25,6 +25,9 @@ from candata_mcp.citation import (
 
 STATCAN_WDS_BASE_URL = "https://www150.statcan.gc.ca/t1/wds/rest"
 PUBLISHER = "Statistics Canada"
+DEFAULT_USER_AGENT = (
+    "CanDataMCP/0.1 (CAN-11; +https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform)"
+)
 
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
@@ -68,6 +71,10 @@ class StatCanMemberNotFoundError(StatCanError):
     """A dimension member name could not be resolved in the cube metadata."""
 
 
+class StatCanAmbiguousMemberError(StatCanError):
+    """A dimension member name matched multiple candidate members in the cube."""
+
+
 def format_table_id(product_id: int | str) -> str:
     """Format an 8-digit or 10-digit StatCan product ID as a standard hyphenated table ID.
 
@@ -84,10 +91,14 @@ def format_table_id(product_id: int | str) -> str:
 def normalize_vector_id(vector_id: int | str) -> int:
     """Normalize a vector ID (e.g. 'v41690973' or 41690973) to integer 41690973."""
     if isinstance(vector_id, int):
+        if vector_id <= 0:
+            raise ValueError(f"invalid vector ID {vector_id!r}; must be positive")
         return vector_id
     cleaned = vector_id.strip().lstrip("vV")
-    if not cleaned.isdigit():
-        raise ValueError(f"invalid vector ID {vector_id!r}; must be numeric or 'v'-prefixed")
+    if not cleaned.isdigit() or int(cleaned) <= 0:
+        raise ValueError(
+            f"invalid vector ID {vector_id!r}; must be positive numeric or 'v'-prefixed"
+        )
     return int(cleaned)
 
 
@@ -96,8 +107,8 @@ def normalize_product_id(product_id: int | str) -> int:
     s = str(product_id).strip().replace("-", "")
     if len(s) == 10 and s.endswith("01"):
         s = s[:8]
-    if not s.isdigit():
-        raise ValueError(f"invalid product ID {product_id!r}")
+    if not s.isdigit() or int(s) <= 0:
+        raise ValueError(f"invalid product ID {product_id!r}; must be positive")
     return int(s)
 
 
@@ -141,6 +152,8 @@ class Observation:
     release_time: str | None
     scalar_factor_code: int | None
     frequency_code: int | None
+    status_code: int | None = None
+    symbol_code: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,7 +243,7 @@ class StatCanClient:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=timeout,
-            headers={"Accept": "application/json", "User-Agent": "candata-mcp"},
+            headers={"Accept": "application/json", "User-Agent": DEFAULT_USER_AGENT},
         )
 
     async def __aenter__(self) -> Self:
@@ -272,10 +285,11 @@ class StatCanClient:
         self._metadata_cache[pid] = (meta, now)
         return meta
 
-    async def resolve_coordinate(
-        self, product_id: int | str, member_names: Sequence[str]
-    ) -> str:
+    async def resolve_coordinate(self, product_id: int | str, member_names: Sequence[str]) -> str:
         """Resolve human-readable dimension member names into a StatCan 10-part coordinate string.
+
+        Fails loud with StatCanAmbiguousMemberError if multiple candidate members share the
+        same name within a dimension (e.g. duplicate municipality/CMA names).
 
         Example: resolve_coordinate(18100004, ["Canada", "All-items"]) -> "2.2.0.0.0.0.0.0.0.0"
         """
@@ -289,21 +303,24 @@ class StatCanClient:
                     f"dimension position {pos} does not exist in table {meta.product_id}"
                 )
             name_norm = name.strip().lower()
-            matched_member = next(
-                (
-                    m
-                    for m in dim.members
-                    if m.name_en.strip().lower() == name_norm
-                    or (m.name_fr and m.name_fr.strip().lower() == name_norm)
-                ),
-                None,
-            )
-            if matched_member is None:
+            matches = [
+                m
+                for m in dim.members
+                if m.name_en.strip().lower() == name_norm
+                or (m.name_fr and m.name_fr.strip().lower() == name_norm)
+            ]
+            if not matches:
                 raise StatCanMemberNotFoundError(
                     f"member {name!r} not found in dimension {pos} "
                     f"({dim.name_en!r}) of table {meta.product_id}"
                 )
-            member_ids.append(matched_member.member_id)
+            if len(matches) > 1:
+                candidate_ids = [m.member_id for m in matches]
+                raise StatCanAmbiguousMemberError(
+                    f"ambiguous member name {name!r}: multiple members match in dimension {pos} "
+                    f"({dim.name_en!r}) of table {meta.product_id}: candidates={candidate_ids}"
+                )
+            member_ids.append(matches[0].member_id)
 
         padded = member_ids + [0] * (10 - len(member_ids))
         return ".".join(str(i) for i in padded)
@@ -326,7 +343,7 @@ class StatCanClient:
 
         meta = await self.get_cube_metadata(pid)
 
-        vector_id_raw = _int(data_obj, "vectorId")
+        vector_id_raw = _required_int(data_obj, "vectorId")
         observations = self._parse_observations(data_obj.get("vectorDataPoint"))
 
         return StatCanSeriesResult(
@@ -363,7 +380,7 @@ class StatCanClient:
 
             obj_dict = _dict(item_dict.get("object"))
 
-            vid = _int(obj_dict, "vectorId")
+            vid = _required_int(obj_dict, "vectorId")
             pid_raw = obj_dict.get("productId")
             if pid_raw is None:
                 raise StatCanResponseError(f"invalid vector result payload: {obj_dict}")
@@ -390,7 +407,7 @@ class StatCanClient:
         return tuple(results)
 
     async def get_series_info(self, vector_id: int | str) -> SeriesInfo:
-        """Fetch series metadata and dimension coordinate for a given vector ID."""
+        """Fetch series metadata, unit of measure code, and coordinate for a given vector ID."""
         vid = normalize_vector_id(vector_id)
         body = [{"vectorId": vid}]
         response_data, _ = await self._post_json("getSeriesInfoFromVector", body)
@@ -413,9 +430,7 @@ class StatCanClient:
             member_uom_code=_optional_int(info_obj, "memberUomCode"),
         )
 
-    async def _post_json(
-        self, endpoint: str, body: list[dict[str, Any]]
-    ) -> tuple[Any, str]:
+    async def _post_json(self, endpoint: str, body: list[dict[str, Any]]) -> tuple[Any, str]:
         url = f"{self._base_url}/{endpoint}"
         response: httpx.Response | None = None
 
@@ -434,8 +449,14 @@ class StatCanClient:
         assert response is not None
 
         if response.status_code >= 400:
-            error = StatCanNotFoundError if response.status_code == 404 else StatCanHTTPError
-            raise error(response.status_code, response.text)
+            if response.status_code == 404:
+                raise StatCanNotFoundError(404, response.text)
+            if response.status_code == 409:
+                raise StatCanHTTPError(
+                    409,
+                    f"StatCan WDS maintenance window (00:00-08:30 ET) or conflict: {response.text}",
+                )
+            raise StatCanHTTPError(response.status_code, response.text)
 
         try:
             data: Any = response.json()
@@ -526,6 +547,8 @@ class StatCanClient:
                     release_time=_optional_text(p_dict, "releaseTime"),
                     scalar_factor_code=_optional_int(p_dict, "scalarFactorCode"),
                     frequency_code=_optional_int(p_dict, "frequencyCode"),
+                    status_code=_optional_int(p_dict, "statusCode"),
+                    symbol_code=_optional_int(p_dict, "symbolCode"),
                 )
             )
 
@@ -577,6 +600,15 @@ def _optional_int(source: Mapping[str, Any], key: str) -> int | None:
     if isinstance(value, str) and value.isdigit():
         return int(value)
     return None
+
+
+def _required_int(source: Mapping[str, Any], key: str) -> int:
+    val = _optional_int(source, key)
+    if val is None or val <= 0:
+        raise StatCanResponseError(
+            f"expected positive integer for {key!r}, got {source.get(key)!r}"
+        )
+    return val
 
 
 def _fetched_at(response: httpx.Response) -> str:

@@ -1,6 +1,6 @@
 """Official Canadian open-data connectors."""
 
 from candata_mcp.connectors.boc_valet import ValetClient
-from candata_mcp.connectors.statcan_wds import StatCanClient
+from candata_mcp.connectors.statcan_wds import StatCanAmbiguousMemberError, StatCanClient
 
-__all__ = ["StatCanClient", "ValetClient"]
+__all__ = ["StatCanAmbiguousMemberError", "StatCanClient", "ValetClient"]

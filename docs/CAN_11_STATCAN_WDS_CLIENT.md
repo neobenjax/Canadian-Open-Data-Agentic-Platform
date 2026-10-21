@@ -62,6 +62,7 @@ Calling `.citation()` on a `StatCanSeriesResult` returns a `CitationEnvelope` di
 import asyncio
 from candata_mcp.connectors import StatCanClient
 
+
 async def main():
     async with StatCanClient() as client:
         # 1. Resolve human dimension names to 10-part coordinate
@@ -78,6 +79,7 @@ async def main():
         print(f"Publisher: {citation.publisher}")
         print(f"Core Verification Tuple: {citation.core}")
         print(f"Enrichment Metadata: {citation.enrichment}")
+
 
 asyncio.run(main())
 ```

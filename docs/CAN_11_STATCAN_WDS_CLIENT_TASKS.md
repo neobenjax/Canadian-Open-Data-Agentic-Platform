@@ -64,3 +64,12 @@
 - [x] 5.5 Push feature branch: `git push -u origin feat/CAN-11-statcan-wds-client`.
 - [x] 5.6 Mark task `IN REVIEW` in Linear and `TASKS.md`: `python scripts/sync_tasks.py --mark-in-review CAN-11`.
 - [x] 5.7 Proactively offer automated PR creation with Samir Omer (`@samiromer2`) as reviewer (Created PR #16).
+
+### Phase 6: Peer Review Follow-ups (Samir's Feedback)
+- [ ] 6.1 Add `status_code` and `symbol_code` quality flags to `Observation` dataclass and parser.
+- [ ] 6.2 Add `StatCanAmbiguousMemberError` when dimension member name matches multiple members.
+- [ ] 6.3 Enforce strict positive integer validation for `vectorId` and `productId` (preventing silent `v0`).
+- [ ] 6.4 Update `User-Agent` header to descriptive format (`CanDataMCP/0.1...`) and map HTTP 409 maintenance window.
+- [ ] 6.5 Add unit tests for quality flags, ambiguous member detection, strict IDs, and 409 error.
+- [ ] 6.6 Run `uv run ruff format .`, `uv run ruff check .`, `uv run pyright`, and `uv run pytest`.
+- [ ] 6.7 Push fixes to `feat/CAN-11-statcan-wds-client` and merge PR #16.

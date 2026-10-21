@@ -6,13 +6,14 @@ from candata_mcp.citation import (
     CoreVerificationTuple,
     MetadataEnrichment,
 )
-from candata_mcp.connectors import StatCanClient, ValetClient
+from candata_mcp.connectors import StatCanAmbiguousMemberError, StatCanClient, ValetClient
 
 __all__ = [
     "BilingualTitle",
     "CitationEnvelope",
     "CoreVerificationTuple",
     "MetadataEnrichment",
+    "StatCanAmbiguousMemberError",
     "StatCanClient",
     "ValetClient",
 ]

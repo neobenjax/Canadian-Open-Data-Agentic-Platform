@@ -14,7 +14,9 @@ import pytest
 import respx
 
 from candata_mcp.connectors.statcan_wds import (
+    DEFAULT_USER_AGENT,
     STATCAN_WDS_BASE_URL,
+    StatCanAmbiguousMemberError,
     StatCanClient,
     StatCanHTTPError,
     StatCanMemberNotFoundError,
@@ -56,9 +58,17 @@ def test_format_table_id_and_normalize_helpers() -> None:
     with pytest.raises(ValueError, match="invalid vector ID"):
         normalize_vector_id("abc")
 
+    with pytest.raises(ValueError, match="invalid vector ID"):
+        normalize_vector_id(0)
+
     assert normalize_product_id(18100004) == 18100004
     assert normalize_product_id("1810000401") == 18100004
     assert normalize_product_id("18-10-0004-01") == 18100004
+
+
+def test_default_user_agent_format(statcan: StatCanClient) -> None:
+    assert "CanDataMCP" in DEFAULT_USER_AGENT
+    assert "CAN-11" in DEFAULT_USER_AGENT
 
 
 @respx.mock
@@ -145,6 +155,36 @@ async def test_resolve_coordinate_member_not_found(statcan: StatCanClient) -> No
 
 
 @respx.mock
+async def test_resolve_coordinate_ambiguous_member_raises_error(statcan: StatCanClient) -> None:
+    ambiguous_meta = [
+        {
+            "status": "SUCCESS",
+            "object": {
+                "productId": 34100133,
+                "cubeTitleEn": "Rental Market Survey",
+                "frequencyCode": 12,
+                "dimension": [
+                    {
+                        "dimensionPositionId": 1,
+                        "dimensionNameEn": "Geography",
+                        "member": [
+                            {"memberId": 10, "memberNameEn": "Kentville", "parentMemberId": 1},
+                            {"memberId": 20, "memberNameEn": "Kentville", "parentMemberId": 2},
+                        ],
+                    }
+                ],
+            },
+        }
+    ]
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=httpx.Response(200, json=ambiguous_meta, headers={"Date": DATE_HEADER})
+    )
+
+    with pytest.raises(StatCanAmbiguousMemberError, match="ambiguous member name 'Kentville'"):
+        await statcan.resolve_coordinate(34100133, ["Kentville"])
+
+
+@respx.mock
 async def test_resolve_coordinate_position_out_of_bounds(statcan: StatCanClient) -> None:
     respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
         return_value=ok("cube_metadata_18100004")
@@ -174,6 +214,8 @@ async def test_get_data_from_cube_slicing_and_chronological_sort(statcan: StatCa
     # Verify sorted oldest first
     assert result.observations[0].ref_per == "2026-08-01"
     assert result.observations[0].value == 169.8
+    assert result.observations[0].status_code == 0
+    assert result.observations[0].symbol_code == 0
     assert result.observations[1].ref_per == "2026-09-01"
     assert result.observations[1].value == 170.0
 
@@ -231,6 +273,32 @@ async def test_get_data_from_vectors(statcan: StatCanClient) -> None:
 
 
 @respx.mock
+async def test_get_data_from_cube_rejects_missing_or_zero_vector_id(
+    statcan: StatCanClient,
+) -> None:
+    invalid_data = [
+        {
+            "status": "SUCCESS",
+            "object": {
+                "productId": 18100004,
+                "coordinate": "2.2.0.0.0.0.0.0.0.0",
+                "vectorId": 0,
+                "vectorDataPoint": [],
+            },
+        }
+    ]
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getDataFromCubePidCoordAndLatestNPeriods").mock(
+        return_value=httpx.Response(200, json=invalid_data, headers={"Date": DATE_HEADER})
+    )
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=ok("cube_metadata_18100004")
+    )
+
+    with pytest.raises(StatCanResponseError, match="expected positive integer for 'vectorId'"):
+        await statcan.get_data_from_cube(18100004, "2.2.0.0.0.0.0.0.0.0", latest_n=1)
+
+
+@respx.mock
 async def test_get_series_info(statcan: StatCanClient) -> None:
     respx.post(f"{STATCAN_WDS_BASE_URL}/getSeriesInfoFromVector").mock(
         return_value=ok("series_info_v41690973")
@@ -263,6 +331,16 @@ async def test_statcan_not_found_error_on_http_404(statcan: StatCanClient) -> No
 
     with pytest.raises(StatCanNotFoundError, match="HTTP 404"):
         await statcan.get_cube_metadata(12345678)
+
+
+@respx.mock
+async def test_statcan_maintenance_window_error_on_http_409(statcan: StatCanClient) -> None:
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=httpx.Response(409, text="Maintenance")
+    )
+
+    with pytest.raises(StatCanHTTPError, match="maintenance window"):
+        await statcan.get_cube_metadata(18100004)
 
 
 @respx.mock
