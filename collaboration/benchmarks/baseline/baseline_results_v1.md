@@ -9,6 +9,7 @@ Same 15 GTA questions (`gta_ground_truth_v1.json`), same system prompt, same age
 | Arm | Model ID(s) | Run date | Correct | Partial | Abstained | Hallucinated | Table coverage | Vector coverage | Unverified IDs | Errors |
 | :-- | :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: |
 | no_tools | `claude-haiku-5-5` | 2026-10-22 | 2 | 0 | 13 | **0** | 27% | 7% | 3 | 0 |
+| no_tools | `claude-opus-5-5` | 2026-10-22 | 3 | 0 | 12 | **0** | 77% | 7% | 8 | 0 |
 | no_tools | `claude-sonnet-5-5` | 2026-10-22 | 3 | 0 | 11 | **1** | 60% | 7% | 8 | 0 |
 
 **Outcomes.** *Correct*: every expected value within tolerance (and the right call on comparison, refusal and flag questions). *Partial*: at least half the values. *Abstained*: declined or gave no figures. *Hallucinated*: stated figures that do not match the official data, invented a number for a period with no data, or computed across mismatched years without flagging it.
@@ -17,23 +18,23 @@ Same 15 GTA questions (`gta_ground_truth_v1.json`), same system prompt, same age
 
 ## Per question
 
-| Question | no_tools · claude-haiku-5-5 | no_tools · claude-sonnet-5-5 |
-| :-- | :-: | :-: |
-| GT-01 | abstained | abstained |
-| GT-02 | abstained | hallucinated* |
-| GT-03 | abstained | abstained |
-| GT-04 | abstained | abstained |
-| GT-05 | abstained | abstained |
-| GT-06 | abstained | abstained |
-| GT-07 | abstained | abstained |
-| GT-08 | abstained | abstained |
-| GT-09 | correct | correct |
-| GT-10 | abstained | abstained |
-| GT-11 | abstained | abstained |
-| GT-12 | abstained | abstained |
-| GT-13 | correct | correct |
-| GT-14 | abstained* | abstained |
-| GT-15 | abstained* | correct |
+| Question | no_tools · claude-haiku-5-5 | no_tools · claude-opus-5-5 | no_tools · claude-sonnet-5-5 |
+| :-- | :-: | :-: | :-: |
+| GT-01 | abstained | abstained | abstained |
+| GT-02 | abstained | abstained | hallucinated* |
+| GT-03 | abstained | abstained | abstained |
+| GT-04 | abstained | abstained | abstained |
+| GT-05 | abstained | abstained | abstained |
+| GT-06 | abstained | abstained | abstained |
+| GT-07 | abstained | abstained | abstained |
+| GT-08 | abstained | abstained | abstained |
+| GT-09 | correct | correct | correct |
+| GT-10 | abstained | abstained | abstained |
+| GT-11 | abstained | abstained | abstained |
+| GT-12 | abstained | abstained | abstained |
+| GT-13 | correct | correct | correct |
+| GT-14 | abstained* | abstained* | abstained |
+| GT-15 | abstained* | correct* | correct |
 
 `*` re-graded by hand (see `manual_overrides.json`).
 
