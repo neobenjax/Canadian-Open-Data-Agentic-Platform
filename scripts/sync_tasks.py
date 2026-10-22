@@ -1089,6 +1089,30 @@ def create_github_pr_for_task(
             print(f"Notice assigning reviewer: {e}", file=sys.stderr)
 
     # Transition task to IN REVIEW locally and on Linear
+    # Housekeeping rule: assign author as primary PR assignee
+    if pr:
+        pr_num = pr["number"]
+        author_handle = None
+        if "benjamin" in owner_str:
+            author_handle = "neobenjax"
+        elif "samir" in owner_str:
+            author_handle = "samiromer2"
+        elif "yassir" in owner_str:
+            author_handle = "yassirtmk"
+
+        if author_handle:
+            assignee_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_num}/assignees"
+            assignee_req = urllib.request.Request(
+                assignee_url,
+                data=json.dumps({"assignees": [author_handle]}).encode("utf-8"),
+                headers=headers,
+            )
+            try:
+                with urllib.request.urlopen(assignee_req) as resp:
+                    print(f"Assigned author @{author_handle} as primary PR assignee to PR #{pr_num}")
+            except Exception as e:
+                print(f"Notice assigning PR author: {e}", file=sys.stderr)
+
     transition_task(issue_key, "IN REVIEW")
 
 

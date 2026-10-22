@@ -3,10 +3,19 @@ name = "canadian-open-data-agentic-platform"
 version = "0.0.0"
 description = "Monorepo tooling for CanData-MCP. Not published; packaging candata-mcp is CAN-51."
 requires-python = ">=3.12"
-dependencies = ["httpx>=0.27"]
+dependencies = [
+    "duckdb>=1.2.0",
+    "httpx>=0.27",
+    "mcp>=1.2.0",
+    "pyarrow>=17.0.0",
+]
+
+[project.scripts]
+candata-mcp = "candata_mcp.server:main"
 
 [dependency-groups]
 dev = [
+    "pyarrow-stubs>=20.0.0.20260819",
     "pyright>=1.1.380",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
