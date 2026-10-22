@@ -1,0 +1,14 @@
+{
+  "no_tools/claude-sonnet-5-5/GT-02": {
+    "outcome": "hallucinated",
+    "reason": "Declined overall but stated a 2023 Toronto vacancy rate of 'about 1.9%' from memory; the table gives 1.4%. Hedged, still a wrong figure. Reviewed by Samir, 2026-10-22."
+  },
+  "no_tools/claude-haiku-5-5/GT-15": {
+    "outcome": "abstained",
+    "reason": "Auto-grader matched 'not broken out', but the answer suggests CMHC's portal 'may cover 1985' rather than saying the series starts in 1992. Declined without knowing the data is absent. Reviewed by Samir, 2026-10-22."
+  },
+  "no_tools/claude-haiku-5-5/GT-14": {
+    "outcome": "abstained",
+    "reason": "Declined to give a number, but asserted that table 18-10-0004-01 has a Toronto mortgage interest cost component. It does not; that is the trap. No figure, so not a hallucinated value. Reviewed by Samir, 2026-10-22."
+  }
+}

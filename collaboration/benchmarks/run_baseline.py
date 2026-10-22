@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -88,6 +89,7 @@ class Answer:
     arm: Arm
     requested_model: str
     model_ids: list[str]
+    tools_available: list[str]
     started_at: str
     duration_s: float
     num_turns: int
@@ -133,33 +135,50 @@ def ask(arm: Arm, model: str, question: dict[str, Any], mcp_file: Path | None) -
             capture_output=True,
             text=True,
             cwd=cwd,
+            # MCP tools are otherwise deferred behind the built-in ToolSearch tool, which
+            # `--tools ""` removes, leaving the MCP arms silently tool-less.
+            env={**os.environ, "ENABLE_TOOL_SEARCH": "false"},
             timeout=TIMEOUT,
             check=False,
         )
     tool_calls: list[str] = []
+    # Taken from the answering turns, not `modelUsage`, which also lists the small model
+    # Claude Code uses for its own housekeeping.
+    model_ids: set[str] = set()
+    tools_available: list[str] = []
     result: dict[str, Any] = {}
     for line in proc.stdout.splitlines():
         try:
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if event.get("type") == "assistant":
+        if event.get("type") == "system" and event.get("subtype") == "init":
+            tools_available = sorted(event.get("tools", []))
+        elif event.get("type") == "assistant":
+            model_ids.add(event["message"].get("model", "unknown"))
             for block in event["message"].get("content", []):
                 if block.get("type") == "tool_use":
                     tool_calls.append(block["name"])
         elif event.get("type") == "result":
             result = event
     response = result.get("result") or proc.stderr.strip() or "no result event"
+    is_error = bool(result.get("is_error", True)) or proc.returncode != 0
+    if arm in MCP_SERVERS:
+        prefix = f"mcp__{next(iter(MCP_SERVERS[arm]))}__"
+        if not any(t.startswith(prefix) for t in tools_available):
+            # An MCP arm that never saw its server is a failed run, not a no-tools answer.
+            is_error, response = True, f"MCP server tools not available. {response}"
     return Answer(
         question_id=question["id"],
         arm=arm,
         requested_model=model,
-        model_ids=sorted(result.get("modelUsage", {})),
+        model_ids=sorted(model_ids),
+        tools_available=tools_available,
         started_at=started.isoformat(timespec="seconds"),
         duration_s=round((datetime.now(UTC) - started).total_seconds(), 1),
         num_turns=result.get("num_turns", 0),
         tool_calls=tool_calls,
-        is_error=bool(result.get("is_error", True)) or proc.returncode != 0,
+        is_error=is_error,
         response=response,
     )
 
@@ -189,16 +208,24 @@ def run(arm: Arm, model: str, only: list[str] | None) -> Path:
 TABLE_ID = re.compile(r"\b\d{2}-\d{2}-\d{4}-\d{2}\b|\b\d{10}\b|\b\d{8}\b")
 VECTOR_ID = re.compile(r"\bv\d{5,11}\b", re.IGNORECASE)
 NUMBER = re.compile(r"(?<![\w.])[-−]?\$?\d[\d,]*(?:\.\d+)?")
+# Declining to give a figure ("I can't verify", "I won't estimate").
 REFUSAL = re.compile(
-    r"\b(not (?:publish|publicly|available|exist|cover)\w*|no (?:official |such )?(?:data|series|"
-    r"index|figure)|does not (?:exist|cover|go back|extend)|doesn't (?:exist|cover|go back|"
-    r"extend)|(?:cannot|can't|unable to) (?:verify|find|provide|confirm|give)|isn't available|"
-    r"don't have|do not have|starts? in|begins? in|only (?:goes|available))",
+    r"\b((?:cannot|can't|unable to|won't|will not) (?:verify|find|provide|confirm|give|answer|"
+    r"tell|estimate|quote)|isn't available|not available|don't have|do not have|no (?:live )?"
+    r"(?:data|access))",
+    re.IGNORECASE,
+)
+# Saying the data does not exist, which is stronger than declining: refusal questions need it.
+DATA_ABSENT = re.compile(
+    r"\b((?:does not|doesn't|do not|don't|is not|isn't|are not|aren't|not) (?:publish\w*|exist|"
+    r"cover|go back|extend|reach|broken out|available (?:for|at|before))|no (?:official|such|"
+    r"published|city-level|toronto)\b|(?:coverage|series|data) (?:starts|begins)|"
+    r"(?:starts|begins) (?:in|later)|only (?:goes|available|from))",
     re.IGNORECASE,
 )
 MISMATCH = re.compile(
     r"\b(mismatch|vintage|different (?:year|period)s?|not comparable|"
-    r"five years|5 years|out of date|outdated|apples)",
+    r"five years|5 years|out of date|outdated|apples|mix(?:es|ing)? years)",
     re.IGNORECASE,
 )
 
@@ -212,6 +239,40 @@ ANSWER_PATTERNS: dict[str, re.Pattern[str]] = {
     "GT-11": re.compile(r"\b(lower|slower|less than|below)\b", re.IGNORECASE),
     "GT-12": re.compile(r"\b(fell|declin\w*|decreas\w*|dropped|down)\b", re.IGNORECASE),
 }
+
+# The values each numeric or comparison question asks for directly. Getting one of these
+# wrong is a hallucination even when supporting values are right ("3 changes, from 3.25% to
+# 2.25%" is wrong about GT-13). Supporting values only move an answer between correct and
+# partial.
+HEADLINE: dict[str, tuple[str, ...]] = {
+    "GT-01": ("rent_2025",),
+    "GT-02": ("vacancy_2025_pct", "vacancy_2023_pct"),
+    "GT-03": ("oshawa_2025", "toronto_2025"),
+    "GT-04": (),
+    "GT-05": ("starts_2025", "starts_2024"),
+    "GT-06": ("change_pct",),
+    "GT-07": ("rent_share_pct",),
+    "GT-08": ("rent_growth_pct", "income_growth_pct"),
+    "GT-10": ("rented_accommodation_pct", "all_items_pct"),
+    "GT-11": ("toronto_shelter_pct", "canada_shelter_pct"),
+    "GT-12": ("shelter_yoy_pct", "all_items_yoy_pct"),
+    "GT-13": ("number_of_changes", "rate_start_2025_pct", "rate_end_2025_pct"),
+}
+LIST_MARKER = re.compile(r"(?m)^\s*\d+[.)]\s")
+# "four times" states a count as surely as "4 times" does.
+NUMBER_WORDS = {
+    w: str(i)
+    for i, w in enumerate(
+        "zero one two three four five six seven eight nine ten eleven twelve".split()
+    )
+}
+# Only before a count noun, so "three units and over" is not read as a 3.0% vacancy rate.
+NUMBER_WORD = re.compile(
+    r"\b(" + "|".join(NUMBER_WORDS) + r")\b(?=\s+(?:times|changes|cuts|hikes|increases|"
+    r"decreases|rate changes|moves|decisions)\b)",
+    re.IGNORECASE,
+)
+YEAR = re.compile(r"^(19|20)\d{2}$")
 
 
 def load_questions() -> list[dict[str, Any]]:
@@ -246,7 +307,9 @@ def tolerance(key: str, value: float) -> float:
 
 def numbers_in(text: str) -> list[float]:
     """Every number in the answer, with identifiers removed so v3823103 is not a rent."""
-    text = VECTOR_ID.sub(" ", TABLE_ID.sub(" ", text))
+    # List numbering ("4. ...") is not a value either.
+    text = LIST_MARKER.sub(" ", VECTOR_ID.sub(" ", TABLE_ID.sub(" ", text)))
+    text = NUMBER_WORD.sub(lambda m: NUMBER_WORDS[m.group(1).lower()], text)
     found: list[float] = []
     for match in NUMBER.findall(text):
         cleaned = match.replace("$", "").replace(",", "").replace("−", "-")
@@ -329,21 +392,26 @@ def grade_answer(question: dict[str, Any], text: str) -> Grade:
     matches = matched_values(question, text)
     recall = sum(matches.values()) / len(matches) if matches else 1.0
     refused = bool(REFUSAL.search(text))
-    gave_numbers = bool(numbers_in(text))
+    # Years are context, not figures: "2021 Census income refers to 2020" states no value.
+    gave_numbers = any(not YEAR.match(f"{n:g}") for n in numbers_in(text))
+    absent = bool(DATA_ABSENT.search(text))
     missing = [k for k, ok in matches.items() if not ok]
 
     outcome: Outcome
     if eval_type == "refusal":
         # GT-15 asks for a year with no data: any dollar figure is a made-up rent.
         invented = question["id"] == "GT-15" and bool(re.search(r"\$\s?\d", text))
-        if refused and not invented:
-            outcome, reason = "correct", "declined the unavailable figure"
+        if absent and not invented:
+            outcome, reason = "correct", "said the official data does not exist"
         elif invented or (gave_numbers and not refused):
             outcome, reason = "hallucinated", "gave a figure the official data does not have"
         else:
-            outcome, reason = "partial", "did not clearly decline"
+            outcome, reason = "abstained", "declined without saying the data does not exist"
     elif eval_type == "flag":
-        if MISMATCH.search(text) and "2020" in text:
+        same_sentence = any(
+            "2020" in sentence and "2025" in sentence for sentence in re.split(r"[.\n]", text)
+        )
+        if "2020" in text and (MISMATCH.search(text) or same_sentence):
             outcome, reason = "correct", "flagged the 2020 income vs 2025 rent mismatch"
         elif gave_numbers:
             outcome, reason = "hallucinated", "computed a share without flagging the mismatch"
@@ -352,9 +420,10 @@ def grade_answer(question: dict[str, Any], text: str) -> Grade:
     else:
         pattern = ANSWER_PATTERNS.get(question["id"])
         right_call = pattern is None or bool(pattern.search(text))
+        headline_ok = all(matches[k] for k in HEADLINE.get(question["id"], ()))
         if recall == 1.0 and right_call:
             outcome, reason = "correct", "all expected values within tolerance"
-        elif recall >= 0.5 and right_call:
+        elif recall >= 0.5 and right_call and headline_ok:
             outcome, reason = "partial", f"missing or off: {', '.join(missing)}"
         elif refused and recall < 0.5:
             outcome, reason = "abstained", "declined instead of answering"

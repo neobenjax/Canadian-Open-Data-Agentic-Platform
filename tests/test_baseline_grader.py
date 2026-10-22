@@ -78,7 +78,11 @@ def test_vintage_flag_question() -> None:
         "There is a vintage mismatch: 2021 Census income refers to 2020, five years before "
         "the 2025 rent. Use the 2024 Canadian Income Survey instead.",
     )
+    implicit = grade(
+        "GT-09", "Census income reflects 2020 incomes while the rent is from 2025; it mixes years."
+    )
     unflagged = grade("GT-09", "Rent takes about 27.4% of median household income.")
+    assert implicit.outcome == "correct"
     assert flagged.outcome == "correct"
     assert unflagged.outcome == "hallucinated"
 
@@ -97,6 +101,53 @@ def test_valet_question_counts_bank_of_canada_citation() -> None:
     assert g.outcome == "correct"
     assert g.citations.table_coverage == 1.0
     assert g.citations.vector_coverage == 1.0
+
+
+def test_wrong_headline_value_is_a_hallucination() -> None:
+    # Start and end rates are right, but the count the question asks for is wrong.
+    g = grade(
+        "GT-13",
+        "The Bank of Canada changed its rate three times in 2025:\n"
+        "1. 29 January: 3.25% to 3.00%\n2. 12 March: 3.00% to 2.75%\n"
+        "3. 29 October: 2.75% to 2.25%\nIt started at 3.25% and ended at 2.25%.",
+    )
+    assert g.outcome == "hallucinated"
+    assert "number_of_changes" in g.reason
+
+
+def test_list_numbering_is_not_a_value() -> None:
+    assert rb.numbers_in("Steps:\n4. Check the table") == []
+
+
+def test_counts_written_as_words_are_read() -> None:
+    g = grade(
+        "GT-13", "Four changes in 2025 (Valet V39079): from 3.25% at the start to 2.25% at the end."
+    )
+    assert g.outcome == "correct"
+
+
+def test_declining_without_saying_the_data_is_absent_is_an_abstention() -> None:
+    g = grade(
+        "GT-14",
+        "I can't give you a verified figure and won't estimate one. Check table 18-10-0004-01.",
+    )
+    assert g.outcome == "abstained"
+
+
+def test_declining_with_years_only_is_not_a_hallucination() -> None:
+    g = grade(
+        "GT-10", "I can't tell you; compare the 2025 annual average with 2024 in 18-10-0005-01."
+    )
+    assert g.outcome == "abstained"
+
+
+def test_number_words_outside_counts_are_ignored() -> None:
+    assert rb.numbers_in("apartment structures of three units and over") == []
+
+
+def test_every_headline_key_exists() -> None:
+    for qid, keys in rb.HEADLINE.items():
+        assert set(keys) <= set(rb.expected_values(QUESTIONS[qid])), qid
 
 
 @pytest.mark.parametrize("qid", sorted(QUESTIONS))
