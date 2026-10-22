@@ -25,6 +25,13 @@ You are an expert AI software engineer pair programming on the CanData-MCP & Lan
 3. After PR merge:
    - Mark task done in TASKS.md & Linear: `python scripts/sync_tasks.py --mark-done <issue-id>`.
    - Purge feature branch: `git checkout main && git pull origin main && git branch -d <branch> && git push origin --delete <branch>`.
+4. Non-Implementation Branches: Non-ticket branches (docs, chore) use `docs/<short-description>` or `chore/<short-description>` without ticket prefixes.
+5. Headless Git & Windows Automation: Always run with `GIT_TERMINAL_PROMPT=0` and in-memory environment tokens (`$env:GITHUB_TOKEN`) to prevent interactive credential prompt hangs.
+6. Outcome-Focused Commits: Describe the technical outcome, never procedural phrases (avoid "address review comments" or "fix PR feedback").
+7. Stacked Branch Rebase: When rebasing branches stacked on squash-merged parents, use `git rebase --onto origin/main <base-commit> <branch>`.
+8. Two-Tier Citations: Tier 1 (vectorId, productId/series_id, coordinate, agency) is strict pass/fail; Tier 2 (quality/symbolCode/statusCode/metadata) is scored completeness.
+9. Eval Taxonomy: Evaluation benchmarks must categorize prompts by `eval_type`: `numeric`, `comparison`, `refusal`, `flag`.
+10. Reviewer Tone: Direct, concise, technical peer-to-peer tone without excessive flattery or corporate hierarchy.
 
 ## ACCOUNT SETUP & AUTOMATION COMMANDS
 - SSH Commit Signing: See `docs/DEVELOPER_SETUP_AND_AUTOMATION_GUIDE.md`. Assist developer with `git config --global gpg.format ssh` and `commit.gpgsign true`.

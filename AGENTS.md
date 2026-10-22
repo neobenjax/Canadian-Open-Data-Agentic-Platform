@@ -79,6 +79,73 @@ uv run pytest
 ### 9. Mandatory PR Author Assignee Rule (Housekeeping)
 - Every PR opened or managed by an agent MUST set the PR author as the primary Assignee (`neobenjax` for Benjamin, `samiromer2` for Samir, `yassirtmk` for Yassir). `scripts/sync_tasks.py --create-pr` automatically enforces this.
 
+### 10. Headless Git & Subprocess Execution Guardrail (Windows Non-Interactive)
+- In automated agent sessions and script runners, set `GIT_TERMINAL_PROMPT=0` to prevent git subcommands from hanging indefinitely on Windows credential or passphrase prompts.
+- When pushing or querying remote repositories in automated subagents, use authenticated URLs via environment tokens (`$env:GITHUB_TOKEN`) or GitHub MCP tools rather than interactive credentials.
+
+### 11. Post-Squash Branch Cleanup Protocol
+- GitHub PR squash-merges create a single new consolidated commit hash on `main`. As a result, standard `git branch -d` locally will report that the branch is not fully merged.
+- Before deleting, verify that the squash commit is present on `origin/main` (e.g. via `git log origin/main --grep="<PR title or ticket ID>"`).
+- Once confirmed, safely force-delete the local feature branch:
+  ```bash
+  git branch -D feat/<issue-id>-<short-description>
+  ```
+
+### 12. Cross-PR Scope Hygiene & Infrastructure Decoupling
+- Maintain strict single-concern scope per Pull Request. Feature branches for specific connectors or services (e.g., Bank of Canada, StatCan) must focus exclusively on their domain logic, models, and tests.
+- Never bundle cross-cutting infrastructure changes (e.g., monorepo root package management, test runner restructuring, global CI workflow edits) into a feature PR unless explicitly designated by the issue scope. Cross-cutting improvements belong in dedicated, isolated PRs.
+
+### 13. Stacked Feature Branch Rebase Protocol
+- When developing a feature branch that branches off an in-flight dependency branch rather than `main`, squash-merging the dependency branch into `main` invalidates the local commit history.
+- Never perform a plain `git rebase main` on the downstream branch, as this attempts to replay already-squashed commits and generates severe merge conflicts.
+- Always execute an upstream-delimited rebase:
+  ```bash
+  git rebase --onto origin/main <base-feature-tip-commit> <downstream-feature-branch>
+  ```
+
+### 14. Review Approval & Technical Debt Issue Conversion (`[TECH-DEBT]`)
+- During peer code review, do not block or delay immediate PR approval for out-of-scope architectural optimizations, prospective enhancements, or adjacent refactoring ideas.
+- Approve the PR when core functional and quality requirements are met, and immediately file targeted GitHub Issues for deferred items:
+  - Title format: `[TECH-DEBT] <Clear description of debt or optimization>`
+  - Label: `tech-debt`
+  - Reference the originating PR number and relevant source files for traceability.
+
+### 15. External Feedback Anonymization & Taxonomy Scrubbing (IP Protection)
+- When incorporating architectural reviews, evaluation benchmarks, or process feedback from external commenters, partners, or platforms, strictly strip vendor-specific proper nouns, external individual names, and proprietary taxonomy labels.
+- Translate all feedback into generalized, domain-agnostic technical terminology before recording in repository documentation, commit histories, or code comments.
+
+### 16. Task-ID Scope Discipline for Non-Implementation Branches
+- Feature tickets (`feat/CAN-XXX`) and Linear issue closing keys (`Closes BEN-XX`, `Closes CAN-XXX`) are reserved exclusively for deliverables tracked on the active sprint board.
+- Non-implementation activities—such as repository governance, general documentation updates, developer guides, or CI chore—must use semantic prefixes without ticket keys (e.g., `docs/<topic>`, `chore/<topic>`). Never fabricate or attach unrelated ticket IDs to purely operational PRs.
+
+### 17. Outcome-Focused Commit Semantics
+- Git commit messages must succinctly describe the resulting technical change or architecture outcome (e.g., `docs: consolidate operational invariants, eval taxonomy, and headless git guardrails`).
+- Never use procedural meta-text, reactive phrases, or conversational commentary (e.g., avoid `fix: address review comments`, `updates per review`, `address PR feedback`).
+
+### 18. Two-Tier Citation Envelope Architecture
+- All Canadian Open Data agent responses and connector observation outputs must structure citations according to the Two-Tier Citation Envelope standard:
+  - **Tier 1 (Core Pass/Fail Citations):** Structural data provenance required for truthfulness verification. Must include `vectorId`, `productId` (StatCan) or `series_id` (Bank of Canada), exact observation coordinate/date, and publishing agency. Absence of Tier 1 metadata constitutes an automatic evaluation hallucination / test failure.
+  - **Tier 2 (Enrichment Scored Citations):** Data quality, reliability, and contextual attributes (e.g., StatCan `symbolCode` quality grades A through F, `statusCode` confidentiality flags, BoC observation frequency and description, dimension release dates). Evaluated using a graduated scoring rubric to measure output completeness and trustworthiness.
+
+### 19. Deterministic Evaluation Categorization (`eval_type` Taxonomy)
+- Ground-truth evaluation benchmarks (such as GTA housing and macroeconomic suites) must categorize every test prompt under an explicit, deterministic `eval_type`:
+  - `numeric`: Exact or tolerance-bounded numerical value checks against official releases.
+  - `comparison`: Multi-series trend analysis, relative rankings, or cross-geographical ratio validations.
+  - `refusal`: Mandatory refusal / boundary defense verification (e.g., gracefully declining suppressed data, non-existent series, or out-of-scope temporal intervals).
+  - `flag`: Data quality and reliability grade checks (e.g., asserting that the agent properly surfaced a 'use with caution' or preliminary data warning).
+
+### 20. Statutory Policy Framework Constants vs. REST Time-Series Handling
+- Statutory economic mandates and official policy targets (such as the Bank of Canada's 2% inflation target control range or official CPI basket weights) represent legal/institutional policy frameworks, not dynamic time-series observations.
+- Connectors and evaluation harnesses must never attempt to query dynamic time-series endpoints for fixed statutory definitions. Encode policy frameworks as versioned domain constants with authoritative citations; reserve REST API calls strictly for empirical time-series data.
+
+### 21. Direct Peer-to-Peer Review & Interaction Protocol
+- All agent interactions in PR reviews, pull request descriptions, and issue discussions must maintain an objective, direct, and constructive peer engineering tone.
+- Avoid excessive sycophancy, flattering boilerplate ("outstanding work!", "kudos on the brilliant PR"), or formal corporate hierarchical titles. State architectural feedback, required corrections, and approval rationales with clear, actionable technical facts.
+
+### 22. Post-Integration `/learn` Harvesting Protocol
+- Upon completing and merging major milestone PRs or architectural integrations, agents must execute the `/learn` harvesting routine across recent session transcripts.
+- Capture newly identified failure modes, reviewer expectations, and operational invariants into `AGENTS.md` and `.cursorrules` to ensure continuous cross-session agent alignment.
+
 ---
 
 ## 🚀 Automated Feature Execution Protocol (from CONTRIBUTING.md)
