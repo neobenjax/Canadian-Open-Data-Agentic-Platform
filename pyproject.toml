@@ -52,6 +52,11 @@ extend-exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+# Benchmark question, trap and markdown-template text is kept on one line per string so it
+# stays readable and diffable; every other rule still applies to this file.
+"collaboration/benchmarks/build_ground_truth.py" = ["E501"]
+
 [tool.pyright]
 pythonVersion = "3.12"
 include = ["packages/candata-mcp/src", "tests/connectors"]

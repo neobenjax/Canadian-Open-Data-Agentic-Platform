@@ -144,9 +144,7 @@ STATCAN: dict[str, StatCanSeries] = {
         34100154, ("Toronto, Ontario", "Housing starts", "Total units"), 36
     ),
     # New housing price index, monthly
-    "nhpi_toronto": StatCanSeries(
-        18100205, ("Toronto, Ontario", "Total (house and land)"), 30
-    ),
+    "nhpi_toronto": StatCanSeries(18100205, ("Toronto, Ontario", "Total (house and land)"), 30),
     # Canadian Income Survey: median after-tax income, all economic families and unattached persons
     "income_aftertax_toronto": StatCanSeries(
         11100190,
@@ -158,26 +156,16 @@ STATCAN: dict[str, StatCanSeries] = {
         8,
     ),
     # CPI annual averages (official annual table, base 2002=100)
-    "cpi_annual_toronto_all": StatCanSeries(
-        18100005, ("Toronto, Ontario", "All-items"), 4
-    ),
-    "cpi_annual_toronto_shelter": StatCanSeries(
-        18100005, ("Toronto, Ontario", "Shelter"), 4
-    ),
+    "cpi_annual_toronto_all": StatCanSeries(18100005, ("Toronto, Ontario", "All-items"), 4),
+    "cpi_annual_toronto_shelter": StatCanSeries(18100005, ("Toronto, Ontario", "Shelter"), 4),
     "cpi_annual_toronto_rented": StatCanSeries(
         18100005, ("Toronto, Ontario", "Rented accommodation"), 4
     ),
     "cpi_annual_canada_shelter": StatCanSeries(18100005, ("Canada", "Shelter"), 4),
-    "cpi_annual_canada_mortgage": StatCanSeries(
-        18100005, ("Canada", "Mortgage interest cost"), 4
-    ),
+    "cpi_annual_canada_mortgage": StatCanSeries(18100005, ("Canada", "Mortgage interest cost"), 4),
     # CPI monthly
-    "cpi_monthly_toronto_all": StatCanSeries(
-        18100004, ("Toronto, Ontario", "All-items"), 18
-    ),
-    "cpi_monthly_toronto_shelter": StatCanSeries(
-        18100004, ("Toronto, Ontario", "Shelter"), 18
-    ),
+    "cpi_monthly_toronto_all": StatCanSeries(18100004, ("Toronto, Ontario", "All-items"), 18),
+    "cpi_monthly_toronto_shelter": StatCanSeries(18100004, ("Toronto, Ontario", "Shelter"), 18),
 }
 
 BOC_POLICY_RATE = "V39079"
@@ -216,21 +204,17 @@ def _unit(uom_code: int) -> str:
 
 def _metadata(product_id: int) -> dict[str, Any]:
     if product_id not in _metadata_cache:
-        _metadata_cache[product_id] = _post(
-            "getCubeMetadata", [{"productId": product_id}]
-        )[0]["object"]
+        _metadata_cache[product_id] = _post("getCubeMetadata", [{"productId": product_id}])[0][
+            "object"
+        ]
     return _metadata_cache[product_id]
 
 
 def _coordinate(meta: dict[str, Any], members: tuple[str, ...]) -> str:
     ids: list[int] = []
     for position, name in enumerate(members, start=1):
-        dimension = next(
-            d for d in meta["dimension"] if d["dimensionPositionId"] == position
-        )
-        member = next(
-            (m for m in dimension["member"] if m["memberNameEn"] == name), None
-        )
+        dimension = next(d for d in meta["dimension"] if d["dimensionPositionId"] == position)
+        member = next((m for m in dimension["member"] if m["memberNameEn"] == name), None)
         if member is None:
             raise KeyError(
                 f"{name!r} not found in dimension {position} of table {meta['productId']}"
@@ -252,9 +236,7 @@ def fetch_statcan(key: str, spec: StatCanSeries) -> Series:
             }
         ],
     )[0]["object"]
-    info = _post("getSeriesInfoFromVector", [{"vectorId": data["vectorId"]}])[0][
-        "object"
-    ]
+    info = _post("getSeriesInfoFromVector", [{"vectorId": data["vectorId"]}])[0]["object"]
     points: dict[str, float] = {}
     releases: dict[str, str] = {}
     for point in data["vectorDataPoint"]:
@@ -307,9 +289,7 @@ def pct_change(old: float, new: float) -> float:
 
 def _period(series: Series, ref_date: str) -> str:
     """Format an API reference date at the series' own granularity."""
-    return {"annual": ref_date[:4], "monthly": ref_date[:7], "daily": ref_date}[
-        series.frequency
-    ]
+    return {"annual": ref_date[:4], "monthly": ref_date[:7], "daily": ref_date}[series.frequency]
 
 
 def _envelope(series: Series, period: str, release: str | None) -> CitationEnvelope:
@@ -327,10 +307,7 @@ def _envelope(series: Series, period: str, release: str | None) -> CitationEnvel
 
 def cite(series: Series, *ref_dates: str) -> list[CitationEnvelope]:
     """One envelope per reference period used in the answer."""
-    return [
-        _envelope(series, _period(series, d), series.release_times.get(d))
-        for d in ref_dates
-    ]
+    return [_envelope(series, _period(series, d), series.release_times.get(d)) for d in ref_dates]
 
 
 def cite_range(series: Series, first: str, last: str) -> list[CitationEnvelope]:
@@ -397,9 +374,7 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
                 "vacancy_2025_pct": v.points[year(2025)],
                 "vacancy_2024_pct": v.points[year(2024)],
                 "vacancy_2023_pct": v.points[year(2023)],
-                "change_2023_2025_pp": round(
-                    v.points[year(2025)] - v.points[year(2023)], 1
-                ),
+                "change_2023_2025_pp": round(v.points[year(2025)] - v.points[year(2023)], 1),
             },
             "tolerance": "Exact to one decimal",
             "external_figures": [
@@ -440,8 +415,7 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
     )
 
     vac = {
-        name: s[f"vacancy_{name}"].points[year(2025)]
-        for name in ("toronto", "oshawa", "hamilton")
+        name: s[f"vacancy_{name}"].points[year(2025)] for name in ("toronto", "oshawa", "hamilton")
     }
     highest = max(vac, key=lambda k: vac[k])
     q.append(
@@ -601,9 +575,7 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
                 "rented_accommodation_pct": pct_change(
                     ra.points[year(2024)], ra.points[year(2025)]
                 ),
-                "all_items_pct": pct_change(
-                    aa.points[year(2024)], aa.points[year(2025)]
-                ),
+                "all_items_pct": pct_change(aa.points[year(2024)], aa.points[year(2025)]),
                 "answer": "Faster",
             },
             "tolerance": "±0.1 pp on each rate; faster/slower must be correct",
@@ -627,12 +599,8 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
             "category": "Inflation & rates",
             "question": "How did shelter inflation in Toronto in 2025 compare with shelter inflation for Canada as a whole?",
             "expected": {
-                "toronto_shelter_pct": pct_change(
-                    ts.points[year(2024)], ts.points[year(2025)]
-                ),
-                "canada_shelter_pct": pct_change(
-                    cs.points[year(2024)], cs.points[year(2025)]
-                ),
+                "toronto_shelter_pct": pct_change(ts.points[year(2024)], ts.points[year(2025)]),
+                "canada_shelter_pct": pct_change(cs.points[year(2024)], cs.points[year(2025)]),
                 "answer": "Toronto was lower than Canada",
             },
             "tolerance": "±0.1 pp on each rate; comparison must be correct",
@@ -820,8 +788,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
             if isinstance(v, list) and v and isinstance(v[0], dict):
                 lines.append(f"- `{k}`:")
                 lines += [
-                    f"  - {', '.join(f'{ik}: {iv}' for ik, iv in item.items())}"
-                    for item in v
+                    f"  - {', '.join(f'{ik}: {iv}' for ik, iv in item.items())}" for item in v
                 ]
             elif isinstance(v, list):
                 lines.append(f"- `{k}`:")
@@ -916,9 +883,7 @@ def main() -> int:
 
     JSON_OUT.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
     MD_OUT.write_text(render_markdown(payload) + "\n")
-    print(
-        f"Wrote {JSON_OUT.name} and {MD_OUT.name} ({len(payload['questions'])} questions)"
-    )
+    print(f"Wrote {JSON_OUT.name} and {MD_OUT.name} ({len(payload['questions'])} questions)")
     return 0
 
 
