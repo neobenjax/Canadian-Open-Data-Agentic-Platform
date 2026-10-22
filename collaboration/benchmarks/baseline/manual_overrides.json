@@ -1,22 +1,33 @@
 {
-  "no_tools/claude-sonnet-5-5/GT-02": {
-    "outcome": "hallucinated",
-    "reason": "Declined overall but stated a 2023 Toronto vacancy rate of 'about 1.9%' from memory; the table gives 1.4%. Hedged, still a wrong figure. Reviewed by Samir, 2026-10-22."
-  },
-  "no_tools/claude-haiku-5-5/GT-15": {
-    "outcome": "abstained",
-    "reason": "Auto-grader matched 'not broken out', but the answer suggests CMHC's portal 'may cover 1985' rather than saying the series starts in 1992. Declined without knowing the data is absent. Reviewed by Samir, 2026-10-22."
+  "no_tools/claude-haiku-5-5/GT-01": {
+    "false_claim": "Says the CMHC Rental Market Survey 'won't have a StatCan table ID'. Statistics Canada republishes it as table 34-10-0133-01 (v3823103)."
   },
   "no_tools/claude-haiku-5-5/GT-14": {
-    "outcome": "abstained",
-    "reason": "Declined to give a number, but asserted that table 18-10-0004-01 has a Toronto mortgage interest cost component. It does not; that is the trap. No figure, so not a hallucinated value. Reviewed by Samir, 2026-10-22."
+    "false_claim": "Says Statistics Canada publishes a Toronto mortgage interest cost index in table 18-10-0004-01. It does not; that is the trap. No figure given, so the outcome stays abstained."
+  },
+  "no_tools/claude-sonnet-5-5/GT-14": {
+    "false_claim": "Points to a Toronto 'Mortgage interest cost' series in table 18-10-0004-01 as where the data should be. No such Toronto series exists; that is the trap. No figure given, so the outcome stays abstained."
+  },
+  "no_tools/claude-sonnet-5-5/GT-15": {
+    "outcome": "correct",
+    "reason": "Says table 34-10-0133-01 appears to start well after 1985, and gives no figure. Same call as Opus, hedged. The auto-grader missed the phrasing. Reviewed by Samir, 2026-10-22."
   },
   "no_tools/claude-opus-5-5/GT-14": {
-    "outcome": "abstained",
-    "reason": "Declined to give a number, but said tables 18-10-0005-01 and 18-10-0004-01 have a Toronto mortgage interest cost series. They do not; that is the trap. No figure, so not a hallucinated value. Reviewed by Samir, 2026-10-22."
+    "false_claim": "Says tables 18-10-0005-01 and 18-10-0004-01 have a Toronto mortgage interest cost series. They do not; that is the trap. No figure given, so the outcome stays abstained."
   },
   "no_tools/claude-opus-5-5/GT-15": {
     "outcome": "correct",
-    "reason": "Correctly said table 34-10-0133-01 has no 1985 value, but gave the series start as 1987; it is 1992. The refusal is what is graded, so it passes, with the wrong start year noted. Reviewed by Samir, 2026-10-22."
+    "reason": "Says table 34-10-0133-01 starts in 1987, so it has no 1985 value. True: the table starts in 1987 (cubeStartDate), though the Toronto two-bedroom series starts in 1992. Reviewed by Samir, 2026-10-22."
+  },
+  "mcp_statcan/claude-sonnet-5-5/GT-03": {
+    "false_claim": "Says table 34-10-0133-01 has no usable 2025 two-bedroom rent for Oshawa ('NaN'). The value is $1,762 (v3823091). Its SDMX query selected the wrong members. Declined rather than guessed, so the outcome stays abstained."
+  },
+  "mcp_statcan/claude-sonnet-5-5/GT-07": {
+    "outcome": "partial",
+    "reason": "Rent is right ($1,972 x 12 = $23,664, v3823103). For income it used individuals' median after-tax income ($38,600, table 11-10-0238-01) instead of economic families and persons not in an economic family ($82,500, v96415851). A real series, disclosed and flagged as uncertain, but a different concept, so the 61% share does not answer the question. Reviewed by Samir, 2026-10-22."
+  },
+  "mcp_statcan/claude-sonnet-5-5/GT-11": {
+    "outcome": "partial",
+    "reason": "Right call (Toronto lower than Canada) from real index values in 18-10-0004-01, but it measured December to December (Toronto +0.2%, Canada +2.1%) instead of the annual average (Toronto +2.1%, Canada +3.0%). It disclosed the method. Reviewed by Samir, 2026-10-22."
   }
 }
