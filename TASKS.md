@@ -87,6 +87,9 @@
 - [ ] **CAN-25:** Set up OpenTelemetry-native Arize Phoenix & LangSmith tracing to measure step latency and token costs per sub-agent. *(Owner: Yassir / Benjamin · 2h)*
 - [ ] **CAN-26:** Bilingual French/English metadata mapping and data lineage tracking. *(Owner: Yassir · 2h)*
 
+### Feature 2.3: CAN-16 Follow-ups
+- [ ] **CAN-16b:** Run the WDS POST lookups (`v3823103`, cube `34100133`) and update the API audit with live results; add the HTTP-200-with-HTML-outage finding and the 8-digit `productId` note. *(Owner: Yassir · 1h · BEN-44)*
+
 ---
 
 ## 🎯 Milestone 3: Interactive Documentation Portal & Human-in-the-Loop (Sprint 3)
