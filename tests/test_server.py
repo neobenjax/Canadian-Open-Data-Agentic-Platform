@@ -71,6 +71,7 @@ def mock_statcan_result() -> StatCanSeriesResult:
     result.unit = "2002=100"
     result.observations = obs
     result.citation.return_value = citation
+    result.fetched_at = "Thu, 22 Oct 2026 19:00:00 GMT"
     return result
 
 
@@ -113,6 +114,7 @@ def mock_valet_result() -> ObservationSet:
     result.series = series
     result.observations = obs
     result.citation.return_value = citation
+    result.fetched_at = "Thu, 22 Oct 2026 19:00:00 GMT"
     return result
 
 
@@ -288,3 +290,115 @@ async def test_server_aclose(mock_server: CanDataServer) -> None:
     await mock_server.aclose()
     mock_server.statcan_client.aclose.assert_awaited_once()  # type: ignore[union-attr]
     mock_server.valet_client.aclose.assert_awaited_once()  # type: ignore[union-attr]
+
+
+async def test_statcan_vector_supports_french_and_reports_its_lineage(
+    mock_server: CanDataServer,
+) -> None:
+    result = await mock_server.mcp.call_tool(
+        "query_statcan_vector", {"vector_id": "v41690973", "limit": 6, "lang": "fr"}
+    )
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["display"]["title"] == "Indice des prix à la consommation, logement"
+    assert payload["display"]["language"] == "fr"
+    assert payload["lineage"]["source_call"] == {
+        "endpoint": "https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorsAndLatestNPeriods",
+        "request": {"vectorId": 41690973, "latestN": 12},
+    }
+    assert payload["lineage"]["fetched_at"] == "Thu, 22 Oct 2026 19:00:00 GMT"
+
+
+async def test_statcan_coordinate_lineage_uses_the_normalised_ids(
+    mock_server: CanDataServer,
+) -> None:
+    result = await mock_server.mcp.call_tool(
+        "query_statcan_coordinate",
+        {"table_id": "18-10-0004-01", "coordinate": "2.1", "limit": 3},
+    )
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["lineage"]["source_call"]["request"] == {
+        "productId": 18100004,
+        "coordinate": "2.1",
+        "latestN": 12,
+    }
+    assert payload["display"]["language"] == "en"
+
+
+@pytest.mark.parametrize(
+    ("tool", "args", "recent"),
+    [
+        ("query_valet_series", {"series_name": "V39079", "limit": 4}, 24),
+        ("query_valet_policy_rate", {}, 20),
+        ("query_valet_cpi", {"measure": "trim"}, 24),
+    ],
+)
+async def test_valet_tools_report_the_request_they_sent(
+    mock_server: CanDataServer, tool: str, args: dict[str, object], recent: int
+) -> None:
+    result = await mock_server.mcp.call_tool(tool, {**args, "lang": "fr"})
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["display"]["title"] == "Taux cible du financement à un jour"
+    assert payload["lineage"]["source_call"] == {
+        "endpoint": "https://www.bankofcanada.ca/valet/observations/V39079/json",
+        "request": {"recent": recent},
+    }
+
+
+async def test_valet_date_range_request_omits_recent(mock_server: CanDataServer) -> None:
+    result = await mock_server.mcp.call_tool(
+        "query_valet_series", {"series_name": "V39079", "start_date": "2024-01-01"}
+    )
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["lineage"]["source_call"]["request"] == {"start_date": "2024-01-01"}
+
+
+@pytest.mark.parametrize(
+    ("tool", "args"),
+    [
+        ("query_statcan_vector", {"vector_id": "v41690973"}),
+        ("query_statcan_coordinate", {"table_id": "18-10-0004-01", "coordinate": "2.1"}),
+        ("query_valet_series", {"series_name": "V39079"}),
+        ("query_valet_policy_rate", {}),
+        ("query_valet_cpi", {}),
+    ],
+)
+async def test_unsupported_language_fails_before_any_upstream_call(
+    mock_server: CanDataServer, tool: str, args: dict[str, object]
+) -> None:
+    result = await mock_server.mcp.call_tool(tool, {**args, "lang": "de"})
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert "Unsupported language 'de'" in payload["error"]
+    mock_server.statcan_client.get_data_from_vectors.assert_not_called()  # type: ignore[attr-defined]
+    mock_server.statcan_client.get_data_from_cube.assert_not_called()  # type: ignore[attr-defined]
+    mock_server.valet_client.get_observations.assert_not_called()  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    ("source", "series_id", "request_params", "publisher"),
+    [
+        ("statcan", "v41690973", {"vectorId": 41690973, "latestN": 100}, "Statistics Canada"),
+        ("valet", "V39079", {"recent": 100}, "Bank of Canada"),
+    ],
+)
+async def test_sql_analytics_records_how_the_numbers_were_derived(
+    mock_server: CanDataServer,
+    source: str,
+    series_id: str,
+    request_params: dict[str, int],
+    publisher: str,
+) -> None:
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": source,
+            "series_id": series_id,
+            "sql_query": "SELECT avg(value) AS m FROM series",
+        },
+    )
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    lineage = payload["lineage"]
+    assert lineage["publisher"] == publisher
+    assert lineage["source_call"]["request"] == request_params
+    assert lineage["steps"][0] == "fetched 12 observations"
+    assert lineage["steps"][1].startswith("computed in DuckDB with the read-only SQL shown")
+    assert len(result.content[0].text.encode("utf-8")) < MAX_PAYLOAD_BYTES  # type: ignore[union-attr]

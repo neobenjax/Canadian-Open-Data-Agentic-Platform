@@ -71,6 +71,7 @@ def sample_statcan_result() -> StatCanSeriesResult:
     result.unit = "2002=100"
     result.observations = obs
     result.citation.return_value = mock_citation
+    result.fetched_at = "Thu, 22 Oct 2026 19:00:00 GMT"
     return result
 
 
@@ -110,6 +111,7 @@ def sample_valet_result() -> ObservationSet:
     result.series = series
     result.observations = obs
     result.citation.return_value = mock_citation
+    result.fetched_at = "Thu, 22 Oct 2026 19:00:00 GMT"
     return result
 
 
