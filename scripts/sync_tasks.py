@@ -922,12 +922,102 @@ def get_github_collaborators(repo_name: str, token: str) -> List[str]:
         return []
 
 
+def resolve_github_milestone_and_labels(
+    task: Optional[Dict[str, Any]],
+    branch: str,
+    custom_milestone: Optional[int] = None,
+    custom_labels: Optional[List[str]] = None,
+) -> Tuple[Optional[int], List[str]]:
+    """
+    Automatically resolve GitHub milestone number and standardized labels:
+    1. Milestone number (1-7 matching Milestones 0 to 6)
+    2. Milestone label (milestone:m0 to milestone:m6)
+    3. Type label (type:feat, type:fix, type:docs, type:chore, type:eval, type:security)
+    4. Area label (area:connectors, area:fastmcp-engine, area:orchestration, area:evals-benchmarks, area:governance)
+    """
+    labels: List[str] = []
+    milestone_num = custom_milestone
+
+    m_name = (task.get("milestone") or "") if task else ""
+    key = (task.get("key") or "") if task else ""
+
+    m_idx: Optional[int] = None
+    m_match = re.search(r"Milestone\s+([0-6])", m_name)
+    if m_match:
+        m_idx = int(m_match.group(1))
+    elif key:
+        can_m = re.search(r"CAN-0?([0-9]+)", key)
+        if can_m:
+            can_id = int(can_m.group(1))
+            if can_id in [0, 1, 2, 3, 5, 8]:
+                m_idx = 0
+            elif can_id in [11, 12, 13, 14, 15, 16]:
+                m_idx = 1
+            elif can_id in [17, 21, 22, 23, 24, 25, 26]:
+                m_idx = 2
+            elif can_id in [31, 32, 33, 34, 35]:
+                m_idx = 3
+            elif can_id in [41, 42, 43, 44, 45]:
+                m_idx = 4
+            elif can_id in [51, 52, 53, 54, 55]:
+                m_idx = 5
+            elif can_id in [61, 62, 63, 64]:
+                m_idx = 6
+
+    if m_idx is not None:
+        if milestone_num is None:
+            milestone_num = m_idx + 1
+        labels.append(f"milestone:m{m_idx}")
+
+    b_lower = branch.lower()
+    desc_lower = ((task.get("description") or "") + " " + key).lower() if task else b_lower
+
+    if b_lower.startswith("feat/"):
+        labels.append("type:feat")
+    elif b_lower.startswith("fix/"):
+        labels.append("type:fix")
+    elif b_lower.startswith("docs/"):
+        labels.append("type:docs")
+    elif b_lower.startswith("chore/"):
+        labels.append("type:chore")
+    elif "eval" in desc_lower or "benchmark" in desc_lower:
+        labels.append("type:eval")
+    elif "security" in desc_lower or "guardrail" in desc_lower or "audit" in desc_lower:
+        labels.append("type:security")
+    else:
+        labels.append("type:feat")
+
+    search_text = f"{b_lower} {desc_lower}"
+    if any(k in search_text for k in ["connector", "statcan", "wds", "valet", "boc", "ckan"]):
+        labels.append("area:connectors")
+    if any(k in search_text for k in ["duckdb", "arrow", "fastmcp", "slicing", "engine"]):
+        labels.append("area:fastmcp-engine")
+    if any(k in search_text for k in ["langgraph", "supervisor", "analyst", "verifier", "orchestrat", "state"]):
+        labels.append("area:orchestration")
+    if any(k in search_text for k in ["benchmark", "eval", "deepeval", "ground_truth"]):
+        labels.append("area:evals-benchmarks")
+    if any(k in search_text for k in ["governance", "risk", "checklist", "guardrail", "workflow", "onboarding", "linear"]):
+        labels.append("area:governance")
+
+    if custom_labels:
+        for cl in custom_labels:
+            if cl and cl not in labels:
+                labels.append(cl)
+
+    if not any(l.startswith("area:") for l in labels):
+        labels.append("area:governance")
+
+    return milestone_num, sorted(list(set(labels)))
+
+
 def create_github_pr_for_task(
     issue_key: str,
     repo_name: str = "neobenjax/Canadian-Open-Data-Agentic-Platform",
     base_branch: str = "main",
     reviewer: Optional[str] = None,
     non_interactive: bool = False,
+    milestone: Optional[int] = None,
+    labels: Optional[List[str]] = None,
 ):
     """
     Automate Pull Request creation and Triangular Review assignment via GitHub API:
@@ -1113,6 +1203,38 @@ def create_github_pr_for_task(
             except Exception as e:
                 print(f"Notice assigning PR author: {e}", file=sys.stderr)
 
+        # Attach milestone and labels to PR
+        ms_num, target_labels = resolve_github_milestone_and_labels(
+            task, branch, custom_milestone=milestone, custom_labels=labels
+        )
+        if ms_num:
+            ms_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_num}"
+            ms_req = urllib.request.Request(
+                ms_url,
+                data=json.dumps({"milestone": ms_num}).encode("utf-8"),
+                headers=headers,
+                method="PATCH",
+            )
+            try:
+                with urllib.request.urlopen(ms_req) as resp:
+                    print(f"Attached Milestone #{ms_num} to PR #{pr_num}")
+            except Exception as e:
+                print(f"Notice attaching milestone: {e}", file=sys.stderr)
+
+        if target_labels:
+            lbl_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_num}/labels"
+            lbl_req = urllib.request.Request(
+                lbl_url,
+                data=json.dumps({"labels": target_labels}).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(lbl_req) as resp:
+                    print(f"Attached labels {target_labels} to PR #{pr_num}")
+            except Exception as e:
+                print(f"Notice attaching labels: {e}", file=sys.stderr)
+
     transition_task(issue_key, "IN REVIEW")
 
 
@@ -1184,6 +1306,8 @@ def main():
     parser.add_argument("--reconcile-git", action="store_true", help="Reconcile GitHub merged PRs (CAN-00) and active PRs (CAN-02) on Linear")
     parser.add_argument("--create-pr", type=str, metavar="KEY", help="Create GitHub Pull Request and assign triangular reviewer automatically")
     parser.add_argument("--reviewer", type=str, help="GitHub username(s) to assign as reviewer(s), comma-separated")
+    parser.add_argument("--milestone", type=int, help="GitHub milestone number to attach to PR")
+    parser.add_argument("--labels", type=str, help="Comma-separated labels to attach to PR")
     parser.add_argument("--yes", "-y", action="store_true", help="Non-interactive mode: auto-confirm default triangular reviewer")
     parser.add_argument("--upload-to-linear", action="store_true", help="Interactively upload all TASKS.md tasks to Linear")
     parser.add_argument("--export-csv", type=str, nargs="?", const="linear_tasks_import.csv", help="Export tasks to CSV for Linear import")
@@ -1214,7 +1338,8 @@ def main():
         return
 
     if args.create_pr:
-        create_github_pr_for_task(args.create_pr.upper(), reviewer=args.reviewer, non_interactive=args.yes)
+        lbl_list = [l.strip() for l in args.labels.split(",") if l.strip()] if args.labels else None
+        create_github_pr_for_task(args.create_pr.upper(), reviewer=args.reviewer, non_interactive=args.yes, milestone=args.milestone, labels=lbl_list)
         return
 
     if args.upload_to_linear:
