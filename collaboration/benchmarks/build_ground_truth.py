@@ -522,6 +522,8 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
                 "income_2019": inc19,
                 "income_2024": inc24,
                 "income_growth_pct": pct_change(inc19, inc24),
+                "rent_dollars": r.unit,
+                "income_dollars": inc.unit,
             },
             "tolerance": "±0.1 pp on each rate",
             "citations": [
@@ -529,7 +531,7 @@ def build_questions(s: dict[str, Series]) -> list[dict[str, Any]]:
                 *cite(inc, year(2019), year(2024)),
             ],
             "traps": [
-                "Both series are in current (nominal) dollars; the agent should not mix nominal and inflation-adjusted figures.",
+                f"The two series are in different dollars: rent in {r.unit.lower()} (current, nominal) and income in {inc.unit} (inflation-adjusted). Income's growth is real growth, so nominal income grew faster and the gap is narrower in like-for-like terms. An answer that presents the two rates as directly comparable without saying so should be flagged.",
             ],
         }
     )

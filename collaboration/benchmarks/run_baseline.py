@@ -192,8 +192,8 @@ def run(arm: Arm, model: str, only: list[str] | None) -> Path:
         mcp_file = None
         if arm in MCP_SERVERS:
             mcp_file = Path(tmp) / "mcp.json"
-            mcp_file.write_text(json.dumps({"mcpServers": MCP_SERVERS[arm]}))
-        with out.open("w") as fh:
+            mcp_file.write_text(json.dumps({"mcpServers": MCP_SERVERS[arm]}), encoding="utf-8")
+        with out.open("w", encoding="utf-8") as fh:
             for q in questions:
                 answer = ask(arm, model, q, mcp_file)
                 fh.write(json.dumps(asdict(answer), ensure_ascii=False) + "\n")
@@ -276,7 +276,7 @@ YEAR = re.compile(r"^(19|20)\d{2}$")
 
 
 def load_questions() -> list[dict[str, Any]]:
-    return json.loads(GROUND_TRUTH.read_text())["questions"]
+    return json.loads(GROUND_TRUTH.read_text(encoding="utf-8"))["questions"]
 
 
 def normalise_table(table_id: str) -> str:
@@ -385,6 +385,10 @@ class Grade:
     value_recall: float
     citations: Citations
     overridden: bool = False
+    # A wrong statement about what the official data contains (a series that does not exist,
+    # a wrong start year). It is logged even when the outcome is fine, because a confident
+    # wrong claim about the data misleads without any wrong number. Set by hand only.
+    false_claim: str | None = None
 
 
 def grade_answer(question: dict[str, Any], text: str) -> Grade:
@@ -445,14 +449,19 @@ def grade_answer(question: dict[str, Any], text: str) -> Grade:
 def load_runs(paths: Iterable[Path]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for path in sorted(paths):
-        rows += [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+        rows += [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
     return rows
 
 
 def grade(run_paths: Iterable[Path]) -> dict[str, Any]:
     questions = {q["id"]: q for q in load_questions()}
+    # {"outcome"?, "reason"?, "false_claim"?}; any field left out keeps the automatic grade.
     overrides: dict[str, dict[str, str]] = (
-        json.loads(OVERRIDES.read_text()) if OVERRIDES.exists() else {}
+        json.loads(OVERRIDES.read_text(encoding="utf-8")) if OVERRIDES.exists() else {}
     )
     graded: list[dict[str, Any]] = []
     for row in load_runs(run_paths):
@@ -460,9 +469,11 @@ def grade(run_paths: Iterable[Path]) -> dict[str, Any]:
         if row["is_error"]:
             g.outcome, g.reason = "abstained", "run error: " + row["response"][:120]
         key = f"{row['arm']}/{row['requested_model']}/{row['question_id']}"
-        if key in overrides:
-            g.outcome = overrides[key]["outcome"]  # type: ignore[assignment]
-            g.reason, g.overridden = overrides[key]["reason"], True
+        override = overrides.get(key, {})
+        if "outcome" in override:
+            g.outcome = override["outcome"]  # type: ignore[assignment]
+            g.reason, g.overridden = override["reason"], True
+        g.false_claim = override.get("false_claim")
         graded.append(
             {
                 "run": {k: v for k, v in row.items() if k != "response"},
@@ -503,6 +514,10 @@ def summarise(graded: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "unverified_ids": sum(
                     len(i["grade"]["citations"]["unverified_ids"]) for i in items
                 ),
+                "false_claims": sum(bool(i["grade"]["false_claim"]) for i in items),
+                "mean_tool_calls": round(
+                    sum(len(i["run"]["tool_calls"]) for i in items) / len(items), 1
+                ),
                 "errors": sum(i["run"]["is_error"] for i in items),
             }
         )
@@ -526,16 +541,17 @@ def render_markdown(report: dict[str, Any]) -> str:
         "## Summary",
         "",
         "| Arm | Model ID(s) | Run date | Correct | Partial | Abstained | Hallucinated "
-        "| Table coverage | Vector coverage | Unverified IDs | Errors |",
-        "| :-- | :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: |",
+        "| False claims | Table coverage | Vector coverage | Unverified IDs | Tool calls "
+        "| Errors |",
+        "| :-- | :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |",
     ]
     for s in report["summary"]:
         models = ", ".join(f"`{m}`" for m in s["model_ids"]) or f"`{s['requested_model']}`"
         lines.append(
             f"| {s['arm']} | {models} | {', '.join(s['run_dates'])} | {s['correct']} "
             f"| {s['partial']} | {s['abstained']} | **{s['hallucinated']}** "
-            f"| {_pct(s['table_coverage'])} | {_pct(s['vector_coverage'])} "
-            f"| {s['unverified_ids']} | {s['errors']} |"
+            f"| {s['false_claims']} | {_pct(s['table_coverage'])} | {_pct(s['vector_coverage'])} "
+            f"| {s['unverified_ids']} | {s['mean_tool_calls']} | {s['errors']} |"
         )
     lines += [
         "",
@@ -544,6 +560,11 @@ def render_markdown(report: dict[str, Any]) -> str:
         "*Abstained*: declined or gave no figures. *Hallucinated*: stated figures that do not "
         "match the official data, invented a number for a period with no data, or computed "
         "across mismatched years without flagging it.",
+        "",
+        "**False claims** count answers that state something wrong about the official data "
+        "itself, such as a series that does not exist or a wrong start year, whatever their "
+        "outcome. They are marked by hand in `manual_overrides.json`. **Tool calls** is the mean "
+        "per answer.",
         "",
         "**Citation coverage** is the share of the ground-truth table IDs and vector IDs the "
         "answer names. **Unverified IDs** are StatCan identifiers the answer names that are not "
@@ -589,6 +610,16 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"- **Answer (excerpt):** {excerpt}",
             "",
         ]
+    lines += ["## False claims about the data", ""]
+    claims = [i for i in report["answers"] if i["grade"]["false_claim"]]
+    if not claims:
+        lines.append("None.")
+    for i in claims:
+        lines.append(
+            f"- **{i['run']['question_id']} · {i['run']['arm']} · "
+            f"{i['run']['requested_model']}** ({i['grade']['outcome']}): "
+            f"{i['grade']['false_claim']}"
+        )
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -609,8 +640,8 @@ def main() -> int:
         print(f"wrote {run(args.arm, args.model, args.only)}")
         return 0
     report = grade(args.runs or RUNS_DIR.glob("*.jsonl"))
-    JSON_OUT.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
-    MD_OUT.write_text(render_markdown(report))
+    JSON_OUT.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    MD_OUT.write_text(render_markdown(report), encoding="utf-8")
     print(f"wrote {JSON_OUT.relative_to(REPO)} and {MD_OUT.relative_to(REPO)}")
     return 0
 

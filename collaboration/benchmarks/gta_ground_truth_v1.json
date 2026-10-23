@@ -1,7 +1,7 @@
 {
   "benchmark": "GTA housing ground truth",
   "version": 1,
-  "built_on": "2026-10-20",
+  "built_on": "2026-10-22",
   "questions": [
     {
       "id": "GT-01",
@@ -414,7 +414,9 @@
         "rent_growth_pct": 26.2,
         "income_2019": 80800.0,
         "income_2024": 82500.0,
-        "income_growth_pct": 2.1
+        "income_growth_pct": 2.1,
+        "rent_dollars": "Dollars",
+        "income_dollars": "2024 constant dollars"
       },
       "tolerance": "±0.1 pp on each rate",
       "citations": [
@@ -488,7 +490,7 @@
         }
       ],
       "traps": [
-        "Both series are in current (nominal) dollars; the agent should not mix nominal and inflation-adjusted figures."
+        "The two series are in different dollars: rent in dollars (current, nominal) and income in 2024 constant dollars (inflation-adjusted). Income's growth is real growth, so nominal income grew faster and the gap is narrower in like-for-like terms. An answer that presents the two rates as directly comparable without saying so should be flagged."
       ]
     },
     {
