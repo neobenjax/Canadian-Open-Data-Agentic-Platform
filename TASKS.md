@@ -60,8 +60,8 @@
 **Goal:** Working FastMCP 2.0 server with DuckDB 1.2+ querying StatCan and Bank of Canada REST APIs; first 15 benchmark questions with ground truth.
 
 ### Feature 1.1: Official Canadian REST Connectors
-- [ ] **CAN-11:** [IN REVIEW] Implement async HTTPX client for Statistics Canada WDS API (metadata discovery, vector lookup, SDMX cube slice with HTTP caching, and structured temporal metadata extraction: `table_id`, `vector_id`, `coordinate`, `reference_period`, `release_time`, bilingual En/Fr titles, and canonical portal deep-link). *(Owner: Benjamin / Yassir · 2h)*
-- [ ] **CAN-12:** [IN REVIEW] Implement async client for Bank of Canada Valet API (policy rate, inflation target, CPI series, observation dates, and series publication/revision metadata with Valet portal deep-links). *(Owner: Yassir / Benjamin · 2h)*
+- [x] **CAN-11:** Implement async HTTPX client for Statistics Canada WDS API (metadata discovery, vector lookup, SDMX cube slice with HTTP caching, and structured temporal metadata extraction: `table_id`, `vector_id`, `coordinate`, `reference_period`, `release_time`, bilingual En/Fr titles, and canonical portal deep-link). *(Owner: Benjamin / Yassir · 2h)*
+- [x] **CAN-12:** Implement async client for Bank of Canada Valet API (policy rate, inflation target, CPI series, observation dates, and series publication/revision metadata with Valet portal deep-links). *(Owner: Yassir / Benjamin · 2h)*
 
 ### Feature 1.2: In-Memory DuckDB Slicing Engine
 - [x] **CAN-13:** Build FastMCP 2.0 server with in-memory DuckDB Arrow streams reducing 200MB payloads to <3KB with tool annotations (`readOnly`, `idempotent`). *(Owner: Benjamin · 3h)*
@@ -69,7 +69,7 @@
 ### Feature 1.3: Benchmark Suite & Security Baseline
 - [x] **CAN-14:** Curate 15 ground-truth benchmark questions based on GTA housing, rent vs income, and inflation metrics. *(Owner: Samir · 2h)*
 - [ ] **CAN-15:** Run baseline benchmark comparing frontier LLMs without tools (any vendor; record exact model IDs and run dates) vs existing `mcp-statcan` vs CanData-MCP; log hallucinations and citation coverage. *(Owner: Samir / Yassir · 2h)*
-- [ ] **CAN-16:** Conduct API security, rate limit, and official data verification audit for Canadian public endpoints; codify the Citation Envelope: Core Verification Tuple `(table_id, vector_id, reference_period)` paired with Enrichment Metadata `(release_or_revision_date, coordinate, bilingual_title, deep_link)` to prevent silent temporal drift on revised official series. *(Owner: Benjamin / Yassir · 2h)*
+- [x] **CAN-16:** Conduct API security, rate limit, and official data verification audit for Canadian public endpoints; codify the Citation Envelope: Core Verification Tuple `(table_id, vector_id, reference_period)` paired with Enrichment Metadata `(release_or_revision_date, coordinate, bilingual_title, deep_link)` to prevent silent temporal drift on revised official series. *(Owner: Benjamin / Yassir · 2h)*
 
 ---
 
@@ -86,6 +86,9 @@
 ### Feature 2.2: Observability & Telemetry
 - [ ] **CAN-25:** Set up OpenTelemetry-native Arize Phoenix & LangSmith tracing to measure step latency and token costs per sub-agent. *(Owner: Yassir / Benjamin · 2h)*
 - [ ] **CAN-26:** Bilingual French/English metadata mapping and data lineage tracking. *(Owner: Yassir · 2h)*
+
+### Feature 2.3: Connector & FastMCP Server Hardening
+- [ ] **CAN-17:** Connector & FastMCP Server Hardening: Valet fixes (V-F1..8), StatCan quality flags and ambiguity resolution, FastMCP discovery tools (`search_statcan_cubes`, `get_cube_dimensions`), and actionable error payloads. *(Owner: Benjamin · 2.5h · BEN-45)*
 
 ---
 

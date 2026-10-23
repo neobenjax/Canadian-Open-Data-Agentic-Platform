@@ -146,6 +146,24 @@ uv run pytest
 - Upon completing and merging major milestone PRs or architectural integrations, agents must execute the `/learn` harvesting routine across recent session transcripts.
 - Capture newly identified failure modes, reviewer expectations, and operational invariants into `AGENTS.md` and `.cursorrules` to ensure continuous cross-session agent alignment.
 
+### 23. Mandatory GitHub PR Milestone & Label Taxonomy
+- Every Pull Request opened in this repository MUST have:
+  1. **Primary Assignee:** The PR author (`neobenjax`, `samiromer2`, or `yassirtmk`).
+  2. **Designated Triangular Reviewer:** Requested reviewer per the triangular peer review matrix.
+  3. **Milestone Attached:** Directly attached to the corresponding sprint milestone (`Milestone 0` through `Milestone 6`).
+  4. **Tri-Tier Label Taxonomy:** At least one label from each mandatory category:
+     - **Milestone Label:** `milestone:m0` to `milestone:m6`
+     - **Semantic Type Label:** `type:feat`, `type:fix`, `type:docs`, `type:chore`, `type:eval`, or `type:security`
+     - **Domain Area Label:** `area:connectors`, `area:fastmcp-engine`, `area:orchestration`, `area:evals-benchmarks`, or `area:governance`
+- `python scripts/sync_tasks.py --create-pr CAN-XXX` automatically resolves and attaches the milestone, labels, author, and reviewer.
+
+### 24. Follow-Up Issue & Backlog Governance (Anti-Orphan Invariant)
+- When any AI agent identifies deferred architectural optimizations, technical debt items, or follow-up tasks and creates issues in Linear:
+  1. **Zero-Orphan Project Attachment:** Every Linear issue MUST be attached to the parent project (`Canadian-Open-Data-Agentic-Platform`) or its specific Milestone project. Unparented issues are strictly prohibited.
+  2. **Mandatory Explicit Ownership:** Every issue MUST be assigned to an explicit developer (`Benjamin`, `Samir`, or `Yassir`) based on role ownership. Never leave an issue unassigned (`None`) or generic (`Owner: All`).
+  3. **Sprint State & Tentative Due Date Discipline:** If an issue is scheduled for the active sprint, set its state to `Todo` (never leave forgotten in `Backlog`) and assign a tentative `dueDate` matching the sprint milestone end date.
+  4. **Bidirectional TASKS.md Synchronization:** New follow-up tasks MUST be immediately mirrored in `TASKS.md` under the target milestone with their canonical key (e.g. `CAN-17`) so that `scripts/sync_tasks.py` tracks them locally and across automated workflows.
+
 ---
 
 ## 🚀 Automated Feature Execution Protocol (from CONTRIBUTING.md)
