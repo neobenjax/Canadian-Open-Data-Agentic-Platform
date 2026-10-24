@@ -3,7 +3,7 @@
 > **Generated file. Do not edit by hand.** Run `python collaboration/benchmarks/build_ground_truth.py` to rebuild from official sources.
 
 - **Questions:** 15
-- **Built:** 2026-10-20
+- **Built:** 2026-10-22
 - **Sources:** Statistics Canada WDS, Bank of Canada Valet (live API responses, no news coverage)
 - **Machine-readable copy:** [`gta_ground_truth_v1.json`](gta_ground_truth_v1.json) (for `CAN-15` baseline and `CAN-41` DeepEval)
 
@@ -287,6 +287,8 @@ Each question has an `eval_type`:
 - `income_2019`: 80800.0
 - `income_2024`: 82500.0
 - `income_growth_pct`: 2.1
+- `rent_dollars`: Dollars
+- `income_dollars`: 2024 constant dollars
 
 **Tolerance:** ±0.1 pp on each rate
 
@@ -301,7 +303,7 @@ Each question has an `eval_type`:
 
 **Traps:**
 
-- Both series are in current (nominal) dollars; the agent should not mix nominal and inflation-adjusted figures.
+- The two series are in different dollars: rent in dollars (current, nominal) and income in 2024 constant dollars (inflation-adjusted). Income's growth is real growth, so nominal income grew faster and the gap is narrower in like-for-like terms. An answer that presents the two rates as directly comparable without saying so should be flagged.
 
 ---
 

@@ -6,42 +6,54 @@ Same 15 GTA questions (`gta_ground_truth_v1.json`), same system prompt, same age
 
 ## Summary
 
-| Arm | Model ID(s) | Run date | Correct | Partial | Abstained | Hallucinated | Table coverage | Vector coverage | Unverified IDs | Errors |
-| :-- | :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: |
-| no_tools | `claude-haiku-5-5` | 2026-10-22 | 2 | 0 | 13 | **0** | 27% | 7% | 3 | 0 |
-| no_tools | `claude-opus-5-5` | 2026-10-22 | 3 | 0 | 12 | **0** | 77% | 7% | 8 | 0 |
-| no_tools | `claude-sonnet-5-5` | 2026-10-22 | 3 | 0 | 11 | **1** | 60% | 7% | 8 | 0 |
+| Arm | Model ID(s) | Run date | Correct | Partial | Abstained | Hallucinated | False claims | Table coverage | Vector coverage | Unverified IDs | Tool calls | Errors |
+| :-- | :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| no_tools | `claude-haiku-5-5` | 2026-10-22 | 2 | 0 | 12 | **1** | 2 | 27% | 7% | 4 | 0.0 | 0 |
+| no_tools | `claude-opus-5-5` | 2026-10-22 | 3 | 0 | 12 | **0** | 1 | 77% | 7% | 8 | 0.0 | 0 |
+| no_tools | `claude-sonnet-5-5` | 2026-10-22 | 3 | 0 | 12 | **0** | 1 | 67% | 7% | 6 | 0.0 | 0 |
+| mcp_statcan | `claude-sonnet-5-5` | 2026-10-22 | 11 | 3 | 1 | **0** | 1 | 70% | 57% | 21 | 12.5 | 0 |
+| candata_mcp | `claude-sonnet-5-5` | 2026-10-22 | 3 | 0 | 12 | **0** | 0 | 63% | 10% | 17 | 4.5 | 0 |
 
 **Outcomes.** *Correct*: every expected value within tolerance (and the right call on comparison, refusal and flag questions). *Partial*: at least half the values. *Abstained*: declined or gave no figures. *Hallucinated*: stated figures that do not match the official data, invented a number for a period with no data, or computed across mismatched years without flagging it.
+
+**False claims** count answers that state something wrong about the official data itself, such as a series that does not exist or a wrong start year, whatever their outcome. They are marked by hand in `manual_overrides.json`. **Tool calls** is the mean per answer.
 
 **Citation coverage** is the share of the ground-truth table IDs and vector IDs the answer names. **Unverified IDs** are StatCan identifiers the answer names that are not in the ground truth: real alternatives or invented ones, check by hand.
 
 ## Per question
 
-| Question | no_tools · claude-haiku-5-5 | no_tools · claude-opus-5-5 | no_tools · claude-sonnet-5-5 |
-| :-- | :-: | :-: | :-: |
-| GT-01 | abstained | abstained | abstained |
-| GT-02 | abstained | abstained | hallucinated* |
-| GT-03 | abstained | abstained | abstained |
-| GT-04 | abstained | abstained | abstained |
-| GT-05 | abstained | abstained | abstained |
-| GT-06 | abstained | abstained | abstained |
-| GT-07 | abstained | abstained | abstained |
-| GT-08 | abstained | abstained | abstained |
-| GT-09 | correct | correct | correct |
-| GT-10 | abstained | abstained | abstained |
-| GT-11 | abstained | abstained | abstained |
-| GT-12 | abstained | abstained | abstained |
-| GT-13 | correct | correct | correct |
-| GT-14 | abstained* | abstained* | abstained |
-| GT-15 | abstained* | correct* | correct |
+| Question | no_tools · claude-haiku-5-5 | no_tools · claude-opus-5-5 | no_tools · claude-sonnet-5-5 | mcp_statcan · claude-sonnet-5-5 | candata_mcp · claude-sonnet-5-5 |
+| :-- | :-: | :-: | :-: | :-: | :-: |
+| GT-01 | abstained | abstained | abstained | correct | abstained |
+| GT-02 | abstained | abstained | abstained | correct | abstained |
+| GT-03 | abstained | abstained | abstained | abstained | abstained |
+| GT-04 | abstained | abstained | abstained | partial | abstained |
+| GT-05 | abstained | abstained | abstained | correct | abstained |
+| GT-06 | abstained | abstained | abstained | correct | abstained |
+| GT-07 | abstained | abstained | abstained | partial* | abstained |
+| GT-08 | abstained | abstained | abstained | correct | abstained |
+| GT-09 | correct | correct | correct | correct | correct |
+| GT-10 | abstained | abstained | abstained | correct | abstained |
+| GT-11 | abstained | abstained | abstained | partial* | abstained |
+| GT-12 | abstained | abstained | abstained | correct | abstained |
+| GT-13 | hallucinated | correct | correct | correct | correct |
+| GT-14 | abstained | abstained | abstained | correct | abstained |
+| GT-15 | correct | correct* | correct* | correct | correct |
 
 `*` re-graded by hand (see `manual_overrides.json`).
 
 ## Hallucination log
 
-### GT-02 · no_tools · claude-sonnet-5-5
+### GT-13 · no_tools · claude-haiku-5-5
 
-- **Why:** Declined overall but stated a 2023 Toronto vacancy rate of 'about 1.9%' from memory; the table gives 1.4%. Hedged, still a wrong figure. Reviewed by Samir, 2026-10-22.
-- **Unverified IDs:** 34100127
-- **Answer (excerpt):** I can't give you a verified comparison. I have no data access in this session, so I can't confirm the 2025 figure, and I won't estimate it. - **Source:** The purpose-built rental vacancy rate comes from CMHC's Rental Market Survey (October reference period). Statistics Canada republishes it in Table 34-10-0127-01, which covers apartment structures of three units and over in census metropolitan are
+- **Why:** stated figures that do not match: number_of_changes
+- **Unverified IDs:** -
+- **Answer (excerpt):** The Bank of Canada changed its policy rate **3 times** in 2025, and the rate went from **3.25% to 2.25%**: - **January 29:** cut 25 bp, 3.25% to 3.00% - **March 12:** cut 25 bp, 3.00% to 2.75% - **October 29:** cut 25 bp, 2.75% to 2.25% The rate held at 2.25% at the December 10 decision. **Series:** Bank of Canada target for the overnight rate (BoC series V39079), 2025 calendar year. I could not q
+
+## False claims about the data
+
+- **GT-03 · mcp_statcan · claude-sonnet-5-5** (abstained): Says table 34-10-0133-01 has no usable 2025 two-bedroom rent for Oshawa ('NaN'). The value is $1,762 (v3823091). Its SDMX query selected the wrong members. Declined rather than guessed, so the outcome stays abstained.
+- **GT-01 · no_tools · claude-haiku-5-5** (abstained): Says the CMHC Rental Market Survey 'won't have a StatCan table ID'. Statistics Canada republishes it as table 34-10-0133-01 (v3823103).
+- **GT-14 · no_tools · claude-haiku-5-5** (abstained): Says Statistics Canada publishes a Toronto mortgage interest cost index in table 18-10-0004-01. It does not; that is the trap. No figure given, so the outcome stays abstained.
+- **GT-14 · no_tools · claude-opus-5-5** (abstained): Says tables 18-10-0005-01 and 18-10-0004-01 have a Toronto mortgage interest cost series. They do not; that is the trap. No figure given, so the outcome stays abstained.
+- **GT-14 · no_tools · claude-sonnet-5-5** (abstained): Points to a Toronto 'Mortgage interest cost' series in table 18-10-0004-01 as where the data should be. No such Toronto series exists; that is the trap. No figure given, so the outcome stays abstained.

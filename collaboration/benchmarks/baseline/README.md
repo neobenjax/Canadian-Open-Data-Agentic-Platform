@@ -54,6 +54,12 @@ Each answer gets one outcome:
 
 Abstaining is not counted as a hallucination. An agent that says "I can't verify that" is less useful than one that answers correctly, but it is not wrong.
 
+**False claims** are counted separately from outcomes. A false claim is a wrong statement about the official data itself, for example:
+- saying StatCan publishes a Toronto mortgage interest cost series (GT-14), when it does not
+- giving the wrong start year for a series
+
+An answer can decline the number, and so be graded abstained, or even correct, and still make a false claim. False claims are marked by hand and listed in their own section of the report.
+
 ### Tolerances
 
 | Value | Tolerance |
@@ -82,7 +88,9 @@ The automatic grade is a first pass. Read the hallucination log in the report, a
 }
 ```
 
-Overrides win, and they are marked with `*` in the report.
+Every field is optional:
+- `outcome` and `reason` replace the automatic grade, and are marked with `*` in the report.
+- `false_claim` on its own logs a false claim and keeps the automatic grade.
 
 ## Known limits
 
@@ -90,3 +98,4 @@ Overrides win, and they are marked with `*` in the report.
 - An answer that lists many numbers can match expected values by chance. The hallucination log and the unverified IDs are there to catch this.
 - The no-tools arm is graded against data released after some models' training cutoffs. That is intended: it measures whether the model admits it doesn't know.
 - One run per arm and model. Run-to-run variance is not measured yet; that belongs in the DeepEval harness (CAN-41).
+- Every run in `runs/` uses the same harness: the version that records `tools_available` and runs MCP tools with `ENABLE_TOOL_SEARCH=false`. The part-1 Haiku and Sonnet runs predated that version and were re-run in part 2.

@@ -4,6 +4,8 @@ Each case is a hand-written answer to a real benchmark question, so a change to 
 rules that would flip a known-good or known-bad answer fails here before it skews a run.
 """
 
+import json
+
 import pytest
 
 from collaboration.benchmarks import run_baseline as rb
@@ -153,3 +155,31 @@ def test_every_headline_key_exists() -> None:
 @pytest.mark.parametrize("qid", sorted(QUESTIONS))
 def test_every_question_can_be_graded(qid: str) -> None:
     assert grade(qid, "").outcome in {"abstained", "partial"}
+
+
+def test_false_claim_override_keeps_the_automatic_outcome(tmp_path, monkeypatch) -> None:
+    run = tmp_path / "run.jsonl"
+    row = {
+        "question_id": "GT-14",
+        "arm": "no_tools",
+        "requested_model": "m",
+        "model_ids": ["m"],
+        "tools_available": [],
+        "started_at": "2026-10-22T00:00:00+00:00",
+        "duration_s": 1.0,
+        "num_turns": 1,
+        "tool_calls": [],
+        "is_error": False,
+        "response": "I can't give you a figure. Table 18-10-0004-01 has a Toronto series.",
+    }
+    run.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(
+        json.dumps({"no_tools/m/GT-14": {"false_claim": "Says a Toronto series exists."}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rb, "OVERRIDES", overrides)
+    report = rb.grade([run])
+    assert report["answers"][0]["grade"]["outcome"] == "abstained"
+    assert report["summary"][0]["false_claims"] == 1
+    assert "Says a Toronto series exists." in rb.render_markdown(report)
