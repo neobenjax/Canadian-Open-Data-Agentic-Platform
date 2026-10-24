@@ -92,10 +92,23 @@ Every field is optional:
 - `outcome` and `reason` replace the automatic grade, and are marked with `*` in the report.
 - `false_claim` on its own logs a false claim and keeps the automatic grade.
 
+## Why CanData-MCP scored 3 of 15
+
+In the Oct 22 run, CanData-MCP answered 3 questions correctly and declined 12, against 11 correct for `mcp-statcan` on the same model. Its data tools return the right values when given a valid vector or coordinate (for example, `v3823103` returns $2,045). The model could not get that far, for three reasons:
+
+- **No discovery tools.** `query_statcan_coordinate` needs a table ID and a 10-part coordinate, and nothing on the server lists tables or dimension members. The model guessed coordinates, most guesses failed, and it declined.
+- **Errors carry no reason.** A failed call returns `Error executing tool` with no detail, so the model cannot correct its next call.
+- **Responses carry no member labels.** On GT-03 the model retrieved $2,045 but could not confirm that the series was Toronto.
+
+The declines were honest: no wrong figures and no false claims. `mcp-statcan` exposes table search and metadata tools, which is what let it find the series.
+
+The fixes are tracked in CAN-17 (BEN-45): discovery tools (table search and dimension listing) and actionable error payloads. Member labels on sliced payloads come in CAN-26. Re-run the `candata_mcp` arm once those land.
+
 ## Known limits
 
 - Grading is pattern-based, with no LLM judge. It can miss correct answers phrased in unusual ways, which is why the manual overrides exist.
 - An answer that lists many numbers can match expected values by chance. The hallucination log and the unverified IDs are there to catch this.
 - The no-tools arm is graded against data released after some models' training cutoffs. That is intended: it measures whether the model admits it doesn't know.
+- The two MCP arms expose different tool sets, so `candata_mcp` against `mcp_statcan` measures server design (which tools exist) as well as data quality. That is fine for a baseline, but it is not a like-for-like comparison of the data layer.
 - One run per arm and model. Run-to-run variance is not measured yet; that belongs in the DeepEval harness (CAN-41).
 - Every run in `runs/` uses the same harness: the version that records `tools_available` and runs MCP tools with `ENABLE_TOOL_SEARCH=false`. The part-1 Haiku and Sonnet runs predated that version and were re-run in part 2.
