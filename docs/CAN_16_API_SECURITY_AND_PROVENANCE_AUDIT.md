@@ -4,8 +4,8 @@
 |---|---|
 | **Task** | CAN-16 / BEN-15, Sprint 1 |
 | **Branch** | `feat/CAN-16-api-security-provenance-audit` |
-| **Audited** | Bank of Canada Valet API (code and live), Statistics Canada WDS (guide and live GETs) |
-| **Audit date** | 2026-10-20 (probes at 2026-10-21 03:08-03:09 UTC) |
+| **Audited** | Bank of Canada Valet API (code and live), Statistics Canada WDS (guide, live GETs and live read-only POST lookups) |
+| **Audit date** | 2026-10-20 (probes at 2026-10-21 03:08-03:09 UTC); POST lookups added 2026-10-22 (BEN-44, 18:45-18:47 UTC) |
 | **Related** | [CAN-12 Valet client](CAN_12_BOC_VALET_CLIENT.md), [Citation standards](CORE_DOCS_CITATION_STANDARDS_ACTIVITIES.md), [risk register](../collaboration/governance/api_risk_register.md), [security checklist](../collaboration/governance/security_checklist.md) |
 
 ---
@@ -18,13 +18,13 @@ The Citation Envelope itself was already defined in PR #8 and is implemented in 
 
 **In scope:** Valet (code reviewed, live GETs), WDS (user guide, live GETs). **Out of scope:** prompt injection (CAN-43), the Citation Verifier node (CAN-24), bilingual mapping (CAN-26), the CKAN connector (CAN-34).
 
-**WDS caveat.** The WDS client (CAN-11) is not merged. WDS findings are therefore written as **requirements CAN-11 must meet**, and every WDS field is marked *live-verified* or *from the user guide*. Fields that only POST methods return were **not** live-verified (see section 6).
+**WDS caveat.** The WDS client (CAN-11) is not merged. WDS findings are therefore written as **requirements CAN-11 must meet**, and every WDS field is marked *live-verified* or *from the user guide*. The fields that only POST methods return were first marked *guide only*; they were live-verified on 2026-10-22 (BEN-44, Appendix A W-6 to W-8).
 
 ---
 
 ## 2. Method and Evidence
 
-- Only read-only GET requests, each with a descriptive `User-Agent` (`CanDataMCP-audit/0.1 (CAN-16 read-only audit; ...)`). Appendix A lists every request.
+- Only read-only GET requests, each with a descriptive `User-Agent` (`CanDataMCP-audit/0.1 (CAN-16 read-only audit; ...)`). Appendix A lists every request. The 2026-10-22 follow-up (BEN-44) added three read-only POST lookups (W-6 to W-8); WDS uses POST for these query methods and they change no data.
 - Valet code audited at `main` 9f71ed1: `boc_valet.py`, `citation.py`, `tests/connectors/test_boc_valet.py`.
 - WDS rules come from the official [WDS user guide](https://www.statcan.gc.ca/en/developers/wds/user-guide) (v1.6) and from live responses.
 - Findings are rated **High / Medium / Low / Info**. No High findings were found.
@@ -96,7 +96,7 @@ The terms require attributing the Bank of Canada "in any reasonable manner" and 
 
 ## 4. WDS Audit
 
-Source: WDS user guide v1.6 and live GETs (Appendix A, W-1 to W-3). `https://www150.statcan.gc.ca/t1/wds/rest/`.
+Source: WDS user guide v1.6, live GETs (Appendix A, W-1 to W-5) and live read-only POST lookups (W-6 to W-8). `https://www150.statcan.gc.ca/t1/wds/rest/`.
 
 ### 4.1 Rate limits and availability
 
@@ -123,12 +123,12 @@ Source: WDS user guide v1.6 and live GETs (Appendix A, W-1 to W-3). `https://www
 
 | Envelope field | WDS source | Verified |
 |---|---|---|
-| `table_id` | `productId` (8 digits, for example `34100133` for `34-10-0133-01`) | Live (W-4) |
+| `table_id` | `productId` (8 digits, for example `34100133` for `34-10-0133-01`). An integer in series responses, a string (`"34100133"`) in `getCubeMetadata` (W-F5). | Live (W-4, W-6, W-7) |
 | `vector_id` | `vectorId` | Live (W-4) |
 | `reference_period` | `refPer` (normalized) and `refPerRaw` | Live (W-4) |
-| `release_or_revision_date` | per-data-point `releaseTime` (`2025-12-17T08:30`); cube-level `issueDate`; `corrections` | `releaseTime` live (W-2, W-4); `issueDate`, `corrections` guide only |
-| `coordinate` | `coordinate` (`125.3.3.0.0.0.0.0.0.0`) | Live (W-4) |
-| `bilingual_title` | `cubeTitleEn/Fr`, `SeriesTitleEn/Fr` | **Guide only** (POST methods) |
+| `release_or_revision_date` | per-data-point `releaseTime` (`2025-12-17T08:30`); cube-level `releaseTime` (`2025-12-17T08:30`); cube-level `issueDate` (`2018-06-27`); `correctionFootnote` (`[]`) | `releaseTime` live (W-2, W-4, W-8); cube `releaseTime`, `issueDate` and `correctionFootnote` live (W-7). The guide's "corrections" field is named `correctionFootnote` in the response, and `issueDate` is not the latest release (W-F6). |
+| `coordinate` | `coordinate` (`125.3.3.0.0.0.0.0.0.0`) | Live (W-6) |
+| `bilingual_title` | `cubeTitleEn/Fr` (W-7), `SeriesTitleEn/Fr` (W-6) | Live (W-6, W-7). French text is returned in UTF-8. |
 | `canonical_url` | portal deep link built from `productId` | Not verified; pattern to be confirmed |
 
 **Findings**
@@ -136,6 +136,10 @@ Source: WDS user guide v1.6 and live GETs (Appendix A, W-1 to W-3). `https://www
 - **W-F2 (Positive): `releaseTime` is per data point.** A revised value gets its own `releaseTime`, so `release_or_revision_date` can be filled from WDS. This is the field that prevents silent temporal drift, and it is the main difference from Valet.
 - **W-F3 (Medium): `releaseTime` has no time zone.** `2025-12-17T08:30` is documented as 08:30 ET with DST applied. CAN-11 must store it as a local ET timestamp or convert it explicitly, never compare it to a UTC `fetched_at` as-is.
 - **W-F4 (Info): `getChangedCubeList/{date}` lists tables released that day** with their `releaseTime` (W-2). It is the cheapest way for the Citation Verifier to ask "did this table change since I read it?".
+- **W-F5 (Low): `productId` has two types.** `getSeriesInfoFromVector` returns it as an integer (`34100133`) and `getCubeMetadata` as a string (`"34100133"`) (W-6, W-7). CAN-11 must normalise to one form before building the envelope `table_id`, and must reject an empty or non-positive value instead of defaulting (AGENTS.md section 6).
+- **W-F6 (Medium): cube-level `issueDate` is not a revision date.** For `34100133`, `issueDate` is `2018-06-27` while the cube's `releaseTime` and the latest data point are `2025-12-17T08:30` (W-7, W-8), and `correctionFootnote` is empty. `release_or_revision_date` must come from per-point `releaseTime` (W-F2), never from `issueDate`.
+- **W-F7 (Medium): a series can have rows with no value.** `v3823103` returns rows for 1987 to 1991 with `value: null` and `statusCode: 1`, followed by the first real value for 1992 (755.0, `releaseTime` `2001-10-31T08:30`) (W-8). The cube's `cubeStartDate` is `1987-01-01`, so neither it nor the first row is the start of the data. CAN-11 must keep `statusCode` and `symbolCode` (AGENTS.md section 6) and must not treat a row as an observation, or an answer could cite a 1987 Toronto rent that does not exist. The CAN-14 ground truth for GT-15 (earliest period `1992`) is correct.
+- **W-F8 (Medium): WDS can answer HTTP 200 with an HTML outage page.** During the BEN-44 retry (around 2026-10-22 03:08 UTC) WDS returned an HTML maintenance page with HTTP 200 instead of JSON; the raw body was not kept. By 18:45 UTC the same endpoints returned `application/json` (W-6 to W-8). CAN-11 must check `Content-Type` and parse failures as an outage, in addition to the body `status` check in section 4.2, and report them as retryable rather than as an empty result.
 
 ---
 
@@ -160,7 +164,7 @@ Codifies PR #8 as testable rules. Both connectors must meet them; the benchmark 
 
 ## 6. Open Items
 
-1. **WDS POST lookups not run.** `coordinate` (series metadata), `SeriesTitleFr` / `cubeTitleFr`, cube `corrections` and `issueDate` come only from POST methods (`getSeriesInfoFromVector`, `getCubeMetadata`). Only GETs were approved, so these rows are marked *guide only*. **Question posted to Ben on BEN-15 (2026-10-21), repeated in the PR.**
+1. **WDS POST lookups: done (BEN-44, 2026-10-22).** `coordinate`, `SeriesTitleFr` / `cubeTitleFr`, `issueDate` and `correctionFootnote` are now live-verified (W-6, W-7); findings W-F5 to W-F8 came out of them. Still unverified: a cube with a non-empty `correctionFootnote`, so the correction shape is unknown.
 2. **Shared `CitationEnvelope` home.** Samir proposes a Pydantic v2 model in `packages/candata-mcp` (CAN-21, CAN-43). Not decided; not changed here.
 3. **Valet fixes (V-F1, V-F4, V-F7, V-F8).** Small changes to CAN-12 code. Proposed as a follow-up, not bundled, so this PR stays documentation-only.
 4. **Open Government Licence / WDS terms** not yet reviewed; needed for E7.
@@ -170,7 +174,7 @@ Codifies PR #8 as testable rules. Both connectors must meet them; the benchmark 
 
 ## Appendix A: Live Requests
 
-All GET, all read-only, from one IP, no authentication. Raw logs: `valet_probes.log`, `wds_get_probes.log` (session scratchpad; available on request).
+V-1 to W-5 are GET. W-6 to W-8 are POST query methods (JSON body, `Content-Type: application/json`). All are read-only, from one IP, no authentication. Raw logs: `valet_probes.log`, `wds_get_probes.log` (session scratchpad; available on request).
 
 | ID | Time (UTC) | URL | Result |
 |---|---|---|---|
@@ -186,3 +190,6 @@ All GET, all read-only, from one IP, no authentication. Raw logs: `valet_probes.
 | W-3 | 03:08:43 | `.../getDataFromVectorByReferencePeriodRange?vectorIds="v3823103"...` | 200 with `FAILED`, error code 3 |
 | W-4 | 03:08:53 | `.../getDataFromVectorByReferencePeriodRange?vectorIds=3823103&startRefPeriod=2024-01-01&endReferencePeriod=2025-12-31` | 200, 2 points, `releaseTime` per point |
 | W-5 | 03:09:04-05 | `https://www.statcan.gc.ca/en/developers/wds/user-guide`, `.../developers/wds` | 200, guide read |
+| W-6 | 2026-10-22 18:45:44 | POST `.../getSeriesInfoFromVector` body `[{"vectorId":3823103}]` | 200, `application/json`, `SUCCESS`; `coordinate`, `SeriesTitleEn/Fr`, `productId` (integer) |
+| W-7 | 18:45:45 | POST `.../getCubeMetadata` body `[{"productId":34100133}]` | 200, `application/json`, 67 KB, `SUCCESS`; `cubeTitleEn/Fr`, `issueDate`, `releaseTime`, `correctionFootnote: []`, `productId` (string) |
+| W-8 | 18:47:26 | POST `.../getDataFromVectorsAndLatestNPeriods` body `[{"vectorId":3823103,"latestN":100}]` | 200, `application/json`, `SUCCESS`; 39 points, 1987 to 2025; 1987 to 1991 `value: null`, `statusCode: 1`; first value 1992 |
