@@ -14,9 +14,11 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
-from candata_mcp.connectors.boc_valet import ValetClient
+from candata_mcp.bilingual import Language, parse_language
+from candata_mcp.connectors.boc_valet import ObservationSet, ValetClient
 from candata_mcp.connectors.statcan_wds import StatCanClient
 from candata_mcp.engine import DuckDBSlicingEngine
+from candata_mcp.lineage import SourceCall, build_lineage, statcan_call, valet_call
 
 # FastMCP 2026 Tool Annotation Presets
 READ_ONLY_TOOL = ToolAnnotations(
@@ -30,6 +32,25 @@ LOCAL_ANALYTIC_TOOL = ToolAnnotations(
     idempotent_hint=True,
     open_world_hint=False,
 )
+
+LANG_NOTE = (
+    " Pass lang='fr' for the French title; when no official French title exists the "
+    "English one is returned and flagged in 'display'."
+)
+
+
+def _valet_call(
+    result: ObservationSet,
+    *,
+    start_date: str | None,
+    end_date: str | None,
+    recent: int | None,
+) -> SourceCall:
+    """The Valet request behind ``result``, with only the parameters that were sent."""
+    return valet_call(
+        f"observations/{result.series.name}/json",
+        {"recent": recent, "start_date": start_date, "end_date": end_date},
+    )
 
 
 class CanDataServer:
@@ -71,7 +92,8 @@ class CanDataServer:
                 "Query a Statistics Canada time series by vector ID (e.g. 'v41690973'). "
                 "Retrieves official observations from Statistics Canada WDS, streams them "
                 "through an in-memory DuckDB Arrow engine for temporal slicing, and returns "
-                "a strictly <3KB payload complete with Two-Tier Citation Envelope."
+                "a strictly <3KB payload complete with Two-Tier Citation Envelope and data lineage."
+                + LANG_NOTE
             ),
             annotations=READ_ONLY_TOOL,
         )
@@ -80,7 +102,12 @@ class CanDataServer:
             start_date: str | None = None,
             end_date: str | None = None,
             limit: int = 12,
+            lang: str = "en",
         ) -> dict[str, Any]:
+            try:
+                language: Language = parse_language(lang)
+            except ValueError as exc:
+                return {"error": str(exc)}
             clean_vid = re.sub(r"^v", "", vector_id.strip(), flags=re.IGNORECASE)
             fetch_n = max(limit * 4, 100) if (start_date or end_date) else max(limit, 12)
             results = await self.statcan_client.get_data_from_vectors([clean_vid], latest_n=fetch_n)
@@ -92,6 +119,11 @@ class CanDataServer:
                 end_date=end_date,
                 limit=limit,
                 descending=True,
+                lang=language,
+                source_call=statcan_call(
+                    "getDataFromVectorsAndLatestNPeriods",
+                    {"vectorId": results[0].vector_id, "latestN": fetch_n},
+                ),
             )
 
         @self.mcp.tool(
@@ -101,7 +133,7 @@ class CanDataServer:
                 "(e.g. table '18-10-0004-01', coordinate '2.1'). "
                 "Retrieves official observations from Statistics Canada WDS, streams them "
                 "through an in-memory DuckDB Arrow engine, and returns a strictly <3KB "
-                "payload complete with Two-Tier Citation Envelope."
+                "payload complete with Two-Tier Citation Envelope and data lineage." + LANG_NOTE
             ),
             annotations=READ_ONLY_TOOL,
         )
@@ -111,7 +143,12 @@ class CanDataServer:
             start_date: str | None = None,
             end_date: str | None = None,
             limit: int = 12,
+            lang: str = "en",
         ) -> dict[str, Any]:
+            try:
+                language: Language = parse_language(lang)
+            except ValueError as exc:
+                return {"error": str(exc)}
             fetch_n = max(limit * 4, 100) if (start_date or end_date) else max(limit, 12)
             result = await self.statcan_client.get_data_from_cube(
                 product_id=table_id,
@@ -124,6 +161,15 @@ class CanDataServer:
                 end_date=end_date,
                 limit=limit,
                 descending=True,
+                lang=language,
+                source_call=statcan_call(
+                    "getDataFromCubePidCoordAndLatestNPeriods",
+                    {
+                        "productId": result.product_id,
+                        "coordinate": result.coordinate,
+                        "latestN": fetch_n,
+                    },
+                ),
             )
 
         @self.mcp.tool(
@@ -132,7 +178,8 @@ class CanDataServer:
                 "Query a Bank of Canada time series by series name (e.g. 'V39079'). "
                 "Retrieves official observations from Bank of Canada Valet API, streams them "
                 "through an in-memory DuckDB Arrow engine for temporal slicing, and returns "
-                "a strictly <3KB payload complete with Two-Tier Citation Envelope."
+                "a strictly <3KB payload complete with Two-Tier Citation Envelope and data lineage."
+                + LANG_NOTE
             ),
             annotations=READ_ONLY_TOOL,
         )
@@ -141,8 +188,14 @@ class CanDataServer:
             start_date: str | None = None,
             end_date: str | None = None,
             limit: int = 12,
+            lang: str = "en",
         ) -> dict[str, Any]:
+            try:
+                language: Language = parse_language(lang)
+            except ValueError as exc:
+                return {"error": str(exc)}
             clean_name = series_name.strip()
+            recent: int | None = None
             if start_date or end_date:
                 result = await self.valet_client.get_observations(
                     clean_name,
@@ -150,11 +203,8 @@ class CanDataServer:
                     end_date=end_date,
                 )
             else:
-                fetch_recent = max(limit * 2, 24)
-                result = await self.valet_client.get_observations(
-                    clean_name,
-                    recent=fetch_recent,
-                )
+                recent = max(limit * 2, 24)
+                result = await self.valet_client.get_observations(clean_name, recent=recent)
 
             return self.engine.slice_valet(
                 result,
@@ -162,6 +212,10 @@ class CanDataServer:
                 end_date=end_date,
                 limit=limit,
                 descending=True,
+                lang=language,
+                source_call=_valet_call(
+                    result, start_date=start_date, end_date=end_date, recent=recent
+                ),
             )
 
         @self.mcp.tool(
@@ -169,7 +223,8 @@ class CanDataServer:
             description=(
                 "Query the official Bank of Canada Policy Interest Rate target (Series V39079). "
                 "Convenience tool returning recent policy rate decisions, sliced via in-memory "
-                "DuckDB Arrow engine and paired with the Two-Tier Citation Envelope."
+                "DuckDB Arrow engine and paired with the Two-Tier Citation Envelope and data "
+                "lineage." + LANG_NOTE
             ),
             annotations=READ_ONLY_TOOL,
         )
@@ -177,14 +232,21 @@ class CanDataServer:
             start_date: str | None = None,
             end_date: str | None = None,
             limit: int = 10,
+            lang: str = "en",
         ) -> dict[str, Any]:
+            try:
+                language: Language = parse_language(lang)
+            except ValueError as exc:
+                return {"error": str(exc)}
+            recent: int | None = None
             if start_date or end_date:
                 result = await self.valet_client.get_policy_rate(
                     start_date=start_date,
                     end_date=end_date,
                 )
             else:
-                result = await self.valet_client.get_policy_rate(recent=max(limit * 2, 20))
+                recent = max(limit * 2, 20)
+                result = await self.valet_client.get_policy_rate(recent=recent)
 
             return self.engine.slice_valet(
                 result,
@@ -192,6 +254,10 @@ class CanDataServer:
                 end_date=end_date,
                 limit=limit,
                 descending=True,
+                lang=language,
+                source_call=_valet_call(
+                    result, start_date=start_date, end_date=end_date, recent=recent
+                ),
             )
 
         @self.mcp.tool(
@@ -200,7 +266,8 @@ class CanDataServer:
                 "Query Bank of Canada core inflation measures (e.g. 'total', 'common', "
                 "'median', 'trim'). "
                 "Retrieves official core CPI series from Valet API, sliced via DuckDB "
-                "Arrow streaming, and paired with the Two-Tier Citation Envelope."
+                "Arrow streaming, and paired with the Two-Tier Citation Envelope and data lineage."
+                + LANG_NOTE
             ),
             annotations=READ_ONLY_TOOL,
         )
@@ -209,7 +276,13 @@ class CanDataServer:
             start_date: str | None = None,
             end_date: str | None = None,
             limit: int = 12,
+            lang: str = "en",
         ) -> dict[str, Any]:
+            try:
+                language: Language = parse_language(lang)
+            except ValueError as exc:
+                return {"error": str(exc)}
+            recent: int | None = None
             if start_date or end_date:
                 result = await self.valet_client.get_cpi(
                     measure=measure,
@@ -217,10 +290,8 @@ class CanDataServer:
                     end_date=end_date,
                 )
             else:
-                result = await self.valet_client.get_cpi(
-                    measure=measure,
-                    recent=max(limit * 2, 24),
-                )
+                recent = max(limit * 2, 24)
+                result = await self.valet_client.get_cpi(measure=measure, recent=recent)
 
             return self.engine.slice_valet(
                 result,
@@ -228,6 +299,10 @@ class CanDataServer:
                 end_date=end_date,
                 limit=limit,
                 descending=True,
+                lang=language,
+                source_call=_valet_call(
+                    result, start_date=start_date, end_date=end_date, recent=recent
+                ),
             )
 
         @self.mcp.tool(
@@ -253,12 +328,23 @@ class CanDataServer:
                     return {"error": f"No data found for StatCan vector {series_id}"}
                 target_result = results[0]
                 table = self.engine.table_from_statcan(target_result)
-                citation = asdict(target_result.citation())
+                envelope = target_result.citation()
+                citation = asdict(envelope)
+                fetched_at = target_result.fetched_at
+                source_call = statcan_call(
+                    "getDataFromVectorsAndLatestNPeriods",
+                    {"vectorId": target_result.vector_id, "latestN": 100},
+                )
+                fetched_count = len(target_result.observations)
             elif src in ("valet", "boc", "bank of canada"):
                 clean_sid = series_id.strip()
                 valet_result = await self.valet_client.get_observations(clean_sid, recent=100)
                 table = self.engine.table_from_valet(valet_result)
-                citation = asdict(valet_result.citation())
+                envelope = valet_result.citation()
+                citation = asdict(envelope)
+                fetched_at = valet_result.fetched_at
+                source_call = _valet_call(valet_result, start_date=None, end_date=None, recent=100)
+                fetched_count = len(valet_result.observations)
             else:
                 return {"error": f"Unsupported source '{source}'. Choose 'statcan' or 'valet'."}
 
@@ -274,6 +360,17 @@ class CanDataServer:
                 "row_count": len(results_list),
                 "data": results_list,
                 "citation": citation,
+                "lineage": build_lineage(
+                    publisher=envelope.publisher,
+                    fetched_at=fetched_at,
+                    upstream_release=envelope.enrichment.release_or_revision_date,
+                    source_call=source_call,
+                    steps=(
+                        f"fetched {fetched_count} observations",
+                        f"computed in DuckDB with the read-only SQL shown; {len(results_list)} "
+                        "rows returned",
+                    ),
+                ),
             }
             return self.engine.clamp_payload(payload)
 

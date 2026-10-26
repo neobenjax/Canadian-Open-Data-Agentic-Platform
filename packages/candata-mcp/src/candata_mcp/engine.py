@@ -19,7 +19,9 @@ from typing import TYPE_CHECKING, Any
 import duckdb
 import pyarrow as pa
 
-from candata_mcp.connectors.boc_valet import FRENCH_TITLES
+from candata_mcp.bilingual import Language, localize_title
+from candata_mcp.connectors.boc_valet import FRENCH_TITLES, VALET_BASE_URL
+from candata_mcp.lineage import SourceCall, build_lineage
 
 if TYPE_CHECKING:
     from candata_mcp.connectors.boc_valet import ObservationSet
@@ -36,6 +38,24 @@ _FORBIDDEN_SQL_KEYWORDS = re.compile(
 
 # Standard payload limit in bytes (3KB)
 MAX_PAYLOAD_BYTES: int = 3072
+
+TRUNCATION_STEP = "truncated: rows dropped from the end to fit the 3072-byte payload budget"
+
+
+def _slice_step(
+    summary: dict[str, Any],
+    *,
+    returned: int,
+    start_date: str | None,
+    end_date: str | None,
+    limit: int,
+    descending: bool,
+) -> str:
+    order = "newest first" if descending else "oldest first"
+    return (
+        f"sliced in DuckDB: {start_date or 'earliest'} to {end_date or 'latest'}, {order}, "
+        f"limit {limit}; {summary['filtered_count']} rows matched, {returned} returned"
+    )
 
 
 def normalize_date_bound(date_str: str, *, is_end: bool) -> tuple[str, str]:
@@ -232,6 +252,8 @@ class DuckDBSlicingEngine:
         end_date: str | None = None,
         limit: int = 12,
         descending: bool = True,
+        lang: Language = "en",
+        source_call: SourceCall | None = None,
     ) -> dict[str, Any]:
         """Slice StatCan series into an LLM-ready <3KB payload with citation envelope."""
         table = self.table_from_statcan(result)
@@ -243,7 +265,11 @@ class DuckDBSlicingEngine:
             descending=descending,
         )
 
-        citation = asdict(result.citation())
+        envelope = result.citation()
+        citation = asdict(envelope)
+        fetch_step = f"fetched {len(result.observations)} observations"
+        if source_call is not None:
+            fetch_step += f" via {source_call.endpoint.rsplit('/', 1)[-1]}"
 
         payload: dict[str, Any] = {
             "source": "Statistics Canada",
@@ -251,12 +277,31 @@ class DuckDBSlicingEngine:
             "vector_id": f"v{result.vector_id}",
             "coordinate": result.coordinate,
             "title": {"en": result.title_en, "fr": result.title_fr},
+            "display": localize_title(envelope.enrichment.bilingual_title, lang).to_payload(),
             "unit": result.unit,
             "total_available": len(result.observations),
             "returned_count": len(records),
             "summary": summary,
             "data": records,
             "citation": citation,
+            "lineage": build_lineage(
+                publisher=envelope.publisher,
+                fetched_at=result.fetched_at,
+                upstream_release=envelope.enrichment.release_or_revision_date,
+                source_call=source_call,
+                title_source=f"getCubeMetadata productId {result.product_id}",
+                steps=(
+                    fetch_step,
+                    _slice_step(
+                        summary,
+                        returned=len(records),
+                        start_date=start_date,
+                        end_date=end_date,
+                        limit=limit,
+                        descending=descending,
+                    ),
+                ),
+            ),
         }
 
         return self.clamp_payload(payload)
@@ -269,6 +314,8 @@ class DuckDBSlicingEngine:
         end_date: str | None = None,
         limit: int = 12,
         descending: bool = True,
+        lang: Language = "en",
+        source_call: SourceCall | None = None,
     ) -> dict[str, Any]:
         """Slice Bank of Canada Valet series into an LLM-ready <3KB payload."""
         table = self.table_from_valet(result)
@@ -280,18 +327,41 @@ class DuckDBSlicingEngine:
             descending=descending,
         )
 
-        citation = asdict(result.citation())
+        envelope = result.citation()
+        citation = asdict(envelope)
         french_title = FRENCH_TITLES.get(result.series.name)
+        fetch_step = f"fetched {len(result.observations)} observations"
+        if source_call is not None:
+            fetch_step += f" via {source_call.endpoint.removeprefix(VALET_BASE_URL + '/')}"
 
         payload: dict[str, Any] = {
             "source": "Bank of Canada",
             "series_name": result.series.name,
             "title": {"en": result.series.label, "fr": french_title},
+            "display": localize_title(envelope.enrichment.bilingual_title, lang).to_payload(),
             "total_available": len(result.observations),
             "returned_count": len(records),
             "summary": summary,
             "data": records,
             "citation": citation,
+            "lineage": build_lineage(
+                publisher=envelope.publisher,
+                fetched_at=result.fetched_at,
+                upstream_release=envelope.enrichment.release_or_revision_date,
+                source_call=source_call,
+                steps=(
+                    fetch_step,
+                    "release timestamp: not published by Valet",
+                    _slice_step(
+                        summary,
+                        returned=len(records),
+                        start_date=start_date,
+                        end_date=end_date,
+                        limit=limit,
+                        descending=descending,
+                    ),
+                ),
+            ),
         }
 
         return self.clamp_payload(payload)
@@ -342,6 +412,10 @@ class DuckDBSlicingEngine:
         # Payload exceeds budget; truncate data rows
         data = clamped.get("data")
         if isinstance(data, list) and data:
+            lineage = clamped.get("lineage")
+            if isinstance(lineage, dict) and isinstance(lineage.get("steps"), tuple | list):
+                # Recorded before the loop so the extra bytes are inside the budget check.
+                lineage["steps"] = [*lineage["steps"], TRUNCATION_STEP]
             truncated_data: list[Any] = list(data)
             while truncated_data and encoded_len > max_bytes:
                 truncated_data.pop()
