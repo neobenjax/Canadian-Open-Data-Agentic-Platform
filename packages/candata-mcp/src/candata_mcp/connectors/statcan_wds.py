@@ -1,9 +1,11 @@
-"""Async client for the Statistics Canada Web Data Service (WDS) API (CAN-11).
+"""Async client for the Statistics Canada Web Data Service (WDS) API (CAN-11 / CAN-17 Hardening).
 
 Provides metadata discovery, coordinate resolution, observation slicing, vector queries,
-in-memory TTL metadata caching, and Two-Tier Citation Envelope generation matching the
-official Canadian Open Data Agentic Platform benchmark standards.
+in-memory TTL metadata caching, catalog search, and Two-Tier Citation Envelope generation
+matching the official Canadian Open Data Agentic Platform benchmark standards.
 """
+
+from __future__ import annotations
 
 import asyncio
 import time
@@ -24,6 +26,7 @@ from candata_mcp.citation import (
 )
 
 STATCAN_WDS_BASE_URL = "https://www150.statcan.gc.ca/t1/wds/rest"
+STATCAN_LICENCE_URL = "https://www.statcan.gc.ca/en/reference/licence"
 PUBLISHER = "Statistics Canada"
 DEFAULT_USER_AGENT = (
     "CanDataMCP/0.1 (CAN-11; +https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform)"
@@ -40,6 +43,76 @@ FREQUENCY_NAMES: Mapping[int, str] = {
     9: "semi-annual",
     12: "annual",
 }
+
+FALLBACK_CUBES_LITE: tuple[dict[str, Any], ...] = (
+    {
+        "productId": 18100004,
+        "cansimId": "326-0020",
+        "cubeTitleEn": "Consumer Price Index, monthly, not seasonally adjusted",
+        "cubeTitleFr": "Indice des prix à la consommation, mensuel, non désaisonnalisé",
+        "cubeStartDate": "1914-01-01",
+        "cubeEndDate": "2026-09-01",
+        "releaseTime": "2026-10-20T08:30",
+        "frequencyCode": 6,
+    },
+    {
+        "productId": 18100205,
+        "cansimId": "327-0056",
+        "cubeTitleEn": "New housing price index, monthly",
+        "cubeTitleFr": "Indice des prix des logements neufs, mensuel",
+        "cubeStartDate": "1981-01-01",
+        "cubeEndDate": "2026-09-01",
+        "releaseTime": "2026-10-21T08:30",
+        "frequencyCode": 6,
+    },
+    {
+        "productId": 34100133,
+        "cansimId": "027-0040",
+        "cubeTitleEn": (
+            "Canada Mortgage and Housing Corporation, average rents and vacancy rates in "
+            "privately initiated apartment structures"
+        ),
+        "cubeTitleFr": (
+            "Société canadienne d'hypothèques et de logement, loyers moyens et taux d'inoccupation"
+        ),
+        "cubeStartDate": "1990-01-01",
+        "cubeEndDate": "2025-10-01",
+        "releaseTime": "2026-01-15T08:30",
+        "frequencyCode": 12,
+    },
+    {
+        "productId": 14100287,
+        "cansimId": "282-0087",
+        "cubeTitleEn": "Labour force characteristics, monthly, seasonally adjusted and trend-cycle",
+        "cubeTitleFr": (
+            "Caractéristiques de la population active, mensuel, désaisonnalisé et cycle-tendance"
+        ),
+        "cubeStartDate": "1976-01-01",
+        "cubeEndDate": "2026-09-01",
+        "releaseTime": "2026-10-09T08:30",
+        "frequencyCode": 6,
+    },
+    {
+        "productId": 36100434,
+        "cansimId": "379-0031",
+        "cubeTitleEn": "Gross domestic product (GDP) at basic prices, by industry, monthly",
+        "cubeTitleFr": "Produit intérieur brut (PIB) aux prix de base, par industrie, mensuel",
+        "cubeStartDate": "1997-01-01",
+        "cubeEndDate": "2026-08-01",
+        "releaseTime": "2026-10-30T08:30",
+        "frequencyCode": 6,
+    },
+    {
+        "productId": 17100009,
+        "cansimId": "051-0005",
+        "cubeTitleEn": "Population estimates, quarterly",
+        "cubeTitleFr": "Estimations de la population, trimestrielles",
+        "cubeStartDate": "1951-07-01",
+        "cubeEndDate": "2026-07-01",
+        "releaseTime": "2026-09-25T08:30",
+        "frequencyCode": 7,
+    },
+)
 
 
 class StatCanError(Exception):
@@ -72,7 +145,28 @@ class StatCanMemberNotFoundError(StatCanError):
 
 
 class StatCanAmbiguousMemberError(StatCanError):
-    """A dimension member name matched multiple candidate members in the cube."""
+    """A dimension member name matched multiple candidate members in the cube (Guardrail 6)."""
+
+    def __init__(
+        self,
+        member_name: str,
+        dimension_position: int,
+        dimension_name: str,
+        product_id: int,
+        candidates: Sequence[DimensionMember],
+    ) -> None:
+        self.member_name: str = member_name
+        self.dimension_position: int = dimension_position
+        self.dimension_name: str = dimension_name
+        self.product_id: int = product_id
+        self.candidates: tuple[DimensionMember, ...] = tuple(candidates)
+        self.candidate_ids: tuple[int, ...] = tuple(m.member_id for m in candidates)
+        msg = (
+            f"ambiguous member name {member_name!r}: multiple members match in dimension "
+            f"{dimension_position} ({dimension_name!r}) of table {product_id}: "
+            f"candidates={list(self.candidate_ids)}"
+        )
+        super().__init__(msg)
 
 
 def format_table_id(product_id: int | str) -> str:
@@ -145,6 +239,22 @@ class CubeMetadata:
 
 
 @dataclass(frozen=True, slots=True)
+class CubeSummary:
+    """Token-budgeted summary representation of a Statistics Canada data cube."""
+
+    product_id: int
+    table_id: str
+    cansim_id: str | None
+    title_en: str
+    title_fr: str | None
+    start_date: str | None
+    end_date: str | None
+    release_time: str | None
+    frequency_code: int
+    frequency_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class Observation:
     ref_per: str
     value: float | None
@@ -195,6 +305,7 @@ class StatCanSeriesResult:
                 canonical_url=(
                     f"https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid={self.product_id}01"
                 ),
+                license_url=STATCAN_LICENCE_URL,
             ),
         )
 
@@ -233,13 +344,16 @@ class StatCanClient:
         retries: int = 2,
         backoff: float = 0.5,
         metadata_ttl_seconds: float = 3600.0,
+        cubes_list_ttl_seconds: float = 86400.0,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._retries = retries
         self._backoff = backoff
         self._metadata_ttl = metadata_ttl_seconds
+        self._cubes_list_ttl = cubes_list_ttl_seconds
         self._metadata_cache: dict[int, tuple[CubeMetadata, float]] = {}
+        self._cubes_list_cache: tuple[list[dict[str, Any]], float] | None = None
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=timeout,
@@ -262,8 +376,9 @@ class StatCanClient:
             await self._client.aclose()
 
     def clear_cache(self) -> None:
-        """Clear the in-memory metadata TTL cache."""
+        """Clear in-memory metadata and catalog caches."""
         self._metadata_cache.clear()
+        self._cubes_list_cache = None
 
     async def get_cube_metadata(
         self, product_id: int | str, *, bypass_cache: bool = False
@@ -285,11 +400,73 @@ class StatCanClient:
         self._metadata_cache[pid] = (meta, now)
         return meta
 
+    async def get_all_cubes_list_lite(self, *, bypass_cache: bool = False) -> list[dict[str, Any]]:
+        """Fetch all cubes lite summary list from WDS with 24h caching and offline fallback."""
+        now = time.monotonic()
+        if not bypass_cache and self._cubes_list_cache is not None:
+            cached_data, cached_time = self._cubes_list_cache
+            if now - cached_time < self._cubes_list_ttl:
+                return cached_data
+
+        try:
+            url = f"{self._base_url}/getAllCubesListLite"
+            response = await self._client.get(url)
+            if response.status_code == 200:
+                raw = response.json()
+                if isinstance(raw, list) and raw:
+                    cubes = [c for c in _dict_list(raw) if "productId" in c]
+                    self._cubes_list_cache = (cubes, now)
+                    return cubes
+        except Exception:
+            pass
+
+        self._cubes_list_cache = (list(FALLBACK_CUBES_LITE), now)
+        return list(FALLBACK_CUBES_LITE)
+
+    async def search_cubes(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        offset: int = 0,
+        bypass_cache: bool = False,
+    ) -> tuple[CubeSummary, ...]:
+        """Search Statistics Canada data cubes by keyword with token-budgeted pagination."""
+        cubes = await self.get_all_cubes_list_lite(bypass_cache=bypass_cache)
+        query_norm = query.strip().lower()
+
+        matches: list[CubeSummary] = []
+        for c in cubes:
+            pid = normalize_product_id(str(c.get("productId", 0)))
+            title_en = str(c.get("cubeTitleEn", ""))
+            title_fr = c.get("cubeTitleFr")
+            cansim = c.get("cansimId")
+            searchable = f"{pid} {title_en} {title_fr or ''} {cansim or ''}".lower()
+
+            if query_norm in searchable:
+                freq_code = _int(c, "frequencyCode", 0)
+                matches.append(
+                    CubeSummary(
+                        product_id=pid,
+                        table_id=format_table_id(pid),
+                        cansim_id=str(cansim) if cansim else None,
+                        title_en=title_en,
+                        title_fr=str(title_fr) if title_fr else None,
+                        start_date=_optional_text(c, "cubeStartDate"),
+                        end_date=_optional_text(c, "cubeEndDate"),
+                        release_time=_optional_text(c, "releaseTime"),
+                        frequency_code=freq_code,
+                        frequency_name=FREQUENCY_NAMES.get(freq_code, f"code_{freq_code}"),
+                    )
+                )
+
+        return tuple(matches[offset : offset + limit])
+
     async def resolve_coordinate(self, product_id: int | str, member_names: Sequence[str]) -> str:
         """Resolve human-readable dimension member names into a StatCan 10-part coordinate string.
 
         Fails loud with StatCanAmbiguousMemberError if multiple candidate members share the
-        same name within a dimension (e.g. duplicate municipality/CMA names).
+        same name within a dimension (e.g. duplicate municipality/CMA names, Guardrail 6).
 
         Example: resolve_coordinate(18100004, ["Canada", "All-items"]) -> "2.2.0.0.0.0.0.0.0.0"
         """
@@ -315,10 +492,12 @@ class StatCanClient:
                     f"({dim.name_en!r}) of table {meta.product_id}"
                 )
             if len(matches) > 1:
-                candidate_ids = [m.member_id for m in matches]
                 raise StatCanAmbiguousMemberError(
-                    f"ambiguous member name {name!r}: multiple members match in dimension {pos} "
-                    f"({dim.name_en!r}) of table {meta.product_id}: candidates={candidate_ids}"
+                    member_name=name,
+                    dimension_position=pos,
+                    dimension_name=dim.name_en,
+                    product_id=meta.product_id,
+                    candidates=matches,
                 )
             member_ids.append(matches[0].member_id)
 

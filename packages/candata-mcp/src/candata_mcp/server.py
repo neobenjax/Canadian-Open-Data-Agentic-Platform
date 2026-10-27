@@ -16,7 +16,11 @@ from mcp.types import ToolAnnotations
 
 from candata_mcp.bilingual import Language, parse_language
 from candata_mcp.connectors.boc_valet import ObservationSet, ValetClient
-from candata_mcp.connectors.statcan_wds import StatCanClient
+from candata_mcp.connectors.statcan_wds import (
+    StatCanAmbiguousMemberError,
+    StatCanClient,
+    format_table_id,
+)
 from candata_mcp.engine import DuckDBSlicingEngine
 from candata_mcp.lineage import SourceCall, build_lineage, statcan_call, valet_call
 
@@ -84,7 +88,101 @@ class CanDataServer:
         self.engine.close()
 
     def _register_tools(self) -> None:
-        """Register all official Canadian data retrieval and analytics tools."""
+        """Register all official Canadian data retrieval, catalog discovery and analytics tools."""
+
+        @self.mcp.tool(
+            name="search_statcan_cubes",
+            description=(
+                "Search official Statistics Canada data cubes/tables by keyword (e.g. 'cpi', "
+                "'housing', 'rents', 'labour', 'gdp'). Returns a token-budgeted list of matching "
+                "tables with product IDs, titles, release dates, and frequency."
+            ),
+            annotations=READ_ONLY_TOOL,
+        )
+        async def search_statcan_cubes(
+            query: str,
+            limit: int = 10,
+            offset: int = 0,
+        ) -> dict[str, Any]:
+            q = query.strip()
+            if not q:
+                return {
+                    "error": "Query string cannot be empty.",
+                    "isError": True,
+                    "error_code": "INVALID_ARGUMENT",
+                    "message": "Query string cannot be empty.",
+                }
+            limit = max(1, min(limit, 50))
+            offset = max(0, offset)
+            results = await self.statcan_client.search_cubes(q, limit=limit, offset=offset)
+            return {
+                "query": q,
+                "total_results": len(results),
+                "offset": offset,
+                "limit": limit,
+                "cubes": [asdict(c) for c in results],
+            }
+
+        @self.mcp.tool(
+            name="get_cube_dimensions",
+            description=(
+                "Retrieve the dimensions and member hierarchies of a Statistics Canada data cube "
+                "by product ID or table ID (e.g. '18100004' or '18-10-0004-01'). Members per "
+                "dimension are bounded (default max 25) to prevent LLM context-window bloat."
+            ),
+            annotations=READ_ONLY_TOOL,
+        )
+        async def get_cube_dimensions(
+            product_id: str,
+            max_members_per_dim: int = 25,
+        ) -> dict[str, Any]:
+            pid_str = product_id.strip()
+            if not pid_str:
+                return {
+                    "error": "product_id cannot be empty.",
+                    "isError": True,
+                    "error_code": "INVALID_ARGUMENT",
+                    "message": "product_id cannot be empty.",
+                }
+            try:
+                meta = await self.statcan_client.get_cube_metadata(pid_str)
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "NOT_FOUND",
+                    "message": str(exc),
+                }
+
+            max_members = max(1, min(max_members_per_dim, 100))
+            return {
+                "product_id": meta.product_id,
+                "table_id": format_table_id(meta.product_id),
+                "cansim_id": meta.cansim_id,
+                "title_en": meta.title_en,
+                "title_fr": meta.title_fr,
+                "frequency": meta.frequency_name,
+                "release_time": meta.release_time,
+                "dimensions": [
+                    {
+                        "position_id": dim.position_id,
+                        "name_en": dim.name_en,
+                        "name_fr": dim.name_fr,
+                        "total_members": len(dim.members),
+                        "has_more_members": len(dim.members) > max_members,
+                        "members": [
+                            {
+                                "member_id": m.member_id,
+                                "name_en": m.name_en,
+                                "name_fr": m.name_fr,
+                                "parent_member_id": m.parent_member_id,
+                            }
+                            for m in dim.members[:max_members]
+                        ],
+                    }
+                    for dim in meta.dimensions
+                ],
+            }
 
         @self.mcp.tool(
             name="query_statcan_vector",
@@ -107,12 +205,32 @@ class CanDataServer:
             try:
                 language: Language = parse_language(lang)
             except ValueError as exc:
-                return {"error": str(exc)}
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "INVALID_LANGUAGE",
+                    "message": str(exc),
+                }
             clean_vid = re.sub(r"^v", "", vector_id.strip(), flags=re.IGNORECASE)
             fetch_n = max(limit * 4, 100) if (start_date or end_date) else max(limit, 12)
-            results = await self.statcan_client.get_data_from_vectors([clean_vid], latest_n=fetch_n)
+            try:
+                results = await self.statcan_client.get_data_from_vectors(
+                    [clean_vid], latest_n=fetch_n
+                )
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "STATCAN_ERROR",
+                    "message": str(exc),
+                }
             if not results:
-                return {"error": f"No data found for vector ID {vector_id}"}
+                return {
+                    "error": f"No data found for vector ID {vector_id}",
+                    "isError": True,
+                    "error_code": "NOT_FOUND",
+                    "message": f"No data found for vector ID {vector_id}",
+                }
             return self.engine.slice_statcan(
                 results[0],
                 start_date=start_date,
@@ -148,13 +266,46 @@ class CanDataServer:
             try:
                 language: Language = parse_language(lang)
             except ValueError as exc:
-                return {"error": str(exc)}
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "INVALID_LANGUAGE",
+                    "message": str(exc),
+                }
             fetch_n = max(limit * 4, 100) if (start_date or end_date) else max(limit, 12)
-            result = await self.statcan_client.get_data_from_cube(
-                product_id=table_id,
-                coordinate=coordinate,
-                latest_n=fetch_n,
-            )
+            try:
+                result = await self.statcan_client.get_data_from_cube(
+                    product_id=table_id,
+                    coordinate=coordinate,
+                    latest_n=fetch_n,
+                )
+            except StatCanAmbiguousMemberError as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "AMBIGUOUS_MEMBER",
+                    "message": str(exc),
+                    "details": {
+                        "member_name": exc.member_name,
+                        "dimension_position": exc.dimension_position,
+                        "dimension_name": exc.dimension_name,
+                        "product_id": exc.product_id,
+                        "candidate_ids": list(exc.candidate_ids),
+                    },
+                    "troubleshooting": (
+                        "Multiple dimension members match the requested name. "
+                        "Disambiguate by specifying the exact member ID or coordinate, "
+                        "or escalate to Human-in-the-Loop review."
+                    ),
+                }
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "STATCAN_ERROR",
+                    "message": str(exc),
+                }
+
             return self.engine.slice_statcan(
                 result,
                 start_date=start_date,
@@ -193,18 +344,31 @@ class CanDataServer:
             try:
                 language: Language = parse_language(lang)
             except ValueError as exc:
-                return {"error": str(exc)}
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "INVALID_LANGUAGE",
+                    "message": str(exc),
+                }
             clean_name = series_name.strip()
             recent: int | None = None
-            if start_date or end_date:
-                result = await self.valet_client.get_observations(
-                    clean_name,
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-            else:
-                recent = max(limit * 2, 24)
-                result = await self.valet_client.get_observations(clean_name, recent=recent)
+            try:
+                if start_date or end_date:
+                    result = await self.valet_client.get_observations(
+                        clean_name,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                else:
+                    recent = max(limit * 2, 24)
+                    result = await self.valet_client.get_observations(clean_name, recent=recent)
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "VALET_ERROR",
+                    "message": str(exc),
+                }
 
             return self.engine.slice_valet(
                 result,
@@ -237,16 +401,29 @@ class CanDataServer:
             try:
                 language: Language = parse_language(lang)
             except ValueError as exc:
-                return {"error": str(exc)}
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "INVALID_LANGUAGE",
+                    "message": str(exc),
+                }
             recent: int | None = None
-            if start_date or end_date:
-                result = await self.valet_client.get_policy_rate(
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-            else:
-                recent = max(limit * 2, 20)
-                result = await self.valet_client.get_policy_rate(recent=recent)
+            try:
+                if start_date or end_date:
+                    result = await self.valet_client.get_policy_rate(
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                else:
+                    recent = max(limit * 2, 20)
+                    result = await self.valet_client.get_policy_rate(recent=recent)
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "VALET_ERROR",
+                    "message": str(exc),
+                }
 
             return self.engine.slice_valet(
                 result,
@@ -281,17 +458,30 @@ class CanDataServer:
             try:
                 language: Language = parse_language(lang)
             except ValueError as exc:
-                return {"error": str(exc)}
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "INVALID_LANGUAGE",
+                    "message": str(exc),
+                }
             recent: int | None = None
-            if start_date or end_date:
-                result = await self.valet_client.get_cpi(
-                    measure=measure,
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-            else:
-                recent = max(limit * 2, 24)
-                result = await self.valet_client.get_cpi(measure=measure, recent=recent)
+            try:
+                if start_date or end_date:
+                    result = await self.valet_client.get_cpi(
+                        measure=measure,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                else:
+                    recent = max(limit * 2, 24)
+                    result = await self.valet_client.get_cpi(measure=measure, recent=recent)
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "VALET_ERROR",
+                    "message": str(exc),
+                }
 
             return self.engine.slice_valet(
                 result,
@@ -325,7 +515,12 @@ class CanDataServer:
                 clean_vid = re.sub(r"^v", "", series_id.strip(), flags=re.IGNORECASE)
                 results = await self.statcan_client.get_data_from_vectors([clean_vid], latest_n=100)
                 if not results:
-                    return {"error": f"No data found for StatCan vector {series_id}"}
+                    return {
+                        "error": f"No data found for StatCan vector {series_id}",
+                        "isError": True,
+                        "error_code": "NOT_FOUND",
+                        "message": f"No data found for StatCan vector {series_id}",
+                    }
                 target_result = results[0]
                 table = self.engine.table_from_statcan(target_result)
                 envelope = target_result.citation()
@@ -346,12 +541,22 @@ class CanDataServer:
                 source_call = _valet_call(valet_result, start_date=None, end_date=None, recent=100)
                 fetched_count = len(valet_result.observations)
             else:
-                return {"error": f"Unsupported source '{source}'. Choose 'statcan' or 'valet'."}
+                return {
+                    "error": f"Unsupported source '{source}'. Choose 'statcan' or 'valet'.",
+                    "isError": True,
+                    "error_code": "INVALID_SOURCE",
+                    "message": f"Unsupported source '{source}'. Choose 'statcan' or 'valet'.",
+                }
 
             try:
                 results_list = self.engine.execute_analytics(table, sql_query)
             except Exception as e:
-                return {"error": f"SQL execution failed: {e}"}
+                return {
+                    "error": f"SQL execution failed: {e}",
+                    "isError": True,
+                    "error_code": "SQL_ERROR",
+                    "message": f"SQL execution failed: {e}",
+                }
 
             payload: dict[str, Any] = {
                 "source": source,

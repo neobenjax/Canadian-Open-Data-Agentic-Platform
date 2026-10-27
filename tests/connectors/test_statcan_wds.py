@@ -15,7 +15,9 @@ import respx
 
 from candata_mcp.connectors.statcan_wds import (
     DEFAULT_USER_AGENT,
+    STATCAN_LICENCE_URL,
     STATCAN_WDS_BASE_URL,
+    CubeSummary,
     StatCanAmbiguousMemberError,
     StatCanClient,
     StatCanHTTPError,
@@ -380,3 +382,69 @@ async def test_live_statcan_wds_cpi_smoke() -> None:
         assert citation.publisher == "Statistics Canada"
         assert citation.core.table_id == "18-10-0004-01"
         assert citation.enrichment.release_or_revision_date is not None
+
+
+@respx.mock
+async def test_ambiguous_member_error_carries_structured_attributes(statcan: StatCanClient) -> None:
+    ambiguous_meta = [
+        {
+            "status": "SUCCESS",
+            "object": {
+                "productId": 34100133,
+                "cubeTitleEn": "Rental Market Survey",
+                "frequencyCode": 12,
+                "dimension": [
+                    {
+                        "dimensionPositionId": 1,
+                        "dimensionNameEn": "Geography",
+                        "hasUom": False,
+                        "member": [
+                            {"memberId": 100, "memberNameEn": "Kentville", "memberNameFr": None},
+                            {"memberId": 200, "memberNameEn": "Kentville", "memberNameFr": None},
+                        ],
+                    }
+                ],
+            },
+        }
+    ]
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=httpx.Response(200, json=ambiguous_meta, headers={"Date": DATE_HEADER})
+    )
+
+    with pytest.raises(StatCanAmbiguousMemberError) as exc_info:
+        await statcan.resolve_coordinate(34100133, ["Kentville"])
+
+    err = exc_info.value
+    assert err.member_name == "Kentville"
+    assert err.dimension_position == 1
+    assert err.dimension_name == "Geography"
+    assert err.product_id == 34100133
+    assert err.candidate_ids == (100, 200)
+    assert len(err.candidates) == 2
+
+
+@respx.mock
+async def test_search_cubes_returns_compact_summaries(statcan: StatCanClient) -> None:
+    results = await statcan.search_cubes("consumer price index", limit=5)
+    assert len(results) >= 1
+    first = results[0]
+    assert isinstance(first, CubeSummary)
+    assert first.product_id == 18100004
+    assert first.table_id == "18-10-0004-01"
+    assert "Consumer Price Index" in first.title_en
+    assert first.frequency_code == 6
+
+
+@respx.mock
+async def test_statcan_citation_carries_licence_url(statcan: StatCanClient) -> None:
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getDataFromCubePidCoordAndLatestNPeriods").mock(
+        return_value=ok("data_coord_18100004_cpi")
+    )
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=ok("cube_metadata_18100004")
+    )
+
+    result = await statcan.get_data_from_cube("18-10-0004-01", "2.1", latest_n=1)
+    citation = result.citation()
+    assert citation.enrichment.license_url == STATCAN_LICENCE_URL
+    assert citation.enrichment.license_url == "https://www.statcan.gc.ca/en/reference/licence"
