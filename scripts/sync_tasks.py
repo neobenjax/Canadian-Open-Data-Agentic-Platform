@@ -24,6 +24,8 @@ if sys.stderr and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 ENV_FILE = os.path.join(ROOT_DIR, ".env")
 ENV_EXAMPLE_FILE = os.path.join(ROOT_DIR, ".env.example")
 TASKS_FILE = os.path.join(ROOT_DIR, "TASKS.md")
@@ -233,6 +235,8 @@ def update_task_state_in_file(issue_key: str, new_status: str, filepath: str = T
     """
     Update checkbox and status tag for an issue in TASKS.md.
     Statuses supported: 'TODO', 'IN PROGRESS', 'IN REVIEW', 'DONE'
+    Both 'DONE' and 'IN REVIEW' mark the checkbox as completed (- [x]) to ensure
+    that feature PR branches bundle task completion before review and merge.
     """
     if not os.path.exists(filepath):
         return False
@@ -241,7 +245,7 @@ def update_task_state_in_file(issue_key: str, new_status: str, filepath: str = T
         content = f.read()
 
     status_upper = new_status.upper()
-    is_done = status_upper == "DONE"
+    is_done = status_upper in ["DONE", "IN REVIEW"]
     check_char = "x" if is_done else " "
 
     # Matches: - [ ] **CAN-01...:** [STATUS]
@@ -254,7 +258,7 @@ def update_task_state_in_file(issue_key: str, new_status: str, filepath: str = T
         print(f"Task {issue_key} not found in {filepath}.", file=sys.stderr)
         return False
 
-    status_tag = f"[{status_upper}] " if status_upper not in ["TODO", "DONE"] else ""
+    status_tag = f"[{status_upper}] " if status_upper not in ["TODO", "DONE", "IN REVIEW"] else ""
     replacement = rf"- [{check_char}]\2 {status_tag}"
 
     new_content = pattern.sub(replacement, content)
@@ -263,6 +267,19 @@ def update_task_state_in_file(issue_key: str, new_status: str, filepath: str = T
 
     print(f"Updated {issue_key} in TASKS.md -> [{check_char}] {status_upper}")
     return True
+
+
+def is_task_checked(issue_key: str, filepath: str = TASKS_FILE) -> bool:
+    """Check if task is marked complete (- [x]) in TASKS.md."""
+    if not os.path.exists(filepath):
+        return False
+    pattern = re.compile(
+        rf"^-\s+\[([xX])\][ \t]+\*\*{re.escape(issue_key)}(?:[ \t]*\([^)]+\))?:\*\*",
+        re.MULTILINE,
+    )
+    with open(filepath, "r", encoding="utf-8") as f:
+        tasks_content = f.read()
+    return bool(pattern.search(tasks_content))
 
 
 # ==============================================================================
@@ -1052,6 +1069,25 @@ def create_github_pr_for_task(
         print(f"Error: Task {issue_key} not found in TASKS.md.", file=sys.stderr)
         return
 
+    # --------------------------------------------------------------------------
+    # Enforce Bundled Task Completion Checkbox Guardrail (Guardrail 25):
+    # Feature PR branches must bundle their task completion checkbox (- [x])
+    # directly inside TASKS.md within the feature branch before opening a PR.
+    # --------------------------------------------------------------------------
+    if not is_task_checked(task["key"]):
+        print(f"🔧 Guardrail 25: Auto-checking {task['key']} in TASKS.md to bundle completion into feature PR branch...")
+        update_task_state_in_file(task["key"], "DONE")
+        try:
+            subprocess.run(["git", "add", "TASKS.md"], check=True, capture_output=True)
+            commit_msg = f"[{task['key']}] chore: check off completed task in TASKS.md"
+            subprocess.run(["git", "commit", "-m", commit_msg], check=True, capture_output=True)
+            print(f"✅ Committed bundled task completion: {commit_msg}")
+            if branch and branch not in ("main", "master"):
+                print(f"🚀 Pushing updated branch '{branch}' to origin...")
+                subprocess.run(["git", "push", "origin", branch], check=True, capture_output=True)
+        except Exception as e:
+            print(f"Notice during auto-commit of TASKS.md: {e}", file=sys.stderr)
+
     title = f"[{task['key']}] feat: {task['description']}"
 
     # Auto-resolve native Linear identifier (e.g. BEN-42) to enable Linear GitHub auto-closing
@@ -1305,6 +1341,8 @@ def main():
     parser.add_argument("--organize-projects", action="store_true", help="Organize parent project, lead, and milestone sub-projects")
     parser.add_argument("--reconcile-git", action="store_true", help="Reconcile GitHub merged PRs (CAN-00) and active PRs (CAN-02) on Linear")
     parser.add_argument("--create-pr", type=str, metavar="KEY", help="Create GitHub Pull Request and assign triangular reviewer automatically")
+    parser.add_argument("--verify-pr-ready", type=str, nargs="?", const="", metavar="KEY", help="Verify that active branch or specified task bundles TASKS.md completion")
+    parser.add_argument("--install-hooks", action="store_true", help="Install git pre-push hook for pre-PR task verification")
     parser.add_argument("--reviewer", type=str, help="GitHub username(s) to assign as reviewer(s), comma-separated")
     parser.add_argument("--milestone", type=int, help="GitHub milestone number to attach to PR")
     parser.add_argument("--labels", type=str, help="Comma-separated labels to attach to PR")
@@ -1336,6 +1374,17 @@ def main():
     if args.reconcile_git:
         reconcile_git_linear_tasks(api_key=args.api_key)
         return
+
+    if args.install_hooks:
+        from scripts.verify_pr_ready import install_pre_push_hook
+        install_pre_push_hook()
+        return
+
+    if args.verify_pr_ready is not None:
+        from scripts.verify_pr_ready import verify_pr_ready
+        t_key = args.verify_pr_ready.upper() if args.verify_pr_ready else None
+        code = verify_pr_ready(task_key=t_key)
+        sys.exit(code)
 
     if args.create_pr:
         lbl_list = [l.strip() for l in args.labels.split(",") if l.strip()] if args.labels else None
