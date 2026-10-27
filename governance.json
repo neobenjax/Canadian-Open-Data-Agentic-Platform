@@ -1,0 +1,63 @@
+{
+  "project": {
+    "name": "Canadian-Open-Data-Agentic-Platform",
+    "repo": "neobenjax/Canadian-Open-Data-Agentic-Platform",
+    "task_prefix": "CAN",
+    "linear_team_prefix": "BEN",
+    "tasks_file": "TASKS.md"
+  },
+  "reviewers": {
+    "triangular_matrix": {
+      "neobenjax": "samiromer2",
+      "samiromer2": "yassirtmk",
+      "yassirtmk": "neobenjax"
+    },
+    "default_reviewer": "samiromer2"
+  },
+  "team_members": {
+    "neobenjax": {
+      "name": "Benjamin Sanchez Zebadua",
+      "role": "Solutions Architect & Lead"
+    },
+    "samiromer2": {
+      "name": "Samir Ibrahim",
+      "role": "Data Visualization & Agent Evals Lead"
+    },
+    "yassirtmk": {
+      "name": "Yassir Tagelsir Khougali",
+      "role": "Technology Delivery & Transformation Lead"
+    }
+  },
+  "milestones": {
+    "ranges": [
+      { "index": 0, "name": "Milestone 0", "task_ids": [0, 1, 2, 3, 5, 8] },
+      { "index": 1, "name": "Milestone 1", "task_ids": [11, 12, 13, 14, 15, 16] },
+      { "index": 2, "name": "Milestone 2", "task_ids": [17, 21, 22, 23, 24, 25, 26] },
+      { "index": 3, "name": "Milestone 3", "task_ids": [31, 32, 33, 34, 35] },
+      { "index": 4, "name": "Milestone 4", "task_ids": [41, 42, 43, 44, 45] },
+      { "index": 5, "name": "Milestone 5", "task_ids": [51, 52, 53, 54, 55] },
+      { "index": 6, "name": "Milestone 6", "task_ids": [61, 62, 63, 64] }
+    ]
+  },
+  "labels": {
+    "area_keywords": {
+      "area:connectors": ["connector", "statcan", "wds", "valet", "boc", "ckan"],
+      "area:fastmcp-engine": ["duckdb", "arrow", "fastmcp", "slicing", "engine"],
+      "area:orchestration": ["langgraph", "supervisor", "analyst", "verifier", "orchestrat", "state"],
+      "area:evals-benchmarks": ["benchmark", "eval", "deepeval", "ground_truth"],
+      "area:governance": ["governance", "risk", "checklist", "guardrail", "workflow", "linear", "hook", "ci"]
+    },
+    "default_area": "area:governance"
+  },
+  "commit_linter": {
+    "allowed_types": ["feat", "fix", "docs", "chore", "test", "refactor", "ci", "style", "perf"],
+    "allowed_prefixes": ["CAN", "TECH-DEBT"],
+    "procedural_keywords_blocklist": [
+      "address review",
+      "pr feedback",
+      "address comment",
+      "fix review",
+      "updates per review"
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+name: PR Triage & Governance Automation
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  triage:
+    name: Auto-Assign, Milestone & Tri-Tier Labels
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Deterministic PR Triage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/pr_triage.py \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --branch "${{ github.head_ref }}" \
+            --author "${{ github.event.pull_request.user.login }}" \
+            --title "${{ github.event.pull_request.title }}" \
+            --body "${{ github.event.pull_request.body }}" \
+            --repo "${{ github.repository }}"

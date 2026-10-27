@@ -1,32 +1,34 @@
-## 🎯 Linear Issue Reference
-Closes CAN-
+## 🎯 Linear Issue References (Dual-Key Auto-Closing)
+<!-- Both keys required for Linear GitHub auto-closing integration. PR Triage action validates this automatically. -->
+Closes BEN-<!-- Native Linear issue key, e.g. 45 -->
+Closes CAN-<!-- Canonical sprint task key, e.g. 17 -->
 
 ---
 
 ## 🛠️ Summary of Changes
-- **Component Modified:** [ ] `/packages/candata-mcp` | [ ] `/packages/agent-orchestrator` | [ ] `/apps/docs-portal` | [ ] `/collaboration`
+- **Task Key:** `CAN-`
+- **Component Modified:** [ ] `/packages/candata-mcp` | [ ] `/packages/agent-orchestrator` | [ ] `/apps/docs-portal` | [ ] `/scripts` | [ ] `/collaboration`
 - **Description:** 
 
 ---
 
-## 🧪 Evaluation & Test Proofs
-- [ ] Unit & Integration Tests pass (`pytest`)
-- [ ] Type Checking passes with zero errors (`pyright`)
-- [ ] Code formatting & linting clean (`ruff check .`)
-- [ ] DeepEval / Ground-Truth Benchmark run:
-  - Baseline Faithfulness Score: ___ %
-  - PR Faithfulness Score: ___ %
-  - Hallucination Delta: ___ %
+## 🧪 Automated CI & Evaluation Checks
+<!-- The CI Pipeline (.github/workflows/ci.yml) validates all items below automatically before merge -->
+- [ ] Code formatting & linting clean (`uv run ruff check .` & `ruff format --check .`)
+- [ ] Strict type checking passes (`uv run pyright`)
+- [ ] Unit & integration test suite passes (`uv run pytest -m 'not live'`)
+- [ ] Task checkbox verified in `TASKS.md` (`python scripts/verify_pr_ready.py`)
 
 ---
 
-## 🛡️ Security & Risk Review (GRC Checklist)
-- [ ] No hardcoded secrets, private tokens, or unmasked credentials
-- [ ] Public API rate limiting and backoff handled cleanly
-- [ ] Data provenance & table citation fields verified (`table_id`, `reference_period`)
-- [ ] Docker / dependency vulnerability scan clean
+## 🛡️ Security & Provenance Checklist
+- [ ] No hardcoded API keys, tokens, or unmasked credentials
+- [ ] Rate limits, exponential backoff, and maintenance windows handled
+- [ ] Two-Tier Citation Envelope maintained (`vector_id`, `reference_period`, `release_time`)
 
 ---
 
-## 👥 Peer Review Approval
-- **Reviewer:** @
+## 👥 Triangular Peer Review Assignment
+<!-- Assigned automatically by PR Triage Action based on author: -->
+<!-- Benjamin -> @samiromer2 | Samir -> @yassirtmk | Yassir -> @neobenjax -->
+- **Assigned Reviewer:** @

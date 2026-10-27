@@ -12,20 +12,27 @@ Enforces the Bundled Task Completion Checkbox Guardrail:
 """
 
 import argparse
+import io
 import os
 import re
 import subprocess
 import sys
 
-if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+if isinstance(sys.stdout, io.TextIOWrapper):
     sys.stdout.reconfigure(encoding="utf-8")
-if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+if isinstance(sys.stderr, io.TextIOWrapper):
     sys.stderr.reconfigure(encoding="utf-8")
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TASKS_FILE = os.path.join(ROOT_DIR, "TASKS.md")
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from scripts.governance_config import get_task_prefix, get_tasks_file  # noqa: E402
+
+TASKS_FILE = get_tasks_file()
 HOOKS_DIR = os.path.join(ROOT_DIR, ".git", "hooks")
 PRE_PUSH_HOOK = os.path.join(HOOKS_DIR, "pre-push")
+COMMIT_MSG_HOOK = os.path.join(HOOKS_DIR, "commit-msg")
 
 # Non-task branch prefixes and exact branch names that bypass verification
 BYPASS_BRANCH_PREFIXES = ("chore/", "docs/", "fix/", "hotfix/", "release/", "ci/", "infra/")
@@ -48,11 +55,12 @@ def get_current_git_branch() -> str:
 def extract_task_key(branch_or_identifier: str) -> str | None:
     """
     Extract canonical task key (e.g. 'CAN-08', 'CAN-17') from a branch name or identifier.
-    Returns None if no task key is found.
+    Configured dynamically via governance.json.
     """
     if not branch_or_identifier:
         return None
-    match = re.search(r"\bCAN-\d+\b", branch_or_identifier, re.IGNORECASE)
+    prefix = get_task_prefix()
+    match = re.search(rf"\b{re.escape(prefix)}-\d+\b", branch_or_identifier, re.IGNORECASE)
     if match:
         return match.group(0).upper()
     return None
@@ -190,6 +198,63 @@ def install_pre_push_hook(target_file: str | None = None) -> bool:
         return False
 
 
+def install_commit_msg_hook(target_file: str | None = None) -> bool:
+    """Install or update git commit-msg hook to enforce conventional commit messages."""
+    hook_path = target_file or COMMIT_MSG_HOOK
+    hook_dir = os.path.dirname(hook_path)
+    if not os.path.exists(hook_dir):
+        try:
+            os.makedirs(hook_dir, exist_ok=True)
+        except Exception as e:
+            print(f"Error creating hooks directory {hook_dir}: {e}", file=sys.stderr)
+            return False
+
+    hook_content = (
+        "#!/bin/sh\n"
+        "# CanData-MCP Commit-Msg Hook: Enforce Conventional Commit Format\n"
+        "\n"
+        "if command -v py >/dev/null 2>&1; then\n"
+        '    PY_CMD="py"\n'
+        "elif command -v python >/dev/null 2>&1 && python -c '' >/dev/null 2>&1; then\n"
+        '    PY_CMD="python"\n'
+        "elif command -v python3 >/dev/null 2>&1 && python3 -c '' >/dev/null 2>&1; then\n"
+        '    PY_CMD="python3"\n'
+        "else\n"
+        "    exit 0\n"
+        "fi\n"
+        "\n"
+        '$PY_CMD scripts/validate_commit_msg.py "$1"\n'
+        "EXIT_CODE=$?\n"
+        "if [ $EXIT_CODE -ne 0 ]; then\n"
+        "    exit 1\n"
+        "fi\n"
+        "exit 0\n"
+    )
+
+    try:
+        with open(hook_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(hook_content)
+
+        try:
+            current_mode = os.stat(hook_path).st_mode
+            os.chmod(hook_path, current_mode | 0o755)
+        except Exception:
+            pass
+
+        print(f"✅ Commit-msg hook successfully installed at: {hook_path}")
+        return True
+    except Exception as e:
+        print(f"Error installing commit-msg hook: {e}", file=sys.stderr)
+        return False
+
+
+def install_all_git_hooks() -> bool:
+    """Install all CanData deterministic git hooks (pre-push and commit-msg)."""
+    h1 = install_pre_push_hook()
+    h2 = install_commit_msg_hook()
+    return h1 and h2
+
+
 def verify_pr_ready(
     task_key: str | None = None,
     branch: str | None = None,
@@ -324,7 +389,7 @@ def main():
     args = parser.parse_args()
 
     if args.install_hook:
-        success = install_pre_push_hook()
+        success = install_all_git_hooks()
         sys.exit(0 if success else 1)
 
     exit_code = verify_pr_ready(

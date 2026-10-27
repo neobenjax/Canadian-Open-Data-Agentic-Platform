@@ -37,13 +37,11 @@ This file defines the mandatory operating rules, developer guardrails, and perso
 - **Demos & Presentations:** Use [frontend-slides](https://github.com/zarazhangrui/frontend-slides) to create zero-dependency fixed 16:9 interactive slides for weekly demos.
 
 ### 4. Mandatory Pre-Flight Verification
-Before suggesting to push or open a PR, verify:
+Before pushing or opening a PR, run the unified fast verifier:
 ```bash
-uv run ruff check .
-uv run ruff format --check .
-uv run pyright
-uv run pytest
+python scripts/verify.py
 ```
+*(Runs Ruff linting, Ruff format-check, Pyright static analysis, and Pytest in parallel with concise output).*
 
 ### 5. Monorepo-to-MCP-Distribution Architecture Guardrail
 - **The Monorepo is the Single Source of Truth:**
@@ -77,7 +75,7 @@ uv run pytest
 - Never perform raw string comparisons on variable-length dates, which silently excludes observations (e.g. `"2025-01-01" <= "2025"` evaluates to False).
 
 ### 9. Mandatory PR Author Assignee Rule (Housekeeping)
-- Every PR opened or managed by an agent MUST set the PR author as the primary Assignee (`neobenjax` for Benjamin, `samiromer2` for Samir, `yassirtmk` for Yassir). `scripts/sync_tasks.py --create-pr` automatically enforces this.
+- Every PR opened in this repository sets the PR author as the primary Assignee (`neobenjax`, `samiromer2`, or `yassirtmk`). Automated server-side by `.github/workflows/pr-triage.yml` and `scripts/sync_tasks.py`.
 
 ### 10. Headless Git & Subprocess Execution Guardrail (Windows Non-Interactive)
 - In automated agent sessions and script runners, set `GIT_TERMINAL_PROMPT=0` to prevent git subcommands from hanging indefinitely on Windows credential or passphrase prompts.
@@ -147,15 +145,8 @@ uv run pytest
 - Capture newly identified failure modes, reviewer expectations, and operational invariants into `AGENTS.md` and `.cursorrules` to ensure continuous cross-session agent alignment.
 
 ### 23. Mandatory GitHub PR Milestone & Label Taxonomy
-- Every Pull Request opened in this repository MUST have:
-  1. **Primary Assignee:** The PR author (`neobenjax`, `samiromer2`, or `yassirtmk`).
-  2. **Designated Triangular Reviewer:** Requested reviewer per the triangular peer review matrix.
-  3. **Milestone Attached:** Directly attached to the corresponding sprint milestone (`Milestone 0` through `Milestone 6`).
-  4. **Tri-Tier Label Taxonomy:** At least one label from each mandatory category:
-     - **Milestone Label:** `milestone:m0` to `milestone:m6`
-     - **Semantic Type Label:** `type:feat`, `type:fix`, `type:docs`, `type:chore`, `type:eval`, or `type:security`
-     - **Domain Area Label:** `area:connectors`, `area:fastmcp-engine`, `area:orchestration`, `area:evals-benchmarks`, or `area:governance`
-- `python scripts/sync_tasks.py --create-pr CAN-XXX` automatically resolves and attaches the milestone, labels, author, and reviewer.
+- Every Pull Request automatically receives its Author Assignee, Triangular Reviewer, Sprint Milestone, and Tri-Tier labels (`milestone:mX`, `type:*`, `area:*`).
+- Automated deterministically server-side by `.github/workflows/pr-triage.yml` upon PR open; zero manual or prompt labeling required.
 
 ### 24. Follow-Up Issue & Backlog Governance (Anti-Orphan Invariant)
 - When any AI agent identifies deferred architectural optimizations, technical debt items, or follow-up tasks and creates issues in Linear:
@@ -176,90 +167,30 @@ uv run pytest
 
 ---
 
-## 🚀 Automated Feature Execution Protocol (from CONTRIBUTING.md)
+## 🚀 Deterministic Feature Execution Protocol
 
-Whenever a developer says *"Work on [CAN-XXX]"*, *"I am starting task [CAN-XXX]"*, or asks you to implement a feature:
-You MUST execute the exact workflow defined in [`CONTRIBUTING.md`](CONTRIBUTING.md) autonomously:
-
-1. **Check & Create Feature Branch:**
-   Check current branch. If on `main`, pull latest `origin/main` and branch:
+Whenever implementing a feature task (`CAN-XXX`):
+1. **Branch:** `git checkout -b feat/<issue-id>-<short-description>` (off latest `main`).
+2. **Implement & Verify:** Code cleanly and verify in one step: `python scripts/verify.py`.
+3. **Bundle Task & Commit:**
    ```bash
-   git checkout main && git pull origin main
-   git checkout -b feat/<issue-id>-<short-description>
-   ```
-   **NEVER write code directly on `main`.**
-
-2. **Mark In-Progress:**
-   Transition the task on Linear or execute:
-   ```bash
-   python scripts/sync_tasks.py --mark-in-progress CAN-XXX
-   ```
-
-3. **Execute Implementation:**
-   Implement requested changes cleanly following modern 2026 standards.
-
-4. **Run Pre-Flight Verification:**
-   ```bash
-   uv run ruff check .
-   uv run pytest
-   ```
-
-5. **Bundle Task Completion in TASKS.md & Commit:**
-   Mark task complete in `TASKS.md` (`- [x] **CAN-XXX:**`) so completion is bundled directly into the feature branch commit history:
-   ```bash
-   python scripts/sync_tasks.py --mark-done CAN-XXX  # or update TASKS.md to - [x]
+   python scripts/sync_tasks.py --mark-done CAN-XXX
    git add .
    git commit -m "[CAN-XXX] feat: description of change"
    ```
-
-6. **Verify Pre-PR Readiness & Push:**
-   Verify bundled checkbox and push feature branch:
+   *(Validated deterministically by `.git/hooks/commit-msg`)*.
+4. **Push:** `git push -u origin feat/<issue-id>-<short-description>`.
+   *(Validated deterministically by `.git/hooks/pre-push`)*.
+5. **Open PR:**
    ```bash
-   python scripts/verify_pr_ready.py
-   git push -u origin feat/<issue-id>-<short-description>
+   python scripts/sync_tasks.py --create-pr CAN-XXX
    ```
-
-7. **Mark In-Review on Linear:**
-   Transition task state on Linear & TASKS.md:
+   *(`.github/workflows/pr-triage.yml` automatically assigns author, milestone, tri-tier labels, and triangular reviewer)*.
+6. **Post-Merge Cleanup:**
    ```bash
-   python scripts/sync_tasks.py --mark-in-review CAN-XXX
+   git checkout main && git pull origin main
+   git branch -d feat/<issue-id>-<short-description>
    ```
-
-8. **Proactive Pull Request Offer & HITL Reviewer Validation (CRITICAL FOR ALL AGENTS):**
-   Immediately after pushing changes and marking the task in-review, the AGENT MUST proactively ask the human developer:
-   > *"I have pushed your changes to `feat/<issue-id>-<short-description>` and marked CAN-XXX in review. Would you like me to automatically create and send the Pull Request for you, or would you prefer to open it manually on GitHub?"*
-
-   - **Path A: Developer chooses Automated PR Creation (Agent / CLI):**
-     Before sending the PR or assigning reviewers, the AGENT MUST execute **Human-in-the-Loop (HITL) Reviewer Validation**:
-     > *"The default triangular reviewer for your role is **<Assigned Reviewer>** (`@<github-handle>`). Would you like to proceed with this reviewer, or would you like to assign a different reviewer or add more reviewers?"*
-     
-     **Triangular Reviewer Defaults:**
-     - **Benjamin's PRs** $\rightarrow$ Default Reviewer: **Samir Omer** (`@samiromer2`)
-     - **Samir's PRs** $\rightarrow$ Default Reviewer: **Yassir Khougali** (`@yassirtmk`)
-     - **Yassir's PRs** $\rightarrow$ Default Reviewer: **Benjamin Sanchez** (`@neobenjax`)
-
-     Once confirmed/modified by the developer, the agent can create the PR using GitHub API / GitHub MCP or by running:
-     ```bash
-     python scripts/sync_tasks.py --create-pr CAN-XXX --reviewer <chosen-handle>
-     ```
-     The agent then provides the created PR link and reminds the developer that 1 peer approval is required before merge.
-
-   - **Path B: Developer chooses Manual PR Creation:**
-     Provide the developer with the pre-formatted PR details so they can copy-paste them to GitHub:
-     - PR Title: `[CAN-XXX] feat: description of change`
-     - PR Body containing `Closes BEN-XX` and `Closes CAN-XXX` (where `BEN-XX` is the native Linear issue key)
-     - Reviewer Assignment: `@samiromer2`, `@yassirtmk`, or `@neobenjax`
-     - Compare & Pull Request URL: `https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform/pull/new/feat/<issue-id>-<short-description>`
-
-9. **Task Completion & Post-Merge Cleanup:**
-   After the PR is approved and merged on GitHub:
-   - Update `TASKS.md` checkbox and Linear status: `python scripts/sync_tasks.py --mark-done CAN-XXX`
-   - Purge the feature branch:
-     ```bash
-     git checkout main && git pull origin main
-     git branch -d feat/<issue-id>-<short-description>
-     git push origin --delete feat/<issue-id>-<short-description>
-     ```
 
 ---
 
