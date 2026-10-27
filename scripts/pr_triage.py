@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.request
 
 # Ensure repository root is on sys.path
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -182,44 +183,96 @@ def run_pr_triage(
         return result
 
     github_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if not github_token:
-        print("Notice: GITHUB_TOKEN not present. Trying 'gh' CLI...")
-
-    # 1. Update PR metadata via gh CLI
-    try:
-        edit_args = ["gh", "pr", "edit", str(pr_number), "--repo", effective_repo]
+    if github_token:
+        headers = {
+            "Authorization": f"Bearer {github_token}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "CanData-Triage/1.0",
+            "Content-Type": "application/json",
+        }
+        patch_payload: dict[str, object] = {}
         if assignee:
-            edit_args.extend(["--add-assignee", assignee])
+            patch_payload["assignees"] = [assignee]
         if milestone_num:
-            edit_args.extend(["--milestone", str(milestone_num)])
-        if labels:
-            for lbl in labels:
-                edit_args.extend(["--add-label", lbl])
+            patch_payload["milestone"] = milestone_num
         if closing_lines:
-            new_body = (body.strip() + "\n\n" + "\n".join(closing_lines)).strip()
-            edit_args.extend(["--body", new_body])
+            patch_payload["body"] = (body.strip() + "\n\n" + "\n".join(closing_lines)).strip()
 
-        subprocess.run(edit_args, check=True, capture_output=True)
-        print("✨ Updated PR metadata (assignee, milestone, labels, body) via gh CLI.")
-    except Exception as e:
-        print(f"Notice using gh pr edit: {e}", file=sys.stderr)
+        if patch_payload:
+            try:
+                patch_url = f"https://api.github.com/repos/{effective_repo}/issues/{pr_number}"
+                req = urllib.request.Request(
+                    patch_url,
+                    data=json.dumps(patch_payload).encode("utf-8"),
+                    headers=headers,
+                    method="PATCH",
+                )
+                urllib.request.urlopen(req)
+                print("✨ Updated PR metadata (assignee, milestone, body) via GitHub REST API.")
+            except Exception as e:
+                print(f"Notice updating PR metadata via REST API: {e}", file=sys.stderr)
 
-    # 2. Request Reviewer via gh api
-    if reviewer:
+        if labels:
+            try:
+                lbl_url = f"https://api.github.com/repos/{effective_repo}/issues/{pr_number}/labels"
+                req = urllib.request.Request(
+                    lbl_url,
+                    data=json.dumps({"labels": labels}).encode("utf-8"),
+                    headers=headers,
+                    method="POST",
+                )
+                urllib.request.urlopen(req)
+                print("✨ Applied PR labels via GitHub REST API.")
+            except Exception as e:
+                print(f"Notice applying labels via REST API: {e}", file=sys.stderr)
+
+        if reviewer:
+            try:
+                rev_url = f"https://api.github.com/repos/{effective_repo}/pulls/{pr_number}/requested_reviewers"
+                req = urllib.request.Request(
+                    rev_url,
+                    data=json.dumps({"reviewers": [reviewer]}).encode("utf-8"),
+                    headers=headers,
+                    method="POST",
+                )
+                urllib.request.urlopen(req)
+                print(f"✅ Requested triangular review from @{reviewer} via GitHub REST API.")
+            except Exception as e:
+                print(f"Notice requesting reviewer via REST API: {e}", file=sys.stderr)
+    else:
+        print("Notice: GITHUB_TOKEN not present. Falling back to 'gh' CLI...")
         try:
-            rev_cmd = [
-                "gh",
-                "api",
-                f"repos/{effective_repo}/pulls/{pr_number}/requested_reviewers",
-                "--method",
-                "POST",
-                "-f",
-                f"reviewers[]={reviewer}",
-            ]
-            subprocess.run(rev_cmd, check=True, capture_output=True)
-            print(f"✅ Requested triangular review from @{reviewer}.")
+            edit_args = ["gh", "pr", "edit", str(pr_number), "--repo", effective_repo]
+            if assignee:
+                edit_args.extend(["--add-assignee", assignee])
+            if milestone_num:
+                edit_args.extend(["--milestone", str(milestone_num)])
+            if labels:
+                for lbl in labels:
+                    edit_args.extend(["--add-label", lbl])
+            if closing_lines:
+                new_body = (body.strip() + "\n\n" + "\n".join(closing_lines)).strip()
+                edit_args.extend(["--body", new_body])
+            subprocess.run(edit_args, check=True, capture_output=True)
+            print("✨ Updated PR metadata via gh CLI.")
         except Exception as e:
-            print(f"Notice requesting reviewer via gh api: {e}", file=sys.stderr)
+            print(f"Notice using gh pr edit: {e}", file=sys.stderr)
+
+        if reviewer:
+            try:
+                rev_cmd = [
+                    "gh",
+                    "api",
+                    f"repos/{effective_repo}/pulls/{pr_number}/requested_reviewers",
+                    "--method",
+                    "POST",
+                    "-f",
+                    f"reviewers[]={reviewer}",
+                ]
+                subprocess.run(rev_cmd, check=True, capture_output=True)
+                print(f"✅ Requested triangular review from @{reviewer}.")
+            except Exception as e:
+                print(f"Notice requesting reviewer via gh api: {e}", file=sys.stderr)
 
     print("=" * 74 + "\n")
     return result
