@@ -164,6 +164,16 @@ uv run pytest
   3. **Sprint State & Tentative Due Date Discipline:** If an issue is scheduled for the active sprint, set its state to `Todo` (never leave forgotten in `Backlog`) and assign a tentative `dueDate` matching the sprint milestone end date.
   4. **Bidirectional TASKS.md Synchronization:** New follow-up tasks MUST be immediately mirrored in `TASKS.md` under the target milestone with their canonical key (e.g. `CAN-17`) so that `scripts/sync_tasks.py` tracks them locally and across automated workflows.
 
+### 25. Bundled Task Completion Checkbox Guardrail (Zero Isolated TASKS.md PRs)
+- When developing a feature task (`feat/CAN-XX-...`):
+  1. **Mandatory In-Branch Checkbox:** The feature branch MUST bundle its task completion checkbox (`- [x] **CAN-XX:**`) directly in `TASKS.md` within the feature branch commit history BEFORE opening a Pull Request.
+  2. **No Isolated Chore PRs:** AI agents must NEVER open a 1-line chore PR to check off a task in `TASKS.md` after the feature PR has merged.
+  3. **Automated Enforcement:**
+     - Pre-PR verification: `python scripts/verify_pr_ready.py` verifies that `TASKS.md` has `- [x]` for the active feature branch task.
+     - Git hook: Install via `python scripts/sync_tasks.py --install-hooks` to prevent pushing uncompleted feature branches.
+     - Self-healing PR creator: `python scripts/sync_tasks.py --create-pr CAN-XX` automatically checks off the task in `TASKS.md`, commits, and pushes if not already bundled.
+     - Non-task branches (`chore/*`, `docs/*`, `main`) pass verification automatically.
+
 ---
 
 ## 🚀 Automated Feature Execution Protocol (from CONTRIBUTING.md)
@@ -194,19 +204,22 @@ You MUST execute the exact workflow defined in [`CONTRIBUTING.md`](CONTRIBUTING.
    uv run pytest
    ```
 
-5. **Linear Conventional Commit:**
-   Stage files and commit formatted with the Linear key:
+5. **Bundle Task Completion in TASKS.md & Commit:**
+   Mark task complete in `TASKS.md` (`- [x] **CAN-XXX:**`) so completion is bundled directly into the feature branch commit history:
    ```bash
+   python scripts/sync_tasks.py --mark-done CAN-XXX  # or update TASKS.md to - [x]
    git add .
    git commit -m "[CAN-XXX] feat: description of change"
    ```
 
-6. **Push Feature Branch:**
+6. **Verify Pre-PR Readiness & Push:**
+   Verify bundled checkbox and push feature branch:
    ```bash
+   python scripts/verify_pr_ready.py
    git push -u origin feat/<issue-id>-<short-description>
    ```
 
-7. **Mark In-Review:**
+7. **Mark In-Review on Linear:**
    Transition task state on Linear & TASKS.md:
    ```bash
    python scripts/sync_tasks.py --mark-in-review CAN-XXX
