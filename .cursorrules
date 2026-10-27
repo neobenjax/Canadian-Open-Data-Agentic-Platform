@@ -5,27 +5,14 @@ You are an expert AI software engineer pair programming on the CanData-MCP & Lan
 ## MANDATORY GIT & BRANCH GUARDRAILS (FROM CONTRIBUTING.MD)
 1. NEVER commit directly to `main`. Branch protection requires all changes to be merged via PR with 1 peer approval.
 2. Whenever asked to work on a task (e.g., "Work on CAN-02"):
-   - Check current branch. If on `main`, pull `origin main` and branch: `git checkout -b feat/<issue-id>-<description>`.
-   - Mark in-progress: `python scripts/sync_tasks.py --mark-in-progress <issue-id>`.
-   - Implement the feature following 2026 modern standards.
-   - Deliverable Documentation: Create/update a linked documentation file in `docs/` or `collaboration/` (e.g., `collaboration/benchmarks/benchmark_questions_draft.md` or `docs/CAN_08_ONBOARDING_AND_ENV_AUTOMATION.md`).
-   - Run verification: `uv run ruff check .` and `uv run pytest`.
-   - Bundle Task Completion Checkbox: Mark task complete in `TASKS.md` (`- [x] **CAN-XXX:**`) via `python scripts/sync_tasks.py --mark-done <issue-id>`.
-   - Commit: `git commit -m "[CAN-XXX] feat: <description>"`.
-   - Verify Pre-PR readiness & push: `python scripts/verify_pr_ready.py` && `git push -u origin feat/<issue-id>-<description>`.
-   - Mark in-review: `python scripts/sync_tasks.py --mark-in-review <issue-id>`.
-   - Proactive PR Prompt & HITL Reviewer Validation (MANDATORY):
-     * Proactively ask developer: "Would you like me to open the Pull Request for you, or do you prefer to open it manually?"
-     * HITL Reviewer Check: Before creating the PR, confirm if developer wants default triangular reviewer:
-       - Benjamin's PRs -> Default: Samir Omer (@samiromer2)
-       - Samir's PRs    -> Default: Yassir Khougali (@yassirtmk)
-       - Yassir's PRs   -> Default: Benjamin Sanchez (@neobenjax)
-     * Auto-Closing Dual Keys: PR description must contain `Closes BEN-XX` (native Linear key) and `Closes <issue-id>` so Linear automatically marks the issue Done upon merge!
-     * If automated: create PR via GitHub API / `python scripts/sync_tasks.py --create-pr <issue-id>`.
-     * If manual: provide PR link, title, body with dual keys, and reviewer handle.
-3. After PR merge:
-   - Mark task done in TASKS.md & Linear: `python scripts/sync_tasks.py --mark-done <issue-id>`.
-   - Purge feature branch: `git checkout main && git pull origin main && git branch -d <branch> && git push origin --delete <branch>`.
+   - Branch: `git checkout -b feat/<issue-id>-<description>`.
+   - Implement & verify: `python scripts/verify.py` (runs ruff, pyright, pytest in 1 command).
+   - Deliverable docs: add/update documentation in `docs/` or `collaboration/`.
+   - Bundle completion & commit: `python scripts/sync_tasks.py --mark-done <issue-id>` then `git commit -m "[CAN-XXX] feat: <desc>"` (validated by `commit-msg` hook).
+   - Push: `git push -u origin feat/<issue-id>-<description>` (validated by `pre-push` hook).
+   - Open PR: `python scripts/sync_tasks.py --create-pr <issue-id>` (PR Triage action auto-labels, attaches milestone, and assigns triangular reviewer).
+3. Post-Merge Cleanup:
+   - `git checkout main && git pull origin main && git branch -d <branch>`.
 4. Non-Implementation Branches: Non-ticket branches (docs, chore) use `docs/<short-description>` or `chore/<short-description>` without ticket prefixes.
 5. Headless Git & Windows Automation: Always run with `GIT_TERMINAL_PROMPT=0` and in-memory environment tokens (`$env:GITHUB_TOKEN`) to prevent interactive credential prompt hangs.
 6. Outcome-Focused Commits: Describe the technical outcome, never procedural phrases (avoid "address review comments" or "fix PR feedback").

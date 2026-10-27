@@ -1,0 +1,51 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, Type Check & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint (Ruff)
+        run: uv run ruff check .
+
+      - name: Format Check (Ruff)
+        run: uv run ruff format --check .
+
+      - name: Type Check (Pyright)
+        run: uv run pyright
+
+      - name: Run Test Suite (Pytest)
+        run: uv run pytest -m 'not live'
+
+      - name: Verify Bundled Task Checkbox (Guardrail 25)
+        if: github.event_name == 'pull_request'
+        run: uv run python scripts/verify_pr_ready.py --branch "${{ github.head_ref }}"

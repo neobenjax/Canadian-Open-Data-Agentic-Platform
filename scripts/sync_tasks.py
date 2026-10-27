@@ -26,6 +26,15 @@ if sys.stderr and hasattr(sys.stderr, "reconfigure"):
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
+
+from scripts.governance_config import (
+    get_repo_name,
+    get_task_prefix,
+    get_linear_team_prefix,
+    get_triangular_reviewer,
+    get_tasks_file,
+)
+
 ENV_FILE = os.path.join(ROOT_DIR, ".env")
 ENV_EXAMPLE_FILE = os.path.join(ROOT_DIR, ".env.example")
 TASKS_FILE = os.path.join(ROOT_DIR, "TASKS.md")
@@ -1029,7 +1038,7 @@ def resolve_github_milestone_and_labels(
 
 def create_github_pr_for_task(
     issue_key: str,
-    repo_name: str = "neobenjax/Canadian-Open-Data-Agentic-Platform",
+    repo_name: Optional[str] = None,
     base_branch: str = "main",
     reviewer: Optional[str] = None,
     non_interactive: bool = False,
@@ -1063,6 +1072,7 @@ def create_github_pr_for_task(
     except Exception:
         branch = ""
 
+    effective_repo = repo_name or get_repo_name()
     parsed = parse_tasks_md()
     task = next((t for t in parsed["tasks"] if t["key"].upper() == issue_key.upper()), None)
     if not task:
@@ -1121,7 +1131,7 @@ def create_github_pr_for_task(
     else:
         default_reviewer = "samiromer2"
 
-    collaborators = get_github_collaborators(repo_name, token)
+    collaborators = get_github_collaborators(effective_repo, token)
 
     # Human-in-the-Loop (HITL) Reviewer Selection
     target_reviewers: List[str] = []
@@ -1178,7 +1188,7 @@ def create_github_pr_for_task(
     }
 
     # Check for existing open PR
-    check_url = f"https://api.github.com/repos/{repo_name}/pulls?head={repo_name.split('/')[0]}:{branch}&state=open"
+    check_url = f"https://api.github.com/repos/{effective_repo}/pulls?head={effective_repo.split('/')[0]}:{branch}&state=open"
     req = urllib.request.Request(check_url, headers=headers)
     existing_prs = []
     try:
@@ -1192,7 +1202,7 @@ def create_github_pr_for_task(
         pr = existing_prs[0]
         print(f"ℹ️ Open Pull Request already exists: #{pr['number']} ({pr['html_url']})")
     else:
-        create_url = f"https://api.github.com/repos/{repo_name}/pulls"
+        create_url = f"https://api.github.com/repos/{effective_repo}/pulls"
         payload = json.dumps({"title": title, "body": body, "head": branch, "base": base_branch}).encode("utf-8")
         req = urllib.request.Request(create_url, data=payload, headers=headers)
         try:
@@ -1205,7 +1215,7 @@ def create_github_pr_for_task(
 
     if pr and target_reviewers:
         pr_num = pr["number"]
-        rev_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_num}/requested_reviewers"
+        rev_url = f"https://api.github.com/repos/{effective_repo}/pulls/{pr_num}/requested_reviewers"
         req = urllib.request.Request(rev_url, data=json.dumps({"reviewers": target_reviewers}).encode("utf-8"), headers=headers)
         try:
             with urllib.request.urlopen(req) as resp:
@@ -1227,7 +1237,7 @@ def create_github_pr_for_task(
             author_handle = "yassirtmk"
 
         if author_handle:
-            assignee_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_num}/assignees"
+            assignee_url = f"https://api.github.com/repos/{effective_repo}/issues/{pr_num}/assignees"
             assignee_req = urllib.request.Request(
                 assignee_url,
                 data=json.dumps({"assignees": [author_handle]}).encode("utf-8"),
@@ -1244,7 +1254,7 @@ def create_github_pr_for_task(
             task, branch, custom_milestone=milestone, custom_labels=labels
         )
         if ms_num:
-            ms_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_num}"
+            ms_url = f"https://api.github.com/repos/{effective_repo}/issues/{pr_num}"
             ms_req = urllib.request.Request(
                 ms_url,
                 data=json.dumps({"milestone": ms_num}).encode("utf-8"),
@@ -1258,7 +1268,7 @@ def create_github_pr_for_task(
                 print(f"Notice attaching milestone: {e}", file=sys.stderr)
 
         if target_labels:
-            lbl_url = f"https://api.github.com/repos/{repo_name}/issues/{pr_num}/labels"
+            lbl_url = f"https://api.github.com/repos/{effective_repo}/issues/{pr_num}/labels"
             lbl_req = urllib.request.Request(
                 lbl_url,
                 data=json.dumps({"labels": target_labels}).encode("utf-8"),
@@ -1376,8 +1386,8 @@ def main():
         return
 
     if args.install_hooks:
-        from scripts.verify_pr_ready import install_pre_push_hook
-        install_pre_push_hook()
+        from scripts.verify_pr_ready import install_all_git_hooks
+        install_all_git_hooks()
         return
 
     if args.verify_pr_ready is not None:
