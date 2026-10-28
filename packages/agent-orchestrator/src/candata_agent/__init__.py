@@ -16,7 +16,13 @@ from candata_agent.state import (
     add_messages,
     merge_citations,
 )
-from candata_agent.tracing import TokenPricing, current_trace_context, setup_tracing, traced_node
+from candata_agent.tracing import (
+    TokenPricing,
+    current_trace_context,
+    setup_tracing,
+    traced_node,
+    traced_run,
+)
 
 __all__ = [
     "AgentMessage",
@@ -37,4 +43,5 @@ __all__ = [
     "merge_citations",
     "setup_tracing",
     "traced_node",
+    "traced_run",
 ]

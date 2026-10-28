@@ -1,9 +1,13 @@
 """OpenTelemetry tracing for LangGraph sub-agent nodes (CAN-25).
 
-``traced_node`` wraps an async node in one span per run, recording step latency and token
-usage per sub-agent, and writes the span context back into ``AgentState.trace_context``.
-``setup_tracing`` configures OTLP/HTTP export to Arize Phoenix and LangSmith. Each backend
-is enabled only when its environment variable is set, so tests and CI never touch a network.
+``traced_run`` opens one root span per graph invocation and ``traced_node`` wraps each node in a
+child span, recording step latency and token usage per sub-agent. ``setup_tracing`` configures
+OTLP/HTTP export to Arize Phoenix and LangSmith. Each backend is enabled only when its
+environment variable is set, so tests and CI never touch a network.
+
+Spans are parented through OpenTelemetry's own context, not through ``AgentState``, so a
+checkpointed ``trace_context`` from an earlier question can never attach a new run to an old
+trace, and tracing never adds a write to a graph channel.
 
 Only ``opentelemetry-api`` is needed to import this module. The SDK and exporter live in the
 optional ``tracing`` extra and are imported inside ``setup_tracing``.
@@ -16,12 +20,13 @@ import os
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from opentelemetry import trace
 from opentelemetry.context import Context
 from opentelemetry.trace import TracerProvider
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+from pydantic import BaseModel
 
 from candata_agent.state import TokenBudget, TraceContext
 
@@ -29,9 +34,16 @@ TRACER_NAME = "candata_agent"
 DEFAULT_PHOENIX_ENDPOINT = "http://localhost:6006/v1/traces"
 LANGSMITH_API_URL = "https://api.smith.langchain.com"
 LANGSMITH_TRACES_PATH = "/otel/v1/traces"
+RUN_SPAN_NAME = "graph.run"
+_ID_KEYS = ("run_id", "thread_id", "session_id")
 
-NodeUpdate = dict[str, Any]
-Node = Callable[..., Awaitable[NodeUpdate]]
+Node = Callable[..., Awaitable[Any]]
+
+
+class Invokable(Protocol):
+    """The part of a compiled LangGraph graph that ``traced_run`` uses."""
+
+    async def ainvoke(self, input: Any, config: Any = None, **kwargs: Any) -> Any: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +59,38 @@ class TokenPricing:
         ) / 1_000_000
 
 
+async def traced_run(
+    app: Invokable,
+    input: Any,
+    config: Any = None,
+    *,
+    name: str = RUN_SPAN_NAME,
+    continue_from: TraceContext | None = None,
+    tracer_provider: TracerProvider | None = None,
+    **kwargs: Any,
+) -> Any:
+    """Invoke a compiled graph inside a ``graph.run`` root span: one invocation, one trace.
+
+    The nodes' ``agent.*`` spans become its children, and the root span gives the run its
+    end-to-end latency. ``input.trace_context`` is replaced with the new root's context, so a
+    checkpoint can be tied back to its trace and a stale context from an earlier question on the
+    same thread is dropped. Pass ``continue_from`` (a stored ``TraceContext``) to resume the
+    original trace instead, for example when replaying a checkpoint.
+    """
+    tracer = (tracer_provider or trace.get_tracer_provider()).get_tracer(TRACER_NAME)
+    with tracer.start_as_current_span(name, context=_parent_context(continue_from)) as span:
+        for key in _ID_KEYS:
+            value = _read(input, key)
+            if isinstance(value, str):
+                span.set_attribute(f"candata.{key}", value)
+        thread_id = _configured_thread_id(config)
+        if thread_id is not None:
+            span.set_attribute("candata.thread_id", thread_id)
+        return await app.ainvoke(
+            _with_trace_context(input, current_trace_context()), config, **kwargs
+        )
+
+
 def traced_node(
     agent: str,
     *,
@@ -59,21 +103,19 @@ def traced_node(
     update holds a ``token_budget``, the tokens it added over the incoming state. Exceptions
     are recorded and re-raised.
 
-    One graph run is one trace. The first traced node starts the trace and writes its context
-    into ``trace_context``; later nodes read that field and become its children, so a run shows
-    up in Phoenix or LangSmith as a single tree. A node that sets its own ``trace_context``
-    keeps it.
+    The span is a child of whichever span is active, normally the ``graph.run`` root from
+    ``traced_run``; without one it is a trace root of its own. The node's update is returned
+    unchanged (a ``None`` update becomes ``{}``): the decorator never writes a state channel, so
+    nodes running in the same step cannot conflict on it.
     """
 
     def decorate(node: Node) -> Node:
         @functools.wraps(node)
-        async def wrapper(state: object, *args: Any, **kwargs: Any) -> NodeUpdate:
+        async def wrapper(state: object, *args: Any, **kwargs: Any) -> Any:
             tracer = (tracer_provider or trace.get_tracer_provider()).get_tracer(TRACER_NAME)
-            incoming = _read(state, "trace_context")
-            parent = _parent_context(incoming)
-            with tracer.start_as_current_span(f"agent.{agent}", context=parent) as span:
+            with tracer.start_as_current_span(f"agent.{agent}") as span:
                 span.set_attribute("candata.agent", agent)
-                for key in ("run_id", "thread_id", "session_id"):
+                for key in _ID_KEYS:
                     value = _read(state, key)
                     if isinstance(value, str):
                         span.set_attribute(f"candata.{key}", value)
@@ -85,9 +127,9 @@ def traced_node(
                 finally:
                     span.set_attribute("candata.latency_ms", (time.perf_counter() - started) * 1000)
 
+                if update is None:
+                    return {}
                 _record_tokens(span, state, update, pricing)
-                if parent is None and "trace_context" not in update:
-                    update = {**update, "trace_context": current_trace_context()}
                 return update
 
         return wrapper
@@ -96,13 +138,31 @@ def traced_node(
 
 
 def _parent_context(carried: object) -> Context | None:
-    """The span context a previous node stored in ``AgentState.trace_context``, if any."""
+    """The OTel context for a stored ``TraceContext``, or ``None`` if it carries no trace."""
     if not isinstance(carried, TraceContext) or not carried.traceparent:
         return None
     carrier = {"traceparent": carried.traceparent}
     if carried.tracestate:
         carrier["tracestate"] = carried.tracestate
     return TraceContextTextMapPropagator().extract(carrier)
+
+
+def _with_trace_context(input: object, context: TraceContext) -> Any:
+    if isinstance(input, Mapping):
+        return {**input, "trace_context": context}  # pyright: ignore[reportUnknownVariableType]
+    if isinstance(input, BaseModel) and "trace_context" in type(input).model_fields:
+        return input.model_copy(update={"trace_context": context})
+    return input
+
+
+def _configured_thread_id(config: object) -> str | None:
+    if not isinstance(config, Mapping):
+        return None
+    configurable = config.get("configurable")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    if not isinstance(configurable, Mapping):
+        return None
+    thread_id = configurable.get("thread_id")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    return thread_id if isinstance(thread_id, str) else None
 
 
 def current_trace_context() -> TraceContext:
@@ -178,9 +238,9 @@ def _exporter_configs(env: Mapping[str, str]) -> list[tuple[str, dict[str, str]]
 
 
 def _record_tokens(
-    span: trace.Span, state: object, update: NodeUpdate, pricing: TokenPricing | None
+    span: trace.Span, state: object, update: object, pricing: TokenPricing | None
 ) -> None:
-    after = update.get("token_budget")
+    after = _read(update, "token_budget")
     if not isinstance(after, TokenBudget):
         return
     before = _read(state, "token_budget")
