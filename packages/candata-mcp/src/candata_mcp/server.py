@@ -19,6 +19,8 @@ from candata_mcp.connectors.boc_valet import ObservationSet, ValetClient
 from candata_mcp.connectors.statcan_wds import (
     StatCanAmbiguousMemberError,
     StatCanClient,
+    StatCanNotFoundError,
+    StatCanUnavailableError,
     format_table_id,
 )
 from candata_mcp.engine import DuckDBSlicingEngine
@@ -93,9 +95,9 @@ class CanDataServer:
         @self.mcp.tool(
             name="search_statcan_cubes",
             description=(
-                "Search official Statistics Canada data cubes/tables by keyword (e.g. 'cpi', "
-                "'housing', 'rents', 'labour', 'gdp'). Returns a token-budgeted list of matching "
-                "tables with product IDs, titles, release dates, and frequency."
+                "Search official Statistics Canada data cubes/tables by multi-word keyword "
+                "(e.g. 'cpi', 'toronto rent', 'average rents', 'labour', 'gdp'). Returns a "
+                "token-budgeted list of matching tables with product IDs and release dates."
             ),
             annotations=READ_ONLY_TOOL,
         )
@@ -114,27 +116,54 @@ class CanDataServer:
                 }
             limit = max(1, min(limit, 50))
             offset = max(0, offset)
-            results = await self.statcan_client.search_cubes(q, limit=limit, offset=offset)
-            return {
-                "query": q,
-                "total_results": len(results),
-                "offset": offset,
-                "limit": limit,
-                "cubes": [asdict(c) for c in results],
-            }
+            try:
+                search_res = await self.statcan_client.search_cubes(q, limit=limit, offset=offset)
+                total_cnt = getattr(search_res, "total_results", len(search_res))
+                cubes_seq = getattr(search_res, "cubes", search_res)
+                return {
+                    "query": q,
+                    "total_results": total_cnt,
+                    "offset": offset,
+                    "limit": limit,
+                    "cubes": [asdict(c) for c in cubes_seq],
+                }
+            except StatCanUnavailableError as exc:
+                return {
+                    "error": exc.message,
+                    "isError": True,
+                    "error_code": "STATCAN_UNAVAILABLE",
+                    "message": exc.message,
+                    "retry_after": exc.retry_after,
+                    "suggested_action": (
+                        "Query by product_id directly using get_cube_dimensions "
+                        "if table ID is known."
+                    ),
+                }
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "INTERNAL_ERROR",
+                    "message": str(exc),
+                }
 
         @self.mcp.tool(
             name="get_cube_dimensions",
             description=(
                 "Retrieve the dimensions and member hierarchies of a Statistics Canada data cube "
-                "by product ID or table ID (e.g. '18100004' or '18-10-0004-01'). Members per "
-                "dimension are bounded (default max 25) to prevent LLM context-window bloat."
+                "by product ID or table ID (e.g. '18100004' or '18-10-0004-01'). Members can be "
+                "filtered by name using 'member_query' (e.g. 'Toronto') and paged using 'offset' "
+                "and 'limit'."
             ),
             annotations=READ_ONLY_TOOL,
         )
         async def get_cube_dimensions(
             product_id: str,
-            max_members_per_dim: int = 25,
+            member_query: str | None = None,
+            dimension_name: str | None = None,
+            offset: int = 0,
+            limit: int = 25,
+            max_members_per_dim: int | None = None,
         ) -> dict[str, Any]:
             pid_str = product_id.strip()
             if not pid_str:
@@ -146,15 +175,76 @@ class CanDataServer:
                 }
             try:
                 meta = await self.statcan_client.get_cube_metadata(pid_str)
-            except Exception as exc:
+            except StatCanNotFoundError as exc:
                 return {
                     "error": str(exc),
                     "isError": True,
                     "error_code": "NOT_FOUND",
                     "message": str(exc),
+                    "suggested_action": "Search for available tables using search_statcan_cubes.",
+                }
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "STATCAN_UNAVAILABLE",
+                    "message": str(exc),
+                    "suggested_action": (
+                        "Retry the request or verify network connectivity to StatCan WDS."
+                    ),
                 }
 
-            max_members = max(1, min(max_members_per_dim, 100))
+            effective_limit = max_members_per_dim if max_members_per_dim is not None else limit
+            effective_limit = max(1, min(effective_limit, 100))
+            offset = max(0, offset)
+
+            dim_filter = dimension_name.strip().lower() if dimension_name else None
+            mem_filter = member_query.strip().lower() if member_query else None
+
+            dims_out: list[dict[str, Any]] = []
+            for dim in meta.dimensions:
+                if dim_filter:
+                    name_en_match = dim_filter in dim.name_en.lower()
+                    name_fr_match = bool(dim.name_fr and dim_filter in dim.name_fr.lower())
+                    if not (name_en_match or name_fr_match):
+                        continue
+
+                if mem_filter:
+                    filtered_members = [
+                        m
+                        for m in dim.members
+                        if mem_filter in m.name_en.lower()
+                        or (m.name_fr and mem_filter in m.name_fr.lower())
+                    ]
+                else:
+                    filtered_members = list(dim.members)
+
+                matched_count = len(filtered_members)
+                paged_members = filtered_members[offset : offset + effective_limit]
+
+                dims_out.append(
+                    {
+                        "position_id": dim.position_id,
+                        "name_en": dim.name_en,
+                        "name_fr": dim.name_fr,
+                        "total_members": len(dim.members),
+                        "total_dimension_members": len(dim.members),
+                        "matched_members_count": matched_count,
+                        "offset": offset,
+                        "limit": effective_limit,
+                        "has_more_members": (offset + len(paged_members)) < matched_count,
+                        "members": [
+                            {
+                                "member_id": m.member_id,
+                                "name_en": m.name_en,
+                                "name_fr": m.name_fr,
+                                "parent_member_id": m.parent_member_id,
+                            }
+                            for m in paged_members
+                        ],
+                    }
+                )
+
             return {
                 "product_id": meta.product_id,
                 "table_id": format_table_id(meta.product_id),
@@ -163,25 +253,7 @@ class CanDataServer:
                 "title_fr": meta.title_fr,
                 "frequency": meta.frequency_name,
                 "release_time": meta.release_time,
-                "dimensions": [
-                    {
-                        "position_id": dim.position_id,
-                        "name_en": dim.name_en,
-                        "name_fr": dim.name_fr,
-                        "total_members": len(dim.members),
-                        "has_more_members": len(dim.members) > max_members,
-                        "members": [
-                            {
-                                "member_id": m.member_id,
-                                "name_en": m.name_en,
-                                "name_fr": m.name_fr,
-                                "parent_member_id": m.parent_member_id,
-                            }
-                            for m in dim.members[:max_members]
-                        ],
-                    }
-                    for dim in meta.dimensions
-                ],
+                "dimensions": dims_out,
             }
 
         @self.mcp.tool(

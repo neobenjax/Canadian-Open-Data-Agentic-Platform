@@ -8,6 +8,7 @@ matching the official Canadian Open Data Agentic Platform benchmark standards.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -44,76 +45,6 @@ FREQUENCY_NAMES: Mapping[int, str] = {
     12: "annual",
 }
 
-FALLBACK_CUBES_LITE: tuple[dict[str, Any], ...] = (
-    {
-        "productId": 18100004,
-        "cansimId": "326-0020",
-        "cubeTitleEn": "Consumer Price Index, monthly, not seasonally adjusted",
-        "cubeTitleFr": "Indice des prix à la consommation, mensuel, non désaisonnalisé",
-        "cubeStartDate": "1914-01-01",
-        "cubeEndDate": "2026-09-01",
-        "releaseTime": "2026-10-20T08:30",
-        "frequencyCode": 6,
-    },
-    {
-        "productId": 18100205,
-        "cansimId": "327-0056",
-        "cubeTitleEn": "New housing price index, monthly",
-        "cubeTitleFr": "Indice des prix des logements neufs, mensuel",
-        "cubeStartDate": "1981-01-01",
-        "cubeEndDate": "2026-09-01",
-        "releaseTime": "2026-10-21T08:30",
-        "frequencyCode": 6,
-    },
-    {
-        "productId": 34100133,
-        "cansimId": "027-0040",
-        "cubeTitleEn": (
-            "Canada Mortgage and Housing Corporation, average rents and vacancy rates in "
-            "privately initiated apartment structures"
-        ),
-        "cubeTitleFr": (
-            "Société canadienne d'hypothèques et de logement, loyers moyens et taux d'inoccupation"
-        ),
-        "cubeStartDate": "1990-01-01",
-        "cubeEndDate": "2025-10-01",
-        "releaseTime": "2026-01-15T08:30",
-        "frequencyCode": 12,
-    },
-    {
-        "productId": 14100287,
-        "cansimId": "282-0087",
-        "cubeTitleEn": "Labour force characteristics, monthly, seasonally adjusted and trend-cycle",
-        "cubeTitleFr": (
-            "Caractéristiques de la population active, mensuel, désaisonnalisé et cycle-tendance"
-        ),
-        "cubeStartDate": "1976-01-01",
-        "cubeEndDate": "2026-09-01",
-        "releaseTime": "2026-10-09T08:30",
-        "frequencyCode": 6,
-    },
-    {
-        "productId": 36100434,
-        "cansimId": "379-0031",
-        "cubeTitleEn": "Gross domestic product (GDP) at basic prices, by industry, monthly",
-        "cubeTitleFr": "Produit intérieur brut (PIB) aux prix de base, par industrie, mensuel",
-        "cubeStartDate": "1997-01-01",
-        "cubeEndDate": "2026-08-01",
-        "releaseTime": "2026-10-30T08:30",
-        "frequencyCode": 6,
-    },
-    {
-        "productId": 17100009,
-        "cansimId": "051-0005",
-        "cubeTitleEn": "Population estimates, quarterly",
-        "cubeTitleFr": "Estimations de la population, trimestrielles",
-        "cubeStartDate": "1951-07-01",
-        "cubeEndDate": "2026-07-01",
-        "releaseTime": "2026-09-25T08:30",
-        "frequencyCode": 7,
-    },
-)
-
 
 class StatCanError(Exception):
     """Base class for all errors raised by the Statistics Canada WDS client."""
@@ -138,6 +69,16 @@ class StatCanNotFoundError(StatCanHTTPError):
 
 class StatCanResponseError(StatCanError):
     """StatCan WDS returned 200 OK but the payload indicated failure or invalid JSON."""
+
+
+class StatCanUnavailableError(StatCanError):
+    """Statistics Canada WDS catalog service is temporarily unreachable or undergoing
+    maintenance."""
+
+    def __init__(self, message: str, retry_after: int = 30) -> None:
+        super().__init__(message)
+        self.message = message
+        self.retry_after = retry_after
 
 
 class StatCanMemberNotFoundError(StatCanError):
@@ -252,6 +193,23 @@ class CubeSummary:
     release_time: str | None
     frequency_code: int
     frequency_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class CubeSearchResult:
+    """Token-budgeted search result with unpaginated match count."""
+
+    total_results: int
+    cubes: tuple[CubeSummary, ...]
+
+    def __iter__(self):
+        return iter(self.cubes)
+
+    def __len__(self) -> int:
+        return len(self.cubes)
+
+    def __getitem__(self, index: int) -> CubeSummary:
+        return self.cubes[index]
 
 
 @dataclass(frozen=True, slots=True)
@@ -401,27 +359,52 @@ class StatCanClient:
         return meta
 
     async def get_all_cubes_list_lite(self, *, bypass_cache: bool = False) -> list[dict[str, Any]]:
-        """Fetch all cubes lite summary list from WDS with 24h caching and offline fallback."""
+        """Fetch all cubes lite summary list from WDS with in-memory caching.
+
+        Fails loud with StatCanUnavailableError when the WDS catalog service is unreachable
+        or undergoing maintenance, preventing fabricated offline provenance citations (Guardrail 6).
+        """
         now = time.monotonic()
         if not bypass_cache and self._cubes_list_cache is not None:
             cached_data, cached_time = self._cubes_list_cache
             if now - cached_time < self._cubes_list_ttl:
                 return cached_data
 
+        url = f"{self._base_url}/getAllCubesListLite"
         try:
-            url = f"{self._base_url}/getAllCubesListLite"
             response = await self._client.get(url)
-            if response.status_code == 200:
-                raw = response.json()
-                if isinstance(raw, list) and raw:
-                    cubes = [c for c in _dict_list(raw) if "productId" in c]
-                    self._cubes_list_cache = (cubes, now)
-                    return cubes
-        except Exception:
-            pass
+        except Exception as exc:
+            raise StatCanUnavailableError(
+                f"Statistics Canada WDS catalog service is temporarily unreachable: {exc}. "
+                "Please retry shortly or query by product_id directly using get_cube_dimensions.",
+                retry_after=30,
+            ) from exc
 
-        self._cubes_list_cache = (list(FALLBACK_CUBES_LITE), now)
-        return list(FALLBACK_CUBES_LITE)
+        if response.status_code == 200:
+            try:
+                raw = response.json()
+            except Exception as exc:
+                raise StatCanUnavailableError(
+                    f"StatCan WDS returned invalid JSON for catalog: {exc}",
+                    retry_after=30,
+                ) from exc
+            if isinstance(raw, list) and raw:
+                cubes = [c for c in _dict_list(raw) if "productId" in c]
+                self._cubes_list_cache = (cubes, now)
+                return cubes
+
+        if response.status_code == 409:
+            raise StatCanUnavailableError(
+                "Statistics Canada WDS is currently in its daily scheduled maintenance "
+                "window (00:00-08:30 ET).",
+                retry_after=300,
+            )
+
+        raise StatCanUnavailableError(
+            f"StatCan WDS catalog request failed with HTTP {response.status_code}. "
+            "Please retry shortly or query by product_id directly using get_cube_dimensions.",
+            retry_after=30,
+        )
 
     async def search_cubes(
         self,
@@ -430,10 +413,19 @@ class StatCanClient:
         limit: int = 10,
         offset: int = 0,
         bypass_cache: bool = False,
-    ) -> tuple[CubeSummary, ...]:
-        """Search Statistics Canada data cubes by keyword with token-budgeted pagination."""
+    ) -> CubeSearchResult:
+        """Search Statistics Canada data cubes by keyword with token-budgeted pagination.
+
+        Tokenizes queries on whitespace and matches all terms on word boundaries
+        (e.g. 'toronto rent' matches 34-10-0133-01, while 'rent' does not match 'current').
+        Returns true total match count alongside paginated results.
+        """
         cubes = await self.get_all_cubes_list_lite(bypass_cache=bypass_cache)
-        query_norm = query.strip().lower()
+        tokens = [t.lower() for t in query.strip().split() if t]
+        if not tokens:
+            return CubeSearchResult(total_results=0, cubes=())
+
+        token_patterns = [re.compile(rf"\b{re.escape(t)}", re.IGNORECASE) for t in tokens]
 
         matches: list[CubeSummary] = []
         for c in cubes:
@@ -441,9 +433,9 @@ class StatCanClient:
             title_en = str(c.get("cubeTitleEn", ""))
             title_fr = c.get("cubeTitleFr")
             cansim = c.get("cansimId")
-            searchable = f"{pid} {title_en} {title_fr or ''} {cansim or ''}".lower()
+            searchable = f"{pid} {title_en} {title_fr or ''} {cansim or ''}"
 
-            if query_norm in searchable:
+            if all(p.search(searchable) for p in token_patterns):
                 freq_code = _int(c, "frequencyCode", 0)
                 matches.append(
                     CubeSummary(
@@ -460,7 +452,9 @@ class StatCanClient:
                     )
                 )
 
-        return tuple(matches[offset : offset + limit])
+        total_results = len(matches)
+        paged_cubes = tuple(matches[offset : offset + limit])
+        return CubeSearchResult(total_results=total_results, cubes=paged_cubes)
 
     async def resolve_coordinate(self, product_id: int | str, member_names: Sequence[str]) -> str:
         """Resolve human-readable dimension member names into a StatCan 10-part coordinate string.

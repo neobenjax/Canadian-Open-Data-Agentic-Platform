@@ -425,14 +425,78 @@ async def test_ambiguous_member_error_carries_structured_attributes(statcan: Sta
 
 @respx.mock
 async def test_search_cubes_returns_compact_summaries(statcan: StatCanClient) -> None:
+    mock_cubes = [
+        {
+            "productId": 18100004,
+            "cansimId": "326-0020",
+            "cubeTitleEn": "Consumer Price Index, monthly, not seasonally adjusted",
+            "cubeTitleFr": "Indice des prix à la consommation, mensuel, non désaisonnalisé",
+            "cubeStartDate": "1914-01-01",
+            "cubeEndDate": "2026-09-01",
+            "releaseTime": "2026-10-20T08:30",
+            "frequencyCode": 6,
+        },
+        {
+            "productId": 34100133,
+            "cansimId": "027-0040",
+            "cubeTitleEn": (
+                "Canada Mortgage and Housing Corporation, average rents for areas "
+                "with a population of 10,000 and over"
+            ),
+            "cubeTitleFr": "Société canadienne d'hypothèques et de logement, loyers moyens",
+            "cubeStartDate": "1987-01-01",
+            "cubeEndDate": "2025-01-01",
+            "releaseTime": "2025-01-15T08:30",
+            "frequencyCode": 12,
+        },
+        {
+            "productId": 10100001,
+            "cansimId": "100-0001",
+            "cubeTitleEn": "Current account balance and international investment position",
+            "cubeTitleFr": "Solde du compte courant",
+            "cubeStartDate": "1990-01-01",
+            "cubeEndDate": "2025-01-01",
+            "releaseTime": "2025-01-15T08:30",
+            "frequencyCode": 7,
+        },
+    ]
+    respx.get(f"{STATCAN_WDS_BASE_URL}/getAllCubesListLite").mock(
+        return_value=httpx.Response(200, json=mock_cubes)
+    )
+
+    # 1. Basic search
     results = await statcan.search_cubes("consumer price index", limit=5)
-    assert len(results) >= 1
+    assert len(results) == 1
+    assert results.total_results == 1
     first = results[0]
     assert isinstance(first, CubeSummary)
     assert first.product_id == 18100004
     assert first.table_id == "18-10-0004-01"
     assert "Consumer Price Index" in first.title_en
     assert first.frequency_code == 6
+
+    # 2. Multi-word tokenized search ("housing rent" -> finds 34100133)
+    rent_results = await statcan.search_cubes("housing rent", limit=5)
+    assert len(rent_results) == 1
+    assert rent_results[0].product_id == 34100133
+
+    # 3. Word boundary check ("rent" matches "rents", but rejects "current account")
+    rent_word = await statcan.search_cubes("rent", limit=5)
+    assert len(rent_word) == 1
+    assert rent_word[0].product_id == 34100133
+
+
+@respx.mock
+async def test_search_cubes_fails_loud_on_statcan_outage(statcan: StatCanClient) -> None:
+    from candata_mcp.connectors.statcan_wds import StatCanUnavailableError
+
+    respx.get(f"{STATCAN_WDS_BASE_URL}/getAllCubesListLite").mock(
+        return_value=httpx.Response(503, text="Service Unavailable")
+    )
+    with pytest.raises(StatCanUnavailableError) as exc_info:
+        await statcan.search_cubes("cpi", bypass_cache=True)
+    assert exc_info.value.retry_after == 30
+    assert "temporarily unreachable" in str(exc_info.value) or "HTTP 503" in str(exc_info.value)
 
 
 @respx.mock
