@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 import pytest
@@ -12,7 +14,8 @@ from opentelemetry.trace import StatusCode
 
 from candata_agent.state import AgentState, TokenBudget, TraceContext
 from candata_agent.tracing import (
-    LANGSMITH_ENDPOINT,
+    LANGSMITH_API_URL,
+    LANGSMITH_TRACES_PATH,
     TokenPricing,
     _exporter_configs,  # pyright: ignore[reportPrivateUsage]
     setup_tracing,
@@ -91,6 +94,27 @@ async def test_update_gains_trace_context_of_the_node_span(
         format(span.context.span_id, "016x"),
     )
     assert int(flags, 16) & 1  # sampled
+
+
+async def test_later_nodes_join_the_trace_started_by_the_first(
+    provider: TracerProvider, exporter: InMemorySpanExporter, state: AgentState
+) -> None:
+    @traced_node("supervisor", tracer_provider=provider)
+    async def supervisor(state: AgentState) -> dict[str, Any]:
+        return {}
+
+    @traced_node("data_analyst", tracer_provider=provider)
+    async def analyst(state: AgentState) -> dict[str, Any]:
+        return {"scratchpad": {"rows": 1}}
+
+    first = await supervisor(state)
+    second = await analyst(state.model_copy(update=first))
+
+    root, child = exporter.get_finished_spans()
+    assert root.context is not None and child.context is not None
+    assert child.context.trace_id == root.context.trace_id
+    assert child.parent is not None and child.parent.span_id == root.context.span_id
+    assert "trace_context" not in second  # the run keeps the context the first node stored
 
 
 async def test_node_supplied_trace_context_is_kept(
@@ -212,7 +236,10 @@ def test_phoenix_and_langsmith_configs_from_env() -> None:
 
     assert configs == [
         ("http://phoenix:6006/v1/traces", {"authorization": "Bearer px-key"}),
-        (LANGSMITH_ENDPOINT, {"x-api-key": "ls-key", "Langsmith-Project": "candata-dev"}),
+        (
+            LANGSMITH_API_URL + LANGSMITH_TRACES_PATH,
+            {"x-api-key": "ls-key", "Langsmith-Project": "candata-dev"},
+        ),
     ]
 
 
@@ -233,3 +260,80 @@ def test_setup_tracing_builds_a_provider_per_configured_env() -> None:
     assert attrs["service.name"] == "candata-agent"
     assert attrs["openinference.project.name"] == "candata"
     provider.shutdown()
+
+
+class _Receiver:
+    """Local OTLP/HTTP endpoint that records every POST it gets."""
+
+    def __init__(self) -> None:
+        self.requests: list[tuple[str, dict[str, str], bytes]] = []
+        received = self.requests
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:  # noqa: N802 - http.server API
+                body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                received.append((self.path, {k.lower(): v for k, v in self.headers.items()}, body))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/x-protobuf")
+                self.end_headers()
+
+            def log_message(self, format: str, *args: Any) -> None:
+                pass
+
+        self.server = HTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.server.server_port}"
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def __enter__(self) -> _Receiver:
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+
+
+async def test_spans_reach_phoenix_and_langsmith_endpoints_with_expected_headers(
+    state: AgentState,
+) -> None:
+    with _Receiver() as phoenix, _Receiver() as langsmith:
+        provider = setup_tracing(
+            {
+                "PHOENIX_COLLECTOR_ENDPOINT": f"{phoenix.url}/v1/traces",
+                "PHOENIX_API_KEY": "px-key",
+                "PHOENIX_PROJECT_NAME": "candata-test",
+                "LANGSMITH_API_KEY": "ls-key",
+                "LANGSMITH_PROJECT": "candata-ls",
+                "LANGSMITH_ENDPOINT": langsmith.url,
+            },
+            set_global=False,
+        )
+        assert isinstance(provider, TracerProvider)
+
+        @traced_node("supervisor", tracer_provider=provider)
+        async def supervisor(state: AgentState) -> dict[str, Any]:
+            return {}
+
+        await supervisor(state)
+        assert provider.force_flush()
+        provider.shutdown()
+
+    ((px_path, px_headers, px_body),) = phoenix.requests
+    assert px_path == "/v1/traces"
+    assert px_headers["authorization"] == "Bearer px-key"
+    assert b"agent.supervisor" in px_body
+    assert b"candata-test" in px_body
+
+    ((ls_path, ls_headers, ls_body),) = langsmith.requests
+    assert ls_path == "/otel/v1/traces"
+    assert ls_headers["x-api-key"] == "ls-key"
+    assert ls_headers["langsmith-project"] == "candata-ls"
+    assert b"agent.supervisor" in ls_body
+
+
+def test_langsmith_base_url_override_for_other_regions() -> None:
+    configs = _exporter_configs(
+        {"LANGSMITH_API_KEY": "k", "LANGSMITH_ENDPOINT": "https://eu.api.smith.langchain.com/"}
+    )
+
+    assert configs[0][0] == "https://eu.api.smith.langchain.com/otel/v1/traces"

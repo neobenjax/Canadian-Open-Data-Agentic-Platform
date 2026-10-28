@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from opentelemetry import trace
+from opentelemetry.context import Context
 from opentelemetry.trace import TracerProvider
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
@@ -26,7 +27,8 @@ from candata_agent.state import TokenBudget, TraceContext
 
 TRACER_NAME = "candata_agent"
 DEFAULT_PHOENIX_ENDPOINT = "http://localhost:6006/v1/traces"
-LANGSMITH_ENDPOINT = "https://api.smith.langchain.com/otel/v1/traces"
+LANGSMITH_API_URL = "https://api.smith.langchain.com"
+LANGSMITH_TRACES_PATH = "/otel/v1/traces"
 
 NodeUpdate = dict[str, Any]
 Node = Callable[..., Awaitable[NodeUpdate]]
@@ -54,15 +56,22 @@ def traced_node(
     """Wrap a LangGraph node so every run emits an ``agent.<agent>`` span.
 
     The span carries the run and thread IDs, latency in milliseconds and, when the node's
-    update holds a ``token_budget``, the tokens it added over the incoming state. The update
-    gains a ``trace_context`` unless the node set one. Exceptions are recorded and re-raised.
+    update holds a ``token_budget``, the tokens it added over the incoming state. Exceptions
+    are recorded and re-raised.
+
+    One graph run is one trace. The first traced node starts the trace and writes its context
+    into ``trace_context``; later nodes read that field and become its children, so a run shows
+    up in Phoenix or LangSmith as a single tree. A node that sets its own ``trace_context``
+    keeps it.
     """
 
     def decorate(node: Node) -> Node:
         @functools.wraps(node)
         async def wrapper(state: object, *args: Any, **kwargs: Any) -> NodeUpdate:
             tracer = (tracer_provider or trace.get_tracer_provider()).get_tracer(TRACER_NAME)
-            with tracer.start_as_current_span(f"agent.{agent}") as span:
+            incoming = _read(state, "trace_context")
+            parent = _parent_context(incoming)
+            with tracer.start_as_current_span(f"agent.{agent}", context=parent) as span:
                 span.set_attribute("candata.agent", agent)
                 for key in ("run_id", "thread_id", "session_id"):
                     value = _read(state, key)
@@ -77,13 +86,23 @@ def traced_node(
                     span.set_attribute("candata.latency_ms", (time.perf_counter() - started) * 1000)
 
                 _record_tokens(span, state, update, pricing)
-                if "trace_context" not in update:
+                if parent is None and "trace_context" not in update:
                     update = {**update, "trace_context": current_trace_context()}
                 return update
 
         return wrapper
 
     return decorate
+
+
+def _parent_context(carried: object) -> Context | None:
+    """The span context a previous node stored in ``AgentState.trace_context``, if any."""
+    if not isinstance(carried, TraceContext) or not carried.traceparent:
+        return None
+    carrier = {"traceparent": carried.traceparent}
+    if carried.tracestate:
+        carrier["tracestate"] = carried.tracestate
+    return TraceContextTextMapPropagator().extract(carrier)
 
 
 def current_trace_context() -> TraceContext:
@@ -110,7 +129,8 @@ def setup_tracing(
 
     - Phoenix: ``PHOENIX_COLLECTOR_ENDPOINT`` (full traces URL; ``http://localhost:6006/v1/traces``
       is the local default), optional ``PHOENIX_API_KEY`` and ``PHOENIX_PROJECT_NAME``.
-    - LangSmith: ``LANGSMITH_API_KEY``, optional ``LANGSMITH_PROJECT``.
+    - LangSmith: ``LANGSMITH_API_KEY``, optional ``LANGSMITH_PROJECT``, and ``LANGSMITH_ENDPOINT``
+      for the EU region (``https://eu.api.smith.langchain.com``) or a self-hosted base URL.
     """
     env = os.environ if env is None else env
     exporters = _exporter_configs(env)
@@ -152,7 +172,8 @@ def _exporter_configs(env: Mapping[str, str]) -> list[tuple[str, dict[str, str]]
         headers = {"x-api-key": langsmith_key}
         if env.get("LANGSMITH_PROJECT"):
             headers["Langsmith-Project"] = env["LANGSMITH_PROJECT"]
-        configs.append((LANGSMITH_ENDPOINT, headers))
+        base = env.get("LANGSMITH_ENDPOINT") or LANGSMITH_API_URL
+        configs.append((base.rstrip("/") + LANGSMITH_TRACES_PATH, headers))
     return configs
 
 

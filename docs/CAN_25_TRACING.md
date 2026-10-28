@@ -31,9 +31,9 @@ async def supervisor(state: AgentState) -> dict[str, Any]:
 | `candata.tokens_remaining` | `TokenBudget.remaining_tokens` after the step |
 | `candata.cost_usd` | tokens × `TokenPricing`, only when pricing is passed |
 
-Nested nodes share one trace, so a supervisor span has the analyst and verifier spans as children. An exception is recorded on the span (status `ERROR`) and re-raised.
+**One graph run is one trace.** The first traced node starts the trace and stores its W3C `traceparent` and span ID in `AgentState.trace_context`. Every later node reads that field and becomes a child span, so a run shows as a single tree with end-to-end latency (for example `supervisor` → `data_analyst`, `citation_verifier`). A checkpoint can be tied back to its trace through the same field, and a time-travel replay continues the original trace. A node that sets its own `trace_context` keeps it.
 
-The node's returned update also gains `trace_context` (W3C `traceparent` and span ID) so a checkpoint can be tied back to its trace. A node that sets its own `trace_context` keeps it.
+An exception is recorded on the span (status `ERROR`) and re-raised.
 
 ## Configuration
 
@@ -46,6 +46,7 @@ Set in `.env` (see `.env.example`). With none set, `setup_tracing()` returns `No
 | `PHOENIX_PROJECT_NAME` | Phoenix project, set as `openinference.project.name`. |
 | `LANGSMITH_API_KEY` | Enables the LangSmith OTLP exporter (`api.smith.langchain.com/otel/v1/traces`). |
 | `LANGSMITH_PROJECT` | Sent as the `Langsmith-Project` header. |
+| `LANGSMITH_ENDPOINT` | LangSmith base URL, default `https://api.smith.langchain.com`. Use `https://eu.api.smith.langchain.com` for the EU region, or the self-hosted URL ending in `/api/v1`. The OTLP path `/otel/v1/traces` is appended. |
 
 `opentelemetry-api` is a base dependency. The SDK and OTLP exporter are in the optional `tracing` extra (`uv sync --extra tracing`) and also in the dev group, so tests run without it.
 
@@ -58,9 +59,14 @@ Set in `.env` (see `.env.example`). With none set, `setup_tracing()` returns `No
 
 ## Verification
 
-- 13 offline tests in `tests/test_tracing.py` using an in-memory exporter: span name and attributes, `traceparent` matching the span, token delta and cost, error status, dict state, nested traces, and the environment-to-exporter mapping.
+- 16 offline tests in `tests/test_tracing.py`:
+  - span name and attributes, `traceparent` matching the span, token delta and cost, error status, dict state, nested and cross-node traces;
+  - the environment-to-exporter mapping;
+  - a **wire-level test** that runs a local OTLP/HTTP receiver and checks that Phoenix and LangSmith configurations each POST the span to the right path with the right headers (`authorization: Bearer …`, `x-api-key`, `langsmith-project`) and the project resource attribute.
 - `ruff`, `ruff format --check`, `pyright` (strict) and `pytest` pass.
-- **Not verified:** export to live Phoenix or LangSmith. The LangSmith endpoint and header names follow its OTLP documentation but were not exercised against the service.
+- **Smoke run against a real Phoenix server** (a throwaway environment, not committed): a LangGraph `StateGraph` with `supervisor`, `data_analyst` and `citation_verifier` nodes decorated with `traced_node`, exporting to a local Phoenix 6006. Phoenix accepted the export, listed the spans under the configured project, and showed the token, cost and latency attributes. The analyst and verifier spans had the supervisor span as parent, one trace per run. This also confirms the decorator works with LangGraph's calling convention and a Pydantic `AgentState`.
+- LangSmith's endpoint and header names were checked against its OpenTelemetry documentation.
+- **Not verified: export to the live LangSmith service.** It needs an API key. See the follow-up issue linked in the PR.
 
 ## Not in scope
 
