@@ -84,7 +84,7 @@
 - [ ] **CAN-24:** Implement Citation Verifier node validating statistics against official StatCan/BoC Core Verification Tuples `(table_id, vector_id, reference_period)` and cross-examining release/revision timestamps before answering. *(Owner: Samir · 2h)*
 
 ### Feature 2.2: Observability & Telemetry
-- [ ] **CAN-25:** Set up OpenTelemetry-native Arize Phoenix & LangSmith tracing to measure step latency and token costs per sub-agent. *(Owner: Yassir / Benjamin · 2h)*
+- [x] **CAN-25:** Set up OpenTelemetry-native Arize Phoenix & LangSmith tracing to measure step latency and token costs per sub-agent. *(Owner: Yassir / Benjamin · 2h)*
 - [x] **CAN-26:** Bilingual French/English metadata mapping and data lineage tracking. *(Owner: Yassir · 2h)*
 
 ### Feature 2.3: Connector & FastMCP Server Hardening
