@@ -68,7 +68,7 @@
 
 ### Feature 1.3: Benchmark Suite & Security Baseline
 - [x] **CAN-14:** Curate 15 ground-truth benchmark questions based on GTA housing, rent vs income, and inflation metrics. *(Owner: Samir · 2h)*
-- [ ] **CAN-15:** Run baseline benchmark comparing frontier LLMs without tools (any vendor; record exact model IDs and run dates) vs existing `mcp-statcan` vs CanData-MCP; log hallucinations and citation coverage. *(Owner: Samir / Yassir · 2h)*
+- [x] **CAN-15:** Run baseline benchmark comparing frontier LLMs without tools (any vendor; record exact model IDs and run dates) vs existing `mcp-statcan` vs CanData-MCP; log hallucinations and citation coverage. *(Owner: Samir / Yassir · 2h)*
 - [x] **CAN-16:** Conduct API security, rate limit, and official data verification audit for Canadian public endpoints; codify the Citation Envelope: Core Verification Tuple `(table_id, vector_id, reference_period)` paired with Enrichment Metadata `(release_or_revision_date, coordinate, bilingual_title, deep_link)` to prevent silent temporal drift on revised official series. *(Owner: Benjamin / Yassir · 2h)*
 
 ---
