@@ -2,10 +2,10 @@
 
 Walks through:
 1. Pydantic v2 AgentState initialization with strict schema validation.
-2. Supervisor query planning and Data Analyst SQL artifact tracking.
+2. Supervisor query planning and Data Analyst SQL tracking with Decimal and date types.
 3. Human-in-the-Loop (HITL) ambiguity breakpoint triggering and resumption.
 4. AsyncSqliteSaver WAL-mode persistence and checkpoint history inspection.
-5. Time-Travel rewind (`arollback_to`) and conversation branching/forking.
+5. Time-Travel rewind (`arollback_to`) and branching with session ID preservation.
 """
 
 from __future__ import annotations
@@ -13,7 +13,12 @@ from __future__ import annotations
 import asyncio
 import sys
 import tempfile
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
+from typing import cast
+
+from langchain_core.runnables import RunnableConfig
 
 # Ensure UTF-8 output on Windows consoles
 if sys.platform == "win32":
@@ -66,7 +71,8 @@ async def run_demonstration() -> None:
 
         async with AsyncSqliteSaver(db_file) as checkpointer:
             thread_id = "thread_cpi_analysis_001"
-            config = {"configurable": {"thread_id": thread_id}}
+            session_id = "sess_user_toronto_research_42"
+            config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id}})
 
             # ------------------------------------------------------------------
             # Phase 1: User Query & Initial State
@@ -79,7 +85,7 @@ async def run_demonstration() -> None:
                 ),
             )
             state = AgentState(
-                session_id=thread_id,
+                session_id=session_id,
                 thread_id=thread_id,
                 messages=add_messages((), user_msg),
                 trace_context=TraceContext(
@@ -88,8 +94,10 @@ async def run_demonstration() -> None:
                 ),
                 token_budget=TokenBudget(max_budget=128000, prompt_tokens_used=120),
             )
-            chk_0 = await checkpointer.aput(config, state)
+            res_0 = await checkpointer.aput(config, state)
+            chk_0 = res_0["configurable"]["checkpoint_id"] if isinstance(res_0, dict) else res_0
             print(f"[OK] State saved to checkpoint: {chk_0}")
+            print(f"     Session ID: {state.session_id}")
             print(f"     Active Thread: {state.thread_id}")
             print(f"     Messages: {len(state.messages)} message(s)")
             print(f"     Token Budget Remaining: {state.token_budget.remaining_tokens}")
@@ -136,7 +144,8 @@ async def run_demonstration() -> None:
                     ),
                 }
             )
-            chk_1 = await checkpointer.aput(config, state)
+            res_1 = await checkpointer.aput(config, state)
+            chk_1 = res_1["configurable"]["checkpoint_id"] if isinstance(res_1, dict) else res_1
             print(f"[OK] Query Plan committed to checkpoint: {chk_1}")
             for s in plan.steps:
                 print(
@@ -156,10 +165,18 @@ async def run_demonstration() -> None:
                     "LAG(value, 12) OVER (ORDER BY ref_per)) * 100 AS yoy_inflation "
                     "FROM statcan_cpi WHERE ref_per >= '2024-01' ORDER BY ref_per;"
                 ),
-                row_count=12,
+                row_count=2,
                 rows=(
-                    {"ref_per": "2024-01", "value": 158.3, "yoy_inflation": 2.9},
-                    {"ref_per": "2024-12", "value": 161.2, "yoy_inflation": 2.4},
+                    {
+                        "ref_per": date(2024, 1, 1),
+                        "value": Decimal("158.30"),
+                        "yoy": Decimal("2.9"),
+                    },
+                    {
+                        "ref_per": date(2024, 12, 1),
+                        "value": Decimal("161.20"),
+                        "yoy": Decimal("2.4"),
+                    },
                 ),
             )
             citation = CitationEnvelope(
@@ -185,10 +202,19 @@ async def run_demonstration() -> None:
                     "citations": merge_citations(state.citations, citation),
                 }
             )
-            chk_2 = await checkpointer.aput(config, state)
+            res_2 = await checkpointer.aput(config, state)
+            chk_2 = res_2["configurable"]["checkpoint_id"] if isinstance(res_2, dict) else res_2
             print(f"[OK] SQL Artifact & Citation saved to checkpoint: {chk_2}")
             print(f"     Artifact ID: {sql_artifact.artifact_id}")
             print(f"     Rows calculated: {sql_artifact.row_count}")
+            print(
+                f"     Decimal Fidelity: {sql_artifact.rows[0]['value']} "
+                f"({type(sql_artifact.rows[0]['value']).__name__})"
+            )
+            print(
+                f"     Date Fidelity: {sql_artifact.rows[0]['ref_per']} "
+                f"({type(sql_artifact.rows[0]['ref_per']).__name__})"
+            )
             print(f"     Cited Table: {citation.core.table_id} (Vector: {citation.core.vector_id})")
 
             # ------------------------------------------------------------------
@@ -212,7 +238,8 @@ async def run_demonstration() -> None:
                 ),
             )
             state = state.model_copy(update={"active_interrupt": interrupt})
-            chk_3 = await checkpointer.aput(config, state)
+            res_3 = await checkpointer.aput(config, state)
+            chk_3 = res_3["configurable"]["checkpoint_id"] if isinstance(res_3, dict) else res_3
             print(f"[!] HITL Interruption triggered and checkpointed: {chk_3}")
             print(f"     Type: {interrupt.interrupt_type.value}")
             print(f"     Reason: {interrupt.reason}")
@@ -222,13 +249,10 @@ async def run_demonstration() -> None:
             # Phase 5: Checkpoint History & Time-Travel Rewind
             # ------------------------------------------------------------------
             _print_header("Phase 5: Time-Travel Rollback & Conversation Forking")
-            history = await checkpointer.alist(config)
             print(f"[*] Checkpoint history for thread '{thread_id}':")
-            for h in history:
-                print(
-                    f"     - Checkpoint {h['checkpoint_id']} "
-                    f"(run: {h['run_id']}) at {h['created_at']}"
-                )
+            async for h in checkpointer.alist(config):
+                cfg = h.config.get("configurable", {})
+                print(f"     - Checkpoint {cfg.get('checkpoint_id')} at {h.checkpoint.get('ts')}")
 
             # Rewind to Phase 2 (before the interrupt occurred)
             print(f"\n[*] Rewinding state back to Checkpoint {chk_1} (pre-interruption)...")
@@ -237,6 +261,7 @@ async def run_demonstration() -> None:
                 target_checkpoint_id=chk_1,
             )
             print(f"[OK] Successfully rolled back thread '{thread_id}'!")
+            print(f"     Session ID Preserved: {rewound_state.session_id} (Expected: {session_id})")
             print(f"     Active Interrupt: {rewound_state.active_interrupt} (None expected)")
             print(f"     SQL Artifacts: {len(rewound_state.sql_artifacts)} (0 expected)")
             plan_obj = rewound_state.plan.objective if rewound_state.plan else None
@@ -254,7 +279,10 @@ async def run_demonstration() -> None:
                 new_thread_id=forked_thread,
             )
             print(f"[OK] Conversation forked into '{forked_state.thread_id}'!")
-            print(f"     Session ID: {forked_state.session_id}")
+            print(
+                f"     Session ID Preserved Across Fork: {forked_state.session_id} "
+                f"(Expected: {session_id})"
+            )
             print(f"     Plan Preserved: {forked_state.plan is not None}")
 
             print("\n" + "=" * 78)

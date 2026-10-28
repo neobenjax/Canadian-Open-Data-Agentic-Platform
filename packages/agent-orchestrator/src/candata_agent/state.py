@@ -11,9 +11,9 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Annotated, Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from candata_mcp.citation import CitationEnvelope
 
@@ -166,6 +166,16 @@ class TokenBudget(BaseModel):
     completion_tokens_used: int = 0
     total_tokens_used: int = 0
 
+    @model_validator(mode="after")
+    def validate_or_compute_total_tokens(self) -> Self:
+        """Ensure total_tokens_used remains synchronized with prompt and completion counts."""
+        computed = self.prompt_tokens_used + self.completion_tokens_used
+        if self.total_tokens_used == 0 and computed > 0:
+            object.__setattr__(self, "total_tokens_used", computed)
+        elif computed > 0 and self.total_tokens_used != computed:
+            object.__setattr__(self, "total_tokens_used", computed)
+        return self
+
     @property
     def remaining_tokens(self) -> int:
         return max(0, self.max_budget - self.total_tokens_used)
@@ -184,8 +194,8 @@ class AgentState(BaseModel):
     thread_id: str
     run_id: str = Field(default_factory=lambda: f"run_{uuid.uuid4().hex[:8]}")
 
-    # Conversation history
-    messages: tuple[AgentMessage, ...] = Field(default_factory=tuple)
+    # Conversation history with append-only reducer
+    messages: Annotated[tuple[AgentMessage, ...], add_messages] = Field(default_factory=tuple)
 
     # Supervisor query planning
     plan: QueryPlan | None = None
@@ -193,8 +203,10 @@ class AgentState(BaseModel):
     # Analytical SQL executions
     sql_artifacts: tuple[SQLArtifact, ...] = Field(default_factory=tuple)
 
-    # Official citations
-    citations: tuple[CitationEnvelope, ...] = Field(default_factory=tuple)
+    # Official citations with deduplication reducer
+    citations: Annotated[tuple[CitationEnvelope, ...], merge_citations] = Field(
+        default_factory=tuple
+    )
 
     # Active HITL breakpoint
     active_interrupt: HITLInterrupt | None = None
