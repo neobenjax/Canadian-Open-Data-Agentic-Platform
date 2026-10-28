@@ -406,6 +406,44 @@ class StatCanClient:
 
         return tuple(results)
 
+    async def get_data_by_reference_period(
+        self,
+        vector_id: int | str,
+        start: str,
+        end: str | None = None,
+    ) -> StatCanSeriesResult:
+        """Fetch one vector's observations between two reference periods, inclusive.
+
+        ``start`` and ``end`` are ISO dates as WDS stores them (``2025-01-01`` for the annual
+        2025 point, ``2025-08-01`` for August 2025). ``end`` defaults to ``start``.
+        """
+        vid = normalize_vector_id(vector_id)
+        params = {
+            "vectorIds": f'"{vid}"',
+            "startRefPeriod": start,
+            "endReferencePeriod": end or start,
+        }
+        response_data, fetched_at = await self._request_json(
+            "GET", "getDataFromVectorByReferencePeriodRange", params=params
+        )
+        obj_dict = self._extract_first_success_object(response_data, f"vector v{vid}")
+        pid_raw = obj_dict.get("productId")
+        if pid_raw is None:
+            raise StatCanResponseError(f"invalid vector result payload: {obj_dict}")
+        pid = normalize_product_id(str(pid_raw))
+        meta = await self.get_cube_metadata(pid)
+        return StatCanSeriesResult(
+            product_id=pid,
+            coordinate=_text(obj_dict, "coordinate", ""),
+            vector_id=_required_int(obj_dict, "vectorId"),
+            title_en=meta.title_en,
+            title_fr=meta.title_fr,
+            frequency_code=meta.frequency_code,
+            unit=None,
+            observations=self._parse_observations(obj_dict.get("vectorDataPoint")),
+            fetched_at=fetched_at,
+        )
+
     async def get_series_info(self, vector_id: int | str) -> SeriesInfo:
         """Fetch series metadata, unit of measure code, and coordinate for a given vector ID."""
         vid = normalize_vector_id(vector_id)
@@ -431,13 +469,23 @@ class StatCanClient:
         )
 
     async def _post_json(self, endpoint: str, body: list[dict[str, Any]]) -> tuple[Any, str]:
+        return await self._request_json("POST", endpoint, body=body)
+
+    async def _request_json(
+        self,
+        method: str,
+        endpoint: str,
+        *,
+        body: list[dict[str, Any]] | None = None,
+        params: Mapping[str, str] | None = None,
+    ) -> tuple[Any, str]:
         url = f"{self._base_url}/{endpoint}"
         response: httpx.Response | None = None
 
         for attempt in range(self._retries + 1):
             last_attempt = attempt == self._retries
             try:
-                response = await self._client.post(url, json=body)
+                response = await self._client.request(method, url, json=body, params=params)
             except httpx.TransportError as exc:
                 if last_attempt:
                     raise StatCanRequestError(f"request to {url} failed: {exc!r}") from exc
