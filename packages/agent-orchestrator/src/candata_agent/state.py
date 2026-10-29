@@ -161,10 +161,10 @@ class TokenBudget(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    max_budget: int = 128000
-    prompt_tokens_used: int = 0
-    completion_tokens_used: int = 0
-    total_tokens_used: int = 0
+    max_budget: int = Field(default=128000, ge=1)
+    prompt_tokens_used: int = Field(default=0, ge=0)
+    completion_tokens_used: int = Field(default=0, ge=0)
+    total_tokens_used: int = Field(default=0, ge=0)
 
     @model_validator(mode="after")
     def validate_or_compute_total_tokens(self) -> Self:

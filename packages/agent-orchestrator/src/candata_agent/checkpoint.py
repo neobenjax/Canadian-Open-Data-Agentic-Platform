@@ -28,26 +28,10 @@ from langgraph.checkpoint.base import (
     CheckpointTuple,
 )
 from langgraph.checkpoint.serde.base import SerializerProtocol
+from pydantic import TypeAdapter
 
-from candata_agent.state import (
-    AgentMessage,
-    AgentState,
-    HITLInterrupt,
-    InterruptType,
-    MessageRole,
-    PlanStep,
-    QueryPlan,
-    SQLArtifact,
-    StepStatus,
-    TokenBudget,
-    TraceContext,
-)
-from candata_mcp.citation import (
-    BilingualTitle,
-    CitationEnvelope,
-    CoreVerificationTuple,
-    MetadataEnrichment,
-)
+from candata_agent.state import AgentState
+from candata_mcp.citation import CitationEnvelope
 
 
 def _encode_type_preserving(obj: Any) -> Any:
@@ -85,159 +69,16 @@ def _serialize_state(state: AgentState) -> str:
     return json.dumps(encoded, default=str)
 
 
-def _rebuild_citation(raw: dict[str, Any]) -> CitationEnvelope:
-    """Reconstruct CitationEnvelope dataclass from dictionary."""
-    core_raw = raw.get("core") or {}
-    enrichment_raw = raw.get("enrichment") or {}
-    title_raw = enrichment_raw.get("bilingual_title") or {}
-
-    bilingual_title = BilingualTitle(
-        en=str(title_raw.get("en", "")),
-        fr=str(title_raw["fr"]) if title_raw.get("fr") else None,
-    )
-
-    enrichment_kwargs: dict[str, Any] = {
-        "coordinate": (
-            str(enrichment_raw["coordinate"]) if enrichment_raw.get("coordinate") else None
-        ),
-        "release_or_revision_date": (
-            str(enrichment_raw["release_or_revision_date"])
-            if enrichment_raw.get("release_or_revision_date")
-            else None
-        ),
-        "bilingual_title": bilingual_title,
-        "canonical_url": str(enrichment_raw.get("canonical_url", "")),
-    }
-
-    if "license_url" in MetadataEnrichment.__dataclass_fields__:
-        enrichment_kwargs["license_url"] = (
-            str(enrichment_raw["license_url"]) if enrichment_raw.get("license_url") else None
-        )
-
-    return CitationEnvelope(
-        publisher=str(raw.get("publisher", "Statistics Canada")),
-        core=CoreVerificationTuple(
-            table_id=str(core_raw.get("table_id", "")),
-            vector_id=str(core_raw.get("vector_id", "")),
-            reference_period=str(core_raw.get("reference_period", "")),
-        ),
-        enrichment=MetadataEnrichment(**enrichment_kwargs),
-    )
+_citation_list_adapter: TypeAdapter[list[CitationEnvelope]] = TypeAdapter(list[CitationEnvelope])
 
 
 def _deserialize_state(raw_json: str) -> AgentState:
     """Reconstruct AgentState from JSON string, preserving exact Decimal and date instances."""
     data = json.loads(raw_json)
     decoded = _decode_type_preserving(data)
-
-    # Reconstruct messages
-    msgs: list[AgentMessage] = []
-    for m in decoded.get("messages", []):
-        msgs.append(
-            AgentMessage(
-                id=m["id"],
-                role=MessageRole(m["role"]),
-                content=m["content"],
-                name=m.get("name"),
-                tool_calls=tuple(m.get("tool_calls", [])),
-                timestamp=datetime.fromisoformat(m["timestamp"]),
-            )
-        )
-
-    # Reconstruct plan
-    plan: QueryPlan | None = None
-    plan_raw = decoded.get("plan")
-    if plan_raw:
-        steps: list[PlanStep] = []
-        for s in plan_raw.get("steps", []):
-            steps.append(
-                PlanStep(
-                    step_id=s["step_id"],
-                    description=s["description"],
-                    assigned_agent=s["assigned_agent"],
-                    status=StepStatus(s.get("status", "pending")),
-                    tool_name=s.get("tool_name"),
-                    tool_args=s.get("tool_args", {}),
-                    result_summary=s.get("result_summary"),
-                )
-            )
-        plan = QueryPlan(
-            plan_id=plan_raw["plan_id"],
-            objective=plan_raw["objective"],
-            steps=tuple(steps),
-            active_step_id=plan_raw.get("active_step_id"),
-            completed=bool(plan_raw.get("completed", False)),
-        )
-
-    # Reconstruct SQL artifacts with exact Decimal and date objects
-    artifacts: list[SQLArtifact] = []
-    for a in decoded.get("sql_artifacts", []):
-        artifacts.append(
-            SQLArtifact(
-                artifact_id=a["artifact_id"],
-                source_series_id=a["source_series_id"],
-                sql_query=a["sql_query"],
-                row_count=a["row_count"],
-                rows=tuple(a.get("rows", [])),
-                created_at=datetime.fromisoformat(a["created_at"]),
-            )
-        )
-
-    # Reconstruct citations
-    citations: list[CitationEnvelope] = [
-        _rebuild_citation(c) for c in decoded.get("citations", []) if isinstance(c, dict)
-    ]
-
-    # Reconstruct HITL interrupt
-    interrupt: HITLInterrupt | None = None
-    int_raw = decoded.get("active_interrupt")
-    if int_raw:
-        interrupt = HITLInterrupt(
-            interrupt_id=int_raw["interrupt_id"],
-            interrupt_type=InterruptType(int_raw["interrupt_type"]),
-            reason=int_raw["reason"],
-            details=int_raw.get("details", {}),
-            suggested_options=tuple(int_raw.get("suggested_options", ())),
-            resolved=bool(int_raw.get("resolved", False)),
-            resolution=int_raw.get("resolution"),
-            resolved_at=(
-                datetime.fromisoformat(int_raw["resolved_at"])
-                if int_raw.get("resolved_at")
-                else None
-            ),
-        )
-
-    # Observability
-    tc_raw = decoded.get("trace_context") or {}
-    trace_context = TraceContext(
-        traceparent=tc_raw.get("traceparent"),
-        tracestate=tc_raw.get("tracestate"),
-        span_id=tc_raw.get("span_id"),
-        parent_span_id=tc_raw.get("parent_span_id"),
-    )
-
-    tb_raw = decoded.get("token_budget") or {}
-    token_budget = TokenBudget(
-        max_budget=int(tb_raw.get("max_budget", 128000)),
-        prompt_tokens_used=int(tb_raw.get("prompt_tokens_used", 0)),
-        completion_tokens_used=int(tb_raw.get("completion_tokens_used", 0)),
-        total_tokens_used=int(tb_raw.get("total_tokens_used", 0)),
-    )
-
-    return AgentState(
-        schema_version=int(decoded.get("schema_version", 1)),
-        session_id=str(decoded["session_id"]),
-        thread_id=str(decoded["thread_id"]),
-        run_id=str(decoded.get("run_id", f"run_{uuid.uuid4().hex[:8]}")),
-        messages=tuple(msgs),
-        plan=plan,
-        sql_artifacts=tuple(artifacts),
-        citations=tuple(citations),
-        active_interrupt=interrupt,
-        trace_context=trace_context,
-        token_budget=token_budget,
-        scratchpad=dict(decoded.get("scratchpad", {})),
-    )
+    if "citations" in decoded and isinstance(decoded["citations"], list):
+        decoded["citations"] = tuple(_citation_list_adapter.validate_python(decoded["citations"]))
+    return AgentState.model_validate(decoded)
 
 
 class AsyncSqliteSaver(BaseCheckpointSaver[Any]):
@@ -359,7 +200,8 @@ class AsyncSqliteSaver(BaseCheckpointSaver[Any]):
             chk_thread = thread_id or checkpoint.thread_id
             chk_id = str(configurable.get("checkpoint_id") or f"chk_{uuid.uuid4().hex[:12]}")
             parent_id = configurable.get("parent_checkpoint_id")
-            state_json = _serialize_state(checkpoint)
+            cloned = checkpoint.model_copy(deep=True)
+            state_json = _serialize_state(cloned)
 
             def _put_agent_state() -> None:
                 conn = self._get_connection()
@@ -520,7 +362,7 @@ class AsyncSqliteSaver(BaseCheckpointSaver[Any]):
                 SELECT task_id, channel, type, value
                 FROM checkpoint_writes
                 WHERE thread_id = ? AND checkpoint_ns = ? AND checkpoint_id = ?
-                ORDER BY idx ASC;
+                ORDER BY task_path ASC, task_id ASC, idx ASC;
                 """,
                 (thread_id, checkpoint_ns, chk_id),
             )

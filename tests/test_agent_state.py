@@ -441,3 +441,83 @@ async def test_time_travel_keyerror_on_unknown_checkpoint(
         await checkpointer.arollback_to(
             thread_id="th_nonexistent", target_checkpoint_id="chk_unknown"
         )
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_scratchpad_deepcopy_immutability(
+    checkpointer: AsyncSqliteSaver,
+) -> None:
+    """Activity 21.2: Mutating mutable scratchpad after aput must not corrupt saved checkpoint."""
+    initial_scratch = {"series_data": [1, 2, 3], "meta": {"owner": "benjamin"}}
+    s = AgentState(
+        session_id="sess_immutable",
+        thread_id="th_immutable",
+        messages=[],
+        scratchpad=initial_scratch,
+    )
+    cfg = cast(
+        RunnableConfig,
+        {"configurable": {"thread_id": "th_immutable", "checkpoint_id": "chk_imm_1"}},
+    )
+    await checkpointer.aput(cfg, s)
+
+    # Mutate the in-memory scratchpad dictionary in place
+    initial_scratch["series_data"].append(999)
+    initial_scratch["meta"]["owner"] = "corrupted"
+
+    # Fetch stored state from checkpointer
+    restored = await checkpointer.aget_state(cfg)
+    assert restored is not None
+    assert restored.scratchpad["series_data"] == [1, 2, 3]
+    assert restored.scratchpad["meta"]["owner"] == "benjamin"
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_strict_citation_typeadapter(
+    checkpointer: AsyncSqliteSaver,
+) -> None:
+    """Activity 21.1: CitationEnvelope must roundtrip via TypeAdapter without defaults."""
+    envelope = CitationEnvelope(
+        publisher="Statistics Canada",
+        core=CoreVerificationTuple(
+            table_id="18-10-0004-01",
+            vector_id="v41690973",
+            reference_period="2024-01/2024-12",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate="2.1",
+            release_or_revision_date="2024-12-15T08:30",
+            bilingual_title=BilingualTitle(en="Consumer Price Index", fr="IPC"),
+            canonical_url="https://statcan.gc.ca",
+        ),
+    )
+    s = AgentState(
+        session_id="sess_cit",
+        thread_id="th_cit",
+        messages=[],
+        citations=(envelope,),
+        scratchpad={"target_val": Decimal("105.75"), "as_of": date(2024, 6, 1)},
+    )
+    cfg = cast(
+        RunnableConfig, {"configurable": {"thread_id": "th_cit", "checkpoint_id": "chk_cit_1"}}
+    )
+    await checkpointer.aput(cfg, s)
+
+    restored = await checkpointer.aget_state(cfg)
+    assert restored is not None
+    assert len(restored.citations) == 1
+    assert restored.citations[0] == envelope
+    assert restored.scratchpad["target_val"] == Decimal("105.75")
+    assert restored.scratchpad["as_of"] == date(2024, 6, 1)
+
+
+def test_token_budget_non_negative_and_derived_total() -> None:
+    """Activity 21.4: TokenBudget must enforce non-negative values and synchronized total."""
+    tb = TokenBudget(prompt_tokens_used=150, completion_tokens_used=50)
+    assert tb.total_tokens_used == 200
+
+    with pytest.raises(ValidationError):
+        TokenBudget(prompt_tokens_used=-10)
+
+    with pytest.raises(ValidationError):
+        TokenBudget(completion_tokens_used=-5)
