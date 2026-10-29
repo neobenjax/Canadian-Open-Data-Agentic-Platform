@@ -13,6 +13,7 @@ import os
 import re
 import sys
 import csv
+import datetime
 import json
 import argparse
 import urllib.request
@@ -446,6 +447,17 @@ def fetch_all_linear_issues(team_id: str, api_key: Optional[str] = None) -> List
                         id
                         name
                     }
+                    dueDate
+                    priority
+                    estimate
+                    cycle {
+                        name
+                    }
+                    labels {
+                        nodes {
+                            name
+                        }
+                    }
                 }
             }
         }
@@ -455,6 +467,77 @@ def fetch_all_linear_issues(team_id: str, api_key: Optional[str] = None) -> List
     if res and res.get("team"):
         return res["team"].get("issues", {}).get("nodes", [])
     return []
+
+
+# Ordered: the first group with a matching keyword wins. Names match the Linear team labels.
+AREA_LABEL_KEYWORDS: List[Tuple[str, Tuple[str, ...]]] = [
+    ("area:governance", ("opentelemetry", "tracing", "telemetry", "lineage", "audit", "guardrail", "injection", "security")),
+    ("area:research", ("benchmark", "user testing", "case study", "deepeval", "evaluation", "outreach")),
+    ("area:data", ("connector", "wds", "valet", "ckan", "statcan", "bank of canada")),
+    ("area:mcp", ("fastmcp", "mcp server", "pypi", "registry", "docker", "container", "package")),
+    ("area:agent", ("langgraph", "supervisor", "agent", "interrupt", "streamlit")),
+    ("docs", ("readme", "docs-portal", "docs portal", "documentation", "next.js", "cheat sheet")),
+]
+
+
+def infer_area_label(description: str) -> Optional[str]:
+    """Pick the Linear area label for a task description, or None when nothing matches."""
+    text = description.lower()
+    for label, keywords in AREA_LABEL_KEYWORDS:
+        if any(keyword in text for keyword in keywords):
+            return label
+    return None
+
+
+def milestone_sprint(milestone: str) -> Optional[str]:
+    """Return the lower-case sprint name in a milestone title: '(Sprint 3)' -> 'sprint 3'."""
+    m = re.search(r"\((Sprint\s+\d+)\)", milestone, re.IGNORECASE)
+    return re.sub(r"\s+", " ", m.group(1)).lower() if m else None
+
+
+def cycle_id_for_task(task: Dict[str, Any], active_cycle: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Return the active cycle's ID only when the task's milestone sprint is that cycle.
+
+    Cycles are named after sprints ('Sprint 3'), so a bulk upload does not put Sprint 6 tasks in
+    this week's cycle.
+    """
+    if not active_cycle:
+        return None
+    sprint = milestone_sprint(task.get("milestone", ""))
+    if sprint and sprint == str(active_cycle.get("name", "")).strip().lower():
+        return active_cycle["id"]
+    return None
+
+
+def fetch_team_labels_and_active_cycle(
+    team_id: str, api_key: Optional[str] = None
+) -> Tuple[Dict[str, str], Optional[Dict[str, Any]]]:
+    """Fetch the team's active (non-retired) labels as name -> id, and the active cycle."""
+    query = """
+    query GetTeamMeta($teamId: String!) {
+        team(id: $teamId) {
+            labels(first: 100) {
+                nodes {
+                    id
+                    name
+                    retiredAt
+                }
+            }
+            activeCycle {
+                id
+                name
+            }
+        }
+    }
+    """
+    res = query_linear_api(query, {"teamId": team_id}, api_key=api_key)
+    team = (res or {}).get("team") or {}
+    labels = {
+        node["name"].lower(): node["id"]
+        for node in team.get("labels", {}).get("nodes", [])
+        if not node.get("retiredAt")
+    }
+    return labels, team.get("activeCycle")
 
 
 # ==============================================================================
@@ -515,6 +598,10 @@ def upload_all_tasks_to_linear(api_key: Optional[str] = None):
             existing_keys.add(m.group(0))
 
     projects = context.get("projects", {}).get("nodes", [])
+    label_ids, active_cycle = fetch_team_labels_and_active_cycle(team["id"], api_key=key)
+    if active_cycle:
+        print(f"   Active cycle: {active_cycle['name']} (new tasks of that sprint join it)")
+    print(f"   Area labels found: {', '.join(sorted(n for n in label_ids if n.startswith('area:')))}\n")
 
     created_count = 0
     skipped_count = 0
@@ -571,6 +658,13 @@ def upload_all_tasks_to_linear(api_key: Optional[str] = None):
         }
         if assignee_id:
             input_payload["assigneeId"] = assignee_id
+
+        area = infer_area_label(task["description"])
+        if area and area in label_ids:
+            input_payload["labelIds"] = [label_ids[area]]
+        cycle_id = cycle_id_for_task(task, active_cycle)
+        if cycle_id:
+            input_payload["cycleId"] = cycle_id
 
         res = query_linear_api(create_mutation, {"input": input_payload}, api_key=key)
         if res and res.get("issueCreate", {}).get("success"):
@@ -1288,6 +1382,79 @@ def create_github_pr_for_task(
 # 7. DASHBOARD
 # ==============================================================================
 
+PRIORITY_NAMES = {0: "-", 1: "Urgent", 2: "High", 3: "Medium", 4: "Low"}
+
+
+def _linear_status(state: Dict[str, Any]) -> str:
+    """Map a Linear workflow state onto the TASKS.md status vocabulary."""
+    name = str(state.get("name", "")).strip().upper()
+    if name in ("DONE", "IN REVIEW", "IN PROGRESS"):
+        return name
+    if state.get("type") == "completed":
+        return "DONE"
+    return "TODO"  # Todo, Backlog, Triage, Canceled and anything unstarted
+
+
+def summarize_linear_mirror(
+    tasks: List[Dict[str, Any]], linear_issues: List[Dict[str, Any]], today: datetime.date
+) -> Dict[str, Any]:
+    """Join every TASKS.md task to its Linear issue and roll up what needs attention.
+
+    Issues are matched on the leading '[CAN-XX]' of the Linear title, so a follow-up that only
+    mentions a task (e.g. '(CAN-22, CAN-24)') is never mistaken for it.
+    """
+    by_key: Dict[str, Dict[str, Any]] = {}
+    for iss in linear_issues:
+        m = re.match(r"\s*\[(CAN-\d+)\]", iss.get("title", ""))
+        if m:
+            by_key.setdefault(m.group(1), iss)
+
+    rows: List[Dict[str, Any]] = []
+    for task in tasks:
+        iss = by_key.get(task["key"])
+        if iss is None:
+            rows.append({
+                "key": task["key"], "tasks_status": task["status"], "linear_state": "Not Created",
+                "mismatch": False, "priority": "-", "estimate": "-", "due": "-", "cycle": "-",
+                "labels": [],
+            })
+            continue
+        linear_status = _linear_status(iss.get("state") or {})
+        estimate = iss.get("estimate")
+        rows.append({
+            "key": task["key"],
+            "tasks_status": task["status"],
+            "linear_state": (iss.get("state") or {}).get("name", "?"),
+            "mismatch": linear_status != task["status"],
+            "priority": PRIORITY_NAMES.get(iss.get("priority") or 0, "-"),
+            "estimate": "-" if estimate is None else f"{estimate:g}",
+            "due": iss.get("dueDate") or "-",
+            "cycle": (iss.get("cycle") or {}).get("name", "-"),
+            "labels": [n["name"] for n in (iss.get("labels") or {}).get("nodes", [])],
+        })
+
+    open_issues = [
+        i for i in linear_issues if (i.get("state") or {}).get("type") not in ("completed", "canceled")
+    ]
+    overdue = sorted(
+        (i for i in open_issues if i.get("dueDate") and i["dueDate"] < today.isoformat()),
+        key=lambda i: i["dueDate"],
+    )
+    in_review = [i for i in open_issues if (i.get("state") or {}).get("name") == "In Review"]
+    open_by_owner: Dict[str, int] = {}
+    for iss in open_issues:
+        owner = (iss.get("assignee") or {}).get("name", "Unassigned")
+        open_by_owner[owner] = open_by_owner.get(owner, 0) + 1
+
+    return {
+        "rows": rows,
+        "mismatches": [r for r in rows if r["mismatch"]],
+        "overdue": overdue,
+        "in_review": in_review,
+        "open_by_owner": open_by_owner,
+    }
+
+
 def print_status_dashboard(parsed: Dict[str, Any], linear_issues: Optional[List[Dict[str, Any]]] = None):
     """Print an executive status report of tasks and mirror status."""
     tasks = parsed["tasks"]
@@ -1319,21 +1486,33 @@ def print_status_dashboard(parsed: Dict[str, Any], linear_issues: Optional[List[
         print()
 
     if linear_issues:
+        summary = summarize_linear_mirror(tasks, linear_issues, datetime.date.today())
         print("-" * 74)
         print("🔗 LINEAR.APP CLOUD MIRROR STATUS")
         print("-" * 74)
-        linear_map = {i["title"]: i for i in linear_issues}
-        for t in tasks[:8]:
-            matched = None
-            for title, iss in linear_map.items():
-                if t["key"] in title:
-                    matched = iss
-                    break
-            if matched:
-                state = matched["state"]["name"]
-                print(f"   {t['key']}: TASKS.md={t['status']:<11} | Linear={state:<12}")
-            else:
-                print(f"   {t['key']}: TASKS.md={t['status']:<11} | Linear=Not Created")
+        print(f"   {'Task':<7} {'TASKS.md':<11} {'Linear':<12} {'Pri':<7} {'Est':<4} {'Due':<11} {'Cycle':<9} Labels")
+        for row in summary["rows"]:
+            flag = " ⚠️" if row["mismatch"] else ""
+            print(
+                f"   {row['key']:<7} {row['tasks_status']:<11} {row['linear_state']:<12} "
+                f"{row['priority']:<7} {row['estimate']:<4} {row['due']:<11} {row['cycle']:<9} "
+                f"{', '.join(row['labels'])}{flag}"
+            )
+        print()
+        print(f"⚠️  Status mismatches (TASKS.md vs Linear): {len(summary['mismatches'])}")
+        for row in summary["mismatches"]:
+            print(f"   {row['key']:<7} TASKS.md={row['tasks_status']} | Linear={row['linear_state']}")
+        print(f"\n⏰ Overdue in Linear: {len(summary['overdue'])}")
+        for iss in summary["overdue"]:
+            print(f"   {iss['identifier']:<7} due {iss['dueDate']} [{iss['state']['name']}] {iss['title'][:44]}")
+        print(f"\n👀 Waiting on a reviewer: {len(summary['in_review'])}")
+        for iss in summary["in_review"]:
+            who = (iss.get("assignee") or {}).get("name", "Unassigned")
+            print(f"   {iss['identifier']:<7} {who:<16} {iss['title'][:44]}")
+        print("\n👤 Open issues per owner (Linear):")
+        for name, count in sorted(summary["open_by_owner"].items()):
+            print(f"   {name:<20} {count}")
+        print()
     else:
         print("💡 Tip: Run 'python scripts/sync_tasks.py --upload-to-linear' to populate your Linear board.\n")
 
