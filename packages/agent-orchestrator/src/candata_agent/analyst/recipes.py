@@ -3,7 +3,7 @@
 Implements the 8 core Canadian macroeconomic and housing recipes verified against
 the GTA Housing Ground-Truth Benchmark (gta_ground_truth_v1.md):
 1. annual_inflation_rate (calendar-year average of monthly index values)
-2. yoy_point_to_point (12-month lagged change for single months or Dec-to-Dec)
+2. yoy_point_to_point (calendar temporal self-join for single months, annual or Dec-to-Dec)
 3. percentage_point_spread (rate difference in 'pp' and 'bps')
 4. affordability_burden_ratio (annual shelter rent vs annual median income)
 5. multi_year_cagr (compound annual growth rate)
@@ -26,48 +26,95 @@ def annual_inflation_rate(
     *,
     date_col: str = "date",
     value_col: str = "value",
+    expected_periods: int = 12,
+    allow_partial: bool = False,
 ) -> tuple[list[dict[str, Any]], str]:
     """Calculate annual inflation rate from monthly CPI by averaging 12 monthly index values.
 
     Directly powers GTA Ground-Truth GT-10 and GT-11.
+    Handles data suppression (e.g. 9/12 observed months) by flagging incomplete years
+    and omitting partial rates unless allow_partial is True.
     """
     view_name = "monthly_series"
+    clean_date = date_col.replace('"', '""')
+    clean_val = value_col.replace('"', '""')
+
     query = f"""
     WITH annual_agg AS (
         SELECT
-            strftime(TRY_CAST(substr({date_col} || '-01-01', 1, 10) AS DATE), '%Y') AS cal_year,
-            AVG({value_col}) AS avg_index,
-            COUNT({value_col}) AS observed_months
+            strftime(TRY_CAST(substr("{clean_date}" || '-01-01', 1, 10) AS DATE), '%Y') AS cal_year,
+            AVG("{clean_val}") AS raw_avg_index,
+            COUNT("{clean_val}") AS observed_months
         FROM {view_name}
-        WHERE {value_col} IS NOT NULL
+        WHERE "{clean_val}" IS NOT NULL
         GROUP BY cal_year
-        HAVING COUNT({value_col}) >= 1
+        HAVING COUNT("{clean_val}") >= 1
+    ),
+    annual_valid AS (
+        SELECT
+            cal_year,
+            observed_months,
+            CASE
+                WHEN observed_months >= ? OR ? THEN ROUND(raw_avg_index, 4)
+                ELSE NULL
+            END AS avg_index,
+            CASE
+                WHEN observed_months >= ? OR ? THEN TRUE
+                ELSE FALSE
+            END AS complete,
+            CASE
+                WHEN observed_months < ? AND NOT ? THEN
+                    'Incomplete year (' || observed_months::VARCHAR || '/' || ?::VARCHAR
+                    || ' periods observed); suppressed or partial data '
+                    || 'declined to avoid hallucination'
+                ELSE NULL
+            END AS warning
+        FROM annual_agg
     ),
     yoy_calc AS (
         SELECT
             cal_year,
-            ROUND(avg_index, 4) AS avg_index,
+            avg_index,
             observed_months,
+            complete,
+            warning,
             LAG(avg_index, 1) OVER (ORDER BY cal_year ASC) AS prev_year_avg,
-            ROUND(
-                ((avg_index - LAG(avg_index, 1) OVER (ORDER BY cal_year ASC)) /
-                 NULLIF(LAG(avg_index, 1) OVER (ORDER BY cal_year ASC), 0)) * 100.0,
-                4
-            ) AS annual_inflation_pct
-        FROM annual_agg
+            CASE
+                WHEN avg_index IS NULL
+                     OR LAG(avg_index, 1) OVER (ORDER BY cal_year ASC) IS NULL
+                THEN NULL
+                ELSE ROUND(
+                    ((avg_index - LAG(avg_index, 1) OVER (ORDER BY cal_year ASC)) /
+                     NULLIF(LAG(avg_index, 1) OVER (ORDER BY cal_year ASC), 0)) * 100.0,
+                    4
+                )
+            END AS annual_inflation_pct
+        FROM annual_valid
     )
     SELECT
         cal_year,
         avg_index,
         observed_months,
+        complete,
+        warning,
         ROUND(prev_year_avg, 4) AS prev_year_avg,
-        annual_inflation_pct
+        annual_inflation_pct,
+        TRUE AS derived_from_monthly
     FROM yoy_calc
     ORDER BY cal_year DESC
     """
+    params = [
+        expected_periods,
+        allow_partial,
+        expected_periods,
+        allow_partial,
+        expected_periods,
+        allow_partial,
+        expected_periods,
+    ]
     with SandboxedDuckDB() as db:
         db.register_table(view_name, table)
-        rows = db.execute_sync(query)
+        rows = db.execute_sync(query, params)
     return rows, query.strip()
 
 
@@ -77,32 +124,57 @@ def yoy_point_to_point(
     date_col: str = "date",
     value_col: str = "value",
     lag: int = 12,
+    interval_years: int | None = None,
 ) -> tuple[list[dict[str, Any]], str]:
-    """Calculate point-to-point change with arbitrary lag (default 12 months for YoY).
+    """Calculate point-to-point change using calendar temporal self-join.
 
     Directly powers GTA Ground-Truth GT-01, GT-06, and GT-12.
+    Uses calendar temporal matching (INTERVAL) rather than physical row offset,
+    preventing severe rate distortion when intermediate months are suppressed.
+    Missing earlier periods evaluate to NULL rather than jumping across gaps.
     """
     view_name = "series_data"
+    clean_date = date_col.replace('"', '""')
+    clean_val = value_col.replace('"', '""')
+
+    if interval_years is not None:
+        interval_expr = f"{int(interval_years)} YEAR"
+    elif lag >= 12 and lag % 12 == 0:
+        interval_expr = f"{int(lag // 12)} YEAR"
+    else:
+        interval_expr = f"{int(lag)} MONTH"
+
     query = f"""
-    WITH ordered_series AS (
+    WITH normalized_series AS (
         SELECT
-            {date_col} AS obs_date,
-            {value_col} AS current_value,
-            LAG({value_col}, {lag}) OVER (ORDER BY {date_col} ASC) AS lag_value
+            "{clean_date}" AS obs_date,
+            TRY_CAST(CASE
+                WHEN LENGTH("{clean_date}") = 4 THEN "{clean_date}" || '-01-01'
+                WHEN LENGTH("{clean_date}") = 7 THEN "{clean_date}" || '-01'
+                ELSE "{clean_date}"
+            END AS DATE) AS date_norm,
+            "{clean_val}" AS val
         FROM {view_name}
-        WHERE {value_col} IS NOT NULL
+        WHERE "{clean_val}" IS NOT NULL
     )
     SELECT
-        obs_date,
-        ROUND(current_value, 4) AS current_value,
-        ROUND(lag_value, 4) AS lag_value,
-        ROUND(current_value - lag_value, 4) AS change_absolute,
-        ROUND(
-            ((current_value - lag_value) / NULLIF(lag_value, 0)) * 100.0,
-            4
-        ) AS change_pct
-    FROM ordered_series
-    ORDER BY obs_date DESC
+        curr.obs_date AS obs_date,
+        ROUND(curr.val, 4) AS current_value,
+        ROUND(prior.val, 4) AS lag_value,
+        ROUND(curr.val - prior.val, 4) AS change_absolute,
+        CASE
+            WHEN prior.val IS NULL OR prior.val = 0 THEN NULL
+            ELSE ROUND(((curr.val - prior.val) / prior.val) * 100.0, 4)
+        END AS change_pct
+    FROM normalized_series curr
+    LEFT JOIN normalized_series prior
+        ON prior.date_norm = (
+            CASE
+                WHEN LENGTH(curr.obs_date) = 4 THEN (curr.date_norm - INTERVAL 1 YEAR)::DATE
+                ELSE (curr.date_norm - INTERVAL {interval_expr})::DATE
+            END
+        )
+    ORDER BY curr.date_norm DESC
     """
     with SandboxedDuckDB() as db:
         db.register_table(view_name, table)
@@ -125,15 +197,20 @@ def percentage_point_spread(
     """
     name_a = "tab_a"
     name_b = "tab_b"
+    clean_date = date_col.replace('"', '""')
+    clean_val = value_col.replace('"', '""')
+    clean_a_name = series_a_name.replace('"', '""')
+    clean_b_name = series_b_name.replace('"', '""')
+
     query = f"""
     SELECT
-        a.{date_col} AS obs_date,
-        ROUND(a.{value_col}, 4) AS {series_a_name},
-        ROUND(b.{value_col}, 4) AS {series_b_name},
-        ROUND(a.{value_col} - b.{value_col}, 4) AS spread_pp,
-        ROUND((a.{value_col} - b.{value_col}) * 100.0, 1) AS spread_bps
+        a."{clean_date}" AS obs_date,
+        ROUND(a."{clean_val}", 4) AS "{clean_a_name}",
+        ROUND(b."{clean_val}", 4) AS "{clean_b_name}",
+        ROUND(a."{clean_val}" - b."{clean_val}", 4) AS spread_pp,
+        ROUND((a."{clean_val}" - b."{clean_val}") * 100.0, 1) AS spread_bps
     FROM {name_a} a
-    JOIN {name_b} b ON a.{date_col} = b.{date_col}
+    JOIN {name_b} b ON a."{clean_date}" = b."{clean_date}"
     ORDER BY obs_date DESC
     """
     with SandboxedDuckDB() as db:
@@ -158,18 +235,23 @@ def affordability_burden_ratio(
     """
     view_rent = "rent_series"
     view_income = "income_series"
+    clean_r_date = rent_date_col.replace('"', '""')
+    clean_r_val = rent_val_col.replace('"', '""')
+    clean_i_date = income_date_col.replace('"', '""')
+    clean_i_val = income_val_col.replace('"', '""')
+
     query = f"""
     SELECT
-        r.{rent_date_col} AS ref_period,
-        ROUND(r.{rent_val_col}, 2) AS monthly_rent,
-        ROUND(r.{rent_val_col} * 12.0, 2) AS annual_rent,
-        ROUND(i.{income_val_col}, 2) AS annual_income,
+        r."{clean_r_date}" AS ref_period,
+        ROUND(r."{clean_r_val}", 2) AS monthly_rent,
+        ROUND(r."{clean_r_val}" * 12.0, 2) AS annual_rent,
+        ROUND(i."{clean_i_val}", 2) AS annual_income,
         ROUND(
-            ((r.{rent_val_col} * 12.0) / NULLIF(i.{income_val_col}, 0)) * 100.0,
+            ((r."{clean_r_val}" * 12.0) / NULLIF(i."{clean_i_val}", 0)) * 100.0,
             2
         ) AS rent_to_income_pct
     FROM {view_rent} r
-    JOIN {view_income} i ON substr(r.{rent_date_col}, 1, 4) = substr(i.{income_date_col}, 1, 4)
+    JOIN {view_income} i ON substr(r."{clean_r_date}", 1, 4) = substr(i."{clean_i_date}", 1, 4)
     ORDER BY ref_period DESC
     """
     with SandboxedDuckDB() as db:
@@ -238,16 +320,22 @@ def cross_geography_ranking(
     """Rank regions and compute gap to highest region.
 
     Directly powers GTA Ground-Truth GT-03 and GT-04.
+    Uses parameterized date binding and quoted identifier columns.
     """
     view_name = "cross_geo"
-    where_sql = f"WHERE date = '{date_filter}'" if date_filter else ""
+    clean_geo = geo_col.replace('"', '""')
+    clean_val = value_col.replace('"', '""')
+
+    where_sql = 'WHERE "date" = ?' if date_filter else ""
+    params = [date_filter] if date_filter else None
+
     query = f"""
     WITH ranked AS (
         SELECT
-            {geo_col} AS geography,
-            ROUND({value_col}, 4) AS value,
-            RANK() OVER (ORDER BY {value_col} DESC) AS ranking,
-            FIRST_VALUE(ROUND({value_col}, 4)) OVER (ORDER BY {value_col} DESC) AS leader_value
+            "{clean_geo}" AS geography,
+            ROUND("{clean_val}", 4) AS value,
+            RANK() OVER (ORDER BY "{clean_val}" DESC) AS ranking,
+            FIRST_VALUE(ROUND("{clean_val}", 4)) OVER (ORDER BY "{clean_val}" DESC) AS leader_value
         FROM {view_name}
         {where_sql}
     )
@@ -261,7 +349,7 @@ def cross_geography_ranking(
     """
     with SandboxedDuckDB() as db:
         db.register_table(view_name, table)
-        rows = db.execute_sync(query)
+        rows = db.execute_sync(query, params)
     return rows, query.strip()
 
 
@@ -271,10 +359,15 @@ def calendar_year_aggregation(
     date_col: str = "date",
     value_col: str = "value",
     agg_func: str = "SUM",
+    expected_periods: int = 12,
+    allow_partial: bool = False,
 ) -> tuple[list[dict[str, Any]], str]:
     """Aggregate monthly flows (e.g. housing starts) into calendar-year totals.
 
     Directly powers GTA Ground-Truth GT-05.
+    If observed periods are less than expected_periods (e.g. 9/12 due to StatCan suppression)
+    and allow_partial is False, aggregated_total is set to None and an informative warning
+    is attached, preventing miscalculated annual totals.
     """
     allowed_aggs = {"SUM", "AVG", "MIN", "MAX"}
     func = agg_func.upper()
@@ -282,19 +375,52 @@ def calendar_year_aggregation(
         raise ValueError(f"agg_func must be one of {allowed_aggs}, got '{agg_func}'")
 
     view_name = "flow_data"
+    clean_date = date_col.replace('"', '""')
+    clean_val = value_col.replace('"', '""')
+
     query = f"""
+    WITH raw_agg AS (
+        SELECT
+            strftime(TRY_CAST(substr("{clean_date}" || '-01-01', 1, 10) AS DATE), '%Y') AS cal_year,
+            ROUND({func}("{clean_val}"), 2) AS raw_total,
+            COUNT("{clean_val}") AS observed_months
+        FROM {view_name}
+        WHERE "{clean_val}" IS NOT NULL
+        GROUP BY cal_year
+    )
     SELECT
-        strftime(TRY_CAST(substr({date_col} || '-01-01', 1, 10) AS DATE), '%Y') AS cal_year,
-        ROUND({func}({value_col}), 2) AS aggregated_total,
-        COUNT({value_col}) AS observed_months
-    FROM {view_name}
-    WHERE {value_col} IS NOT NULL
-    GROUP BY cal_year
+        cal_year,
+        CASE
+            WHEN observed_months >= ? OR ? THEN raw_total
+            ELSE NULL
+        END AS aggregated_total,
+        observed_months,
+        CASE
+            WHEN observed_months >= ? OR ? THEN TRUE
+            ELSE FALSE
+        END AS complete,
+        CASE
+            WHEN observed_months < ? AND NOT ? THEN
+                'Incomplete year (' || observed_months::VARCHAR || '/' || ?::VARCHAR
+                || ' periods observed); suppressed or partial data '
+                || 'declined to avoid hallucination'
+            ELSE NULL
+        END AS warning
+    FROM raw_agg
     ORDER BY cal_year DESC
     """
+    params = [
+        expected_periods,
+        allow_partial,
+        expected_periods,
+        allow_partial,
+        expected_periods,
+        allow_partial,
+        expected_periods,
+    ]
     with SandboxedDuckDB() as db:
         db.register_table(view_name, table)
-        rows = db.execute_sync(query)
+        rows = db.execute_sync(query, params)
     return rows, query.strip()
 
 
@@ -311,15 +437,18 @@ def discrete_regime_change_counter(
     """
     target_year = str(year)
     view_name = "policy_rate_series"
+    clean_date = date_col.replace('"', '""')
+    clean_val = value_col.replace('"', '""')
+
     query = f"""
     WITH year_slice AS (
         SELECT
-            {date_col} AS obs_date,
-            {value_col} AS rate_val,
-            LAG({value_col}, 1) OVER (ORDER BY {date_col} ASC) AS prev_val
+            "{clean_date}" AS obs_date,
+            "{clean_val}" AS rate_val,
+            LAG("{clean_val}", 1) OVER (ORDER BY "{clean_date}" ASC) AS prev_val
         FROM {view_name}
-        WHERE strftime(TRY_CAST(substr({date_col} || '-01-01', 1, 10) AS DATE), '%Y') = ?
-          AND {value_col} IS NOT NULL
+        WHERE strftime(TRY_CAST(substr("{clean_date}" || '-01-01', 1, 10) AS DATE), '%Y') = ?
+          AND "{clean_val}" IS NOT NULL
     ),
     metrics AS (
         SELECT

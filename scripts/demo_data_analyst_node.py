@@ -102,7 +102,32 @@ async def main() -> None:
         f"Spread: +{s['spread_pp']} pp (+{s['spread_bps']} bps)"
     )
 
-    # 2C: Multi-Year CAGR (GT-08: 5-Year Rent Growth 2019 -> 2024)
+    # 2C: Housing Starts Calendar Aggregation with Data Suppression (GT-05: Table 34-10-0143-01)
+    print(
+        "\n[GT-05] Housing Starts Annual Aggregation (Handling Jul-Sep 2025 StatCan Suppression):"
+    )
+    from candata_agent.analyst import calendar_year_aggregation
+
+    dates_starts = [f"2025-{m:02d}" for m in [1, 2, 3, 4, 5, 6, 10, 11, 12]] + [
+        f"2024-{m:02d}" for m in range(1, 13)
+    ]
+    vals_starts = [2059.2] * 9 + [2173.9] * 12
+    starts_table = pa.Table.from_pydict({"date": dates_starts, "value": vals_starts})
+    rows_starts, _ = calendar_year_aggregation(starts_table, agg_func="SUM", expected_periods=12)
+    for r in rows_starts:
+        total_disp = (
+            f"{r['aggregated_total']} units"
+            if r["aggregated_total"] is not None
+            else "DECLINED (Suppressed/Incomplete)"
+        )
+        print(
+            f"  • Year: {r['cal_year']} | Observed: {r['observed_months']}/12 "
+            f"| Total: {total_disp} | Complete: {r['complete']}"
+        )
+        if r.get("warning"):
+            print(f"    ⚠️  {r['warning']}")
+
+    # 2D: Multi-Year CAGR (GT-08: 5-Year Rent Growth 2019 -> 2024)
     print("\n[GT-08] 5-Year Compound Annual Growth Rate (CAGR 2019 -> 2024):")
     cagr_res, _ = multi_year_cagr(
         start_val=1500.0,

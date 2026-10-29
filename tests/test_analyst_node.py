@@ -7,6 +7,7 @@ import pyarrow as pa
 import pytest
 
 from candata_agent.analyst import (
+    ExecutionTimeoutError,
     SandboxedDuckDB,
     SecurityValidationError,
     affordability_burden_ratio,
@@ -25,6 +26,12 @@ from candata_agent.state import (
     PlanStep,
     QueryPlan,
     StepStatus,
+)
+from candata_mcp.citation import (
+    BilingualTitle,
+    CitationEnvelope,
+    CoreVerificationTuple,
+    MetadataEnrichment,
 )
 
 # ==============================================================================
@@ -302,7 +309,10 @@ async def test_data_analyst_node_handles_failure_gracefully() -> None:
         description="Attempt malicious query",
         assigned_agent="data_analyst",
         tool_name="custom_sql",
-        tool_args={"query": "DROP TABLE critical_data;"},
+        tool_args={
+            "series_id": "v12345",
+            "query": "DROP TABLE critical_data;",
+        },
     )
     plan = QueryPlan(
         objective="Execute test query",
@@ -326,3 +336,187 @@ async def test_data_analyst_node_handles_failure_gracefully() -> None:
     # Error message logged
     assert len(delta["messages"]) == 1
     assert "Data Analyst Execution Failed" in delta["messages"][0].content
+
+
+def test_calendar_year_aggregation_incomplete_year() -> None:
+    """Incomplete calendar years return complete=False and aggregated_total=None (GT-05)."""
+    # 2025: 9 observed months (Jul-Sep suppressed in GT-05)
+    dates_2025 = [f"2025-{m:02d}" for m in [1, 2, 3, 4, 5, 6, 10, 11, 12]]
+    vals_2025 = [2059.0] * 9  # 9 * 2059 = 18531 (misleading without suppression handling)
+
+    # 2024: 12 observed months
+    dates_2024 = [f"2024-{m:02d}" for m in range(1, 13)]
+    vals_2024 = [2174.0] * 12  # 12 * 2174 = 26088
+
+    table = pa.Table.from_pydict({"date": dates_2025 + dates_2024, "value": vals_2025 + vals_2024})
+
+    # Strict mode (default allow_partial=False)
+    rows, _ = calendar_year_aggregation(table, agg_func="SUM", expected_periods=12)
+    assert len(rows) == 2
+
+    row_2025 = rows[0]
+    assert row_2025["cal_year"] == "2025"
+    assert row_2025["observed_months"] == 9
+    assert row_2025["complete"] is False
+    assert row_2025["aggregated_total"] is None
+    assert "Incomplete year" in row_2025["warning"]
+    assert "declined to avoid hallucination" in row_2025["warning"]
+
+    row_2024 = rows[1]
+    assert row_2024["cal_year"] == "2024"
+    assert row_2024["observed_months"] == 12
+    assert row_2024["complete"] is True
+    assert row_2024["aggregated_total"] == 26088.0
+    assert row_2024["warning"] is None
+
+    # Partial allowed mode
+    rows_partial, _ = calendar_year_aggregation(
+        table, agg_func="SUM", expected_periods=12, allow_partial=True
+    )
+    assert rows_partial[0]["aggregated_total"] == 18531.0
+    assert rows_partial[0]["complete"] is True
+
+
+def test_yoy_point_to_point_temporal_calendar_join() -> None:
+    """YoY temporal self-join prevents physical row lag distortion when months are suppressed."""
+    # Suppose 2025-07, 2025-08, 2025-09 are suppressed
+    # 2025-10 has value 100.0, 2024-10 has value 80.0
+    # Physical LAG(12) would have compared 2025-10 against 2024-07.
+    # Calendar temporal join strictly matches 2025-10 with 2024-10.
+    dates = ["2025-10", "2025-06", "2024-10", "2024-07", "2024-06"]
+    values = [100.0, 90.0, 80.0, 75.0, 70.0]
+
+    table = pa.Table.from_pydict({"date": dates, "value": values})
+    rows, _ = yoy_point_to_point(table, lag=12)
+
+    row_oct_2025 = [r for r in rows if r["obs_date"] == "2025-10"][0]
+    assert row_oct_2025["current_value"] == 100.0
+    assert row_oct_2025["lag_value"] == 80.0  # Matches 2024-10, NOT 2024-07!
+    assert row_oct_2025["change_pct"] == 25.0
+
+    # 2025-06 strictly matches 2024-06
+    row_jun_2025 = [r for r in rows if r["obs_date"] == "2025-06"][0]
+    assert row_jun_2025["current_value"] == 90.0
+    assert row_jun_2025["lag_value"] == 70.0  # Matches 2024-06
+    assert row_jun_2025["change_pct"] == pytest.approx(28.5714, rel=1e-3)
+
+    # 2024-10 has no 2023-10: lag_value must evaluate to None
+    row_oct_2024 = [r for r in rows if r["obs_date"] == "2024-10"][0]
+    assert row_oct_2024["lag_value"] is None
+    assert row_oct_2024["change_pct"] is None
+
+
+@pytest.mark.asyncio
+async def test_data_analyst_node_strict_identifier_validation() -> None:
+    """Missing or bogus series identifiers ('series_primary', 'v0') are strictly rejected."""
+    step = PlanStep(
+        step_id=1,
+        description="Run calculation with bogus series_id",
+        assigned_agent="data_analyst",
+        tool_name="calendar_year_aggregation",
+        tool_args={
+            "series_id": "series_primary",  # Forbidden bogus default
+            "table": [{"date": "2024-01", "value": 10.0}],
+        },
+    )
+    plan = QueryPlan(objective="Test bogus identifier", steps=(step,), active_step_id=1)
+    state = AgentState(session_id="s1", thread_id="t1", plan=plan)
+
+    delta = await data_analyst_node(state)
+    assert delta["plan"] is not None
+    assert delta["plan"].steps[0].status == StepStatus.FAILED
+    assert "Strict identifier validation is mandatory per Guardrail 6" in str(
+        delta["plan"].steps[0].result_summary
+    )
+
+
+@pytest.mark.asyncio
+async def test_data_analyst_node_citation_and_quality_warnings() -> None:
+    """Data Analyst attaches CitationEnvelope and extracts symbol_code/status_code warnings."""
+    # Arrow table containing status_code=1 (suppressed) and symbol_code=2 (use with caution)
+    table = pa.Table.from_pydict(
+        {
+            "date": ["2025-01", "2025-02"],
+            "value": [100.0, 105.0],
+            "status_code": ["0", "1"],
+            "symbol_code": ["A", "2"],
+        },
+        metadata={b"vector_id": b"v729961", b"table_id": b"34-10-0143-01"},
+    )
+
+    citation = CitationEnvelope(
+        publisher="StatCan",
+        core=CoreVerificationTuple(
+            table_id="34-10-0143-01",
+            vector_id="v729961",
+            reference_period="2025",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate="1.1.0.0.0.0.0.0.0.0",
+            release_or_revision_date="2025-10-15",
+            bilingual_title=BilingualTitle(
+                en="Housing starts, under construction and completions",
+                fr=None,
+            ),
+            canonical_url="https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410014301",
+        ),
+    )
+
+    step = PlanStep(
+        step_id=1,
+        description="Aggregate housing starts with flags",
+        assigned_agent="data_analyst",
+        tool_name="calendar_year_aggregation",
+        tool_args={"table": table, "citation": citation, "allow_partial": True},
+    )
+    plan = QueryPlan(objective="Test flags", steps=(step,), active_step_id=1)
+    state = AgentState(session_id="s1", thread_id="t1", plan=plan, citations=(citation,))
+
+    delta = await data_analyst_node(state)
+    assert "sql_artifacts" in delta
+    assert len(delta["sql_artifacts"]) == 1
+    artifact = delta["sql_artifacts"][0]
+
+    # Verify citation preservation
+    assert artifact.citation is not None
+    assert artifact.citation.core.vector_id == "v729961"
+    assert artifact.source_series_id == "v729961"
+
+    # Verify data quality warnings attached
+    assert any("status_code=1" in w for w in artifact.warnings)
+    assert any("symbol_code=2" in w for w in artifact.warnings)
+
+
+@pytest.mark.asyncio
+async def test_data_analyst_node_rejects_unknown_recipe() -> None:
+    """Unknown recipe names fail with informative ValueError instead of empty SQL query."""
+    step = PlanStep(
+        step_id=1,
+        description="Run non-existent recipe",
+        assigned_agent="data_analyst",
+        tool_name="non_existent_recipe",
+        tool_args={"series_id": "v12345"},
+    )
+    plan = QueryPlan(objective="Test unknown recipe", steps=(step,), active_step_id=1)
+    state = AgentState(session_id="s1", thread_id="t1", plan=plan)
+
+    delta = await data_analyst_node(state)
+    assert delta["plan"] is not None
+    assert delta["plan"].steps[0].status == StepStatus.FAILED
+    assert "Unknown data analyst recipe" in str(delta["plan"].steps[0].result_summary)
+
+
+@pytest.mark.asyncio
+async def test_sandboxed_duckdb_timeout_interruption() -> None:
+    """Async execution timeout triggers connection interrupt and ExecutionTimeoutError."""
+    with SandboxedDuckDB() as db:
+        # Long-running query: generate 100 million integers
+        with pytest.raises(ExecutionTimeoutError, match="timed out"):
+            await db.execute_async(
+                (
+                    "WITH recursive gen(x) AS ("
+                    "SELECT 1 UNION ALL SELECT x+1 FROM gen WHERE x < 100000000"
+                    ") SELECT count(*) FROM gen"
+                ),
+                timeout_seconds=0.1,
+            )

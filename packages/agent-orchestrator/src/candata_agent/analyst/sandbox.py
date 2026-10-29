@@ -1,3 +1,4 @@
+# pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false
 """Zero-Trust Embedded Sandboxed DuckDB Query Engine for LangGraph Data Analyst Node.
 
 Enforces a 5-layer defense-in-depth model against prompt injection, Arbitrary File Read (AFR),
@@ -196,6 +197,10 @@ class SandboxedDuckDB:
                 timeout=timeout_seconds,
             )
         except TimeoutError as exc:
+            try:
+                self._con.interrupt()
+            except Exception:
+                pass
             raise ExecutionTimeoutError(
                 f"Analytical query execution timed out after {timeout_seconds}s limit."
             ) from exc

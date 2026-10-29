@@ -81,6 +81,13 @@ def _serialize_state(state: AgentState) -> str:
     """Serialize AgentState to JSON with Decimal and date type preservation."""
     raw = state.model_dump()
     raw["citations"] = [asdict(c) for c in state.citations]
+    raw_artifacts = []
+    for a in state.sql_artifacts:
+        a_dict = a.model_dump()
+        if a.citation is not None:
+            a_dict["citation"] = asdict(a.citation)
+        raw_artifacts.append(a_dict)
+    raw["sql_artifacts"] = raw_artifacts
     encoded = _encode_type_preserving(raw)
     return json.dumps(encoded, default=str)
 
@@ -172,6 +179,8 @@ def _deserialize_state(raw_json: str) -> AgentState:
     # Reconstruct SQL artifacts with exact Decimal and date objects
     artifacts: list[SQLArtifact] = []
     for a in decoded.get("sql_artifacts", []):
+        cit_raw = a.get("citation")
+        citation_obj = _rebuild_citation(cit_raw) if cit_raw and isinstance(cit_raw, dict) else None
         artifacts.append(
             SQLArtifact(
                 artifact_id=a["artifact_id"],
@@ -179,6 +188,9 @@ def _deserialize_state(raw_json: str) -> AgentState:
                 sql_query=a["sql_query"],
                 row_count=a["row_count"],
                 rows=tuple(a.get("rows", [])),
+                citation=citation_obj,
+                warnings=tuple(a.get("warnings", ())),
+                metadata=dict(a.get("metadata", {})),
                 created_at=datetime.fromisoformat(a["created_at"]),
             )
         )
