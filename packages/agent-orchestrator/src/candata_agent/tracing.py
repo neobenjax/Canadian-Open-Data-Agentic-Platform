@@ -9,8 +9,9 @@ Spans are parented through OpenTelemetry's own context, not through ``AgentState
 checkpointed ``trace_context`` from an earlier question can never attach a new run to an old
 trace, and tracing never adds a write to a graph channel.
 
-Only ``opentelemetry-api`` is needed to import this module. The SDK and exporter live in the
-optional ``tracing`` extra and are imported inside ``setup_tracing``.
+Importing this module needs ``opentelemetry-api`` from the optional ``tracing`` extra, which
+also carries the SDK and exporter (imported inside ``setup_tracing``). Without it,
+``candata_agent`` falls back to no-op versions of these functions (see ``_tracing_off``).
 """
 
 from __future__ import annotations
@@ -19,8 +20,10 @@ import functools
 import os
 import time
 from collections.abc import Awaitable, Callable, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Protocol
+from urllib.parse import unquote
 
 from opentelemetry import trace
 from opentelemetry.context import Context
@@ -28,7 +31,16 @@ from opentelemetry.trace import TracerProvider
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from pydantic import BaseModel
 
+from candata_agent.pricing import TokenPricing
 from candata_agent.state import TokenBudget, TraceContext
+
+__all__ = [
+    "TokenPricing",
+    "current_trace_context",
+    "setup_tracing",
+    "traced_node",
+    "traced_run",
+]
 
 TRACER_NAME = "candata_agent"
 DEFAULT_PHOENIX_ENDPOINT = "http://localhost:6006/v1/traces"
@@ -46,17 +58,16 @@ class Invokable(Protocol):
     async def ainvoke(self, input: Any, config: Any = None, **kwargs: Any) -> Any: ...
 
 
-@dataclass(frozen=True, slots=True)
-class TokenPricing:
-    """USD per million tokens, used to put a cost estimate on each sub-agent span."""
+@dataclass(slots=True)
+class _RunTotals:
+    """What the nodes of one ``traced_run`` added: summed onto the ``graph.run`` root span."""
 
-    input_per_million: float
-    output_per_million: float
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cost_usd: float | None = None  # stays None until a node with pricing reports
 
-    def cost(self, prompt_tokens: int, completion_tokens: int) -> float:
-        return (
-            prompt_tokens * self.input_per_million + completion_tokens * self.output_per_million
-        ) / 1_000_000
+
+_RUN_TOTALS: ContextVar[_RunTotals | None] = ContextVar("candata_run_totals", default=None)
 
 
 async def traced_run(
@@ -76,6 +87,12 @@ async def traced_run(
     checkpoint can be tied back to its trace and a stale context from an earlier question on the
     same thread is dropped. Pass ``continue_from`` (a stored ``TraceContext``) to resume the
     original trace instead, for example when replaying a checkpoint.
+
+    The root span also records ``candata.latency_ms`` (even when the run raises) and the tokens
+    and cost the run's nodes added: ``gen_ai.usage.input_tokens``, ``output_tokens`` and
+    ``total_tokens``, plus ``candata.cost_usd`` once a node with pricing has reported. These are
+    the sum of the nodes' own deltas, not the final ``token_budget``, because a checkpointed
+    budget is cumulative over the thread and would count earlier questions again.
     """
     tracer = (tracer_provider or trace.get_tracer_provider()).get_tracer(TRACER_NAME)
     with tracer.start_as_current_span(name, context=_parent_context(continue_from)) as span:
@@ -86,9 +103,20 @@ async def traced_run(
         thread_id = _configured_thread_id(config)
         if thread_id is not None:
             span.set_attribute("candata.thread_id", thread_id)
-        return await app.ainvoke(
-            _with_trace_context(input, current_trace_context()), config, **kwargs
-        )
+
+        totals = _RunTotals()
+        reset_token = _RUN_TOTALS.set(totals)
+        started = time.perf_counter()
+        try:
+            return await app.ainvoke(
+                _with_trace_context(input, current_trace_context()), config, **kwargs
+            )
+        finally:
+            _RUN_TOTALS.reset(reset_token)
+            span.set_attribute("candata.latency_ms", (time.perf_counter() - started) * 1000)
+            _set_token_attributes(span, totals.prompt_tokens, totals.completion_tokens)
+            if totals.cost_usd is not None:
+                span.set_attribute("candata.cost_usd", totals.cost_usd)
 
 
 def traced_node(
@@ -105,8 +133,8 @@ def traced_node(
 
     The span is a child of whichever span is active, normally the ``graph.run`` root from
     ``traced_run``; without one it is a trace root of its own. The node's update is returned
-    unchanged (a ``None`` update becomes ``{}``): the decorator never writes a state channel, so
-    nodes running in the same step cannot conflict on it.
+    exactly as the node produced it, ``None`` included: the decorator never writes a state
+    channel, so nodes running in the same step cannot conflict on it.
     """
 
     def decorate(node: Node) -> Node:
@@ -127,9 +155,8 @@ def traced_node(
                 finally:
                     span.set_attribute("candata.latency_ms", (time.perf_counter() - started) * 1000)
 
-                if update is None:
-                    return {}
-                _record_tokens(span, state, update, pricing)
+                if update is not None:
+                    _record_tokens(span, state, update, pricing)
                 return update
 
         return wrapper
@@ -191,6 +218,9 @@ def setup_tracing(
       is the local default), optional ``PHOENIX_API_KEY`` and ``PHOENIX_PROJECT_NAME``.
     - LangSmith: ``LANGSMITH_API_KEY``, optional ``LANGSMITH_PROJECT``, and ``LANGSMITH_ENDPOINT``
       for the EU region (``https://eu.api.smith.langchain.com``) or a self-hosted base URL.
+    - Any other OTLP/HTTP backend: ``OTEL_EXPORTER_OTLP_ENDPOINT`` (or
+      ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT``) and ``OTEL_EXPORTER_OTLP_HEADERS``. These are the
+      fallback and apply only when neither Phoenix nor LangSmith is configured.
     """
     env = os.environ if env is None else env
     exporters = _exporter_configs(env)
@@ -234,7 +264,39 @@ def _exporter_configs(env: Mapping[str, str]) -> list[tuple[str, dict[str, str]]
             headers["Langsmith-Project"] = env["LANGSMITH_PROJECT"]
         base = env.get("LANGSMITH_ENDPOINT") or LANGSMITH_API_URL
         configs.append((base.rstrip("/") + LANGSMITH_TRACES_PATH, headers))
+    if not configs:
+        generic = _generic_otlp_config(env)
+        if generic is not None:
+            configs.append(generic)
     return configs
+
+
+def _generic_otlp_config(env: Mapping[str, str]) -> tuple[str, dict[str, str]] | None:
+    """The vendor-neutral OTLP settings, used when no Phoenix or LangSmith variable is set.
+
+    ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`` is a full URL; ``OTEL_EXPORTER_OTLP_ENDPOINT`` is a
+    base URL that gets ``/v1/traces`` appended, as the OTLP/HTTP spec says. Headers come from
+    ``OTEL_EXPORTER_OTLP_TRACES_HEADERS`` or ``OTEL_EXPORTER_OTLP_HEADERS`` (``k=v,k2=v2``).
+    """
+    endpoint = env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+    if not endpoint:
+        base = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+        if not base:
+            return None
+        endpoint = base.rstrip("/") + "/v1/traces"
+    raw = env.get("OTEL_EXPORTER_OTLP_TRACES_HEADERS") or env.get("OTEL_EXPORTER_OTLP_HEADERS", "")
+    headers: dict[str, str] = {}
+    for pair in raw.split(","):
+        name, separator, value = pair.partition("=")
+        if separator and name.strip():
+            headers[name.strip()] = unquote(value.strip())
+    return endpoint, headers
+
+
+def _set_token_attributes(span: trace.Span, prompt: int, completion: int) -> None:
+    span.set_attribute("gen_ai.usage.input_tokens", prompt)
+    span.set_attribute("gen_ai.usage.output_tokens", completion)
+    span.set_attribute("gen_ai.usage.total_tokens", prompt + completion)
 
 
 def _record_tokens(
@@ -245,13 +307,20 @@ def _record_tokens(
         return
     before = _read(state, "token_budget")
     base = before if isinstance(before, TokenBudget) else TokenBudget()
-    prompt = after.prompt_tokens_used - base.prompt_tokens_used
-    completion = after.completion_tokens_used - base.completion_tokens_used
-    span.set_attribute("gen_ai.usage.input_tokens", prompt)
-    span.set_attribute("gen_ai.usage.output_tokens", completion)
+    # A budget that goes down (a branch or merge resetting it) must not report negative usage.
+    prompt = max(0, after.prompt_tokens_used - base.prompt_tokens_used)
+    completion = max(0, after.completion_tokens_used - base.completion_tokens_used)
+    _set_token_attributes(span, prompt, completion)
     span.set_attribute("candata.tokens_remaining", after.remaining_tokens)
-    if pricing is not None:
-        span.set_attribute("candata.cost_usd", pricing.cost(prompt, completion))
+    cost = pricing.cost(prompt, completion) if pricing is not None else None
+    if cost is not None:
+        span.set_attribute("candata.cost_usd", cost)
+    totals = _RUN_TOTALS.get()
+    if totals is not None:
+        totals.prompt_tokens += prompt
+        totals.completion_tokens += completion
+        if cost is not None:
+            totals.cost_usd = (totals.cost_usd or 0.0) + cost
 
 
 def _read(state: object, key: str) -> object:

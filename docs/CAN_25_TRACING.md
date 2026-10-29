@@ -22,7 +22,7 @@ async def supervisor(state: AgentState) -> dict[str, Any]:
 result = await traced_run(app, {"run_id": run_id, ...}, {"configurable": {"thread_id": thread_id}})
 ```
 
-`traced_node` works on any async node taking a Pydantic `AgentState` or a dict state, with extra positional or keyword arguments passed through. A node that returns `None` (which LangGraph allows) is treated as returning `{}`.
+`traced_node` works on any async node taking a Pydantic `AgentState` or a dict state, with extra positional or keyword arguments passed through. A node that returns `None` (which LangGraph allows) still returns `None`: the decorator hands back exactly what the node returned.
 
 ## What a span carries
 
@@ -30,15 +30,16 @@ result = await traced_run(app, {"run_id": run_id, ...}, {"configurable": {"threa
 | :-- | :-- |
 | `candata.agent` | the name given to `traced_node` (node spans only) |
 | `candata.run_id`, `candata.thread_id`, `candata.session_id` | `AgentState`, on node spans and the `graph.run` root (the root also reads `configurable.thread_id` from the config) |
-| `candata.latency_ms` | wall time of the node, also set when it raises |
-| `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | `token_budget` in the node's update, minus the `token_budget` it received |
-| `candata.tokens_remaining` | `TokenBudget.remaining_tokens` after the step |
-| `candata.cost_usd` | tokens × `TokenPricing`, only when pricing is passed |
+| `candata.latency_ms` | wall time of the node or, on `graph.run`, of the whole invocation; also set when it raises |
+| `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.usage.total_tokens` | node span: `token_budget` in the node's update minus the one it received, never below 0. `graph.run`: the sum over the run's nodes (0 when no node reports tokens) |
+| `candata.tokens_remaining` | `TokenBudget.remaining_tokens` after the step (node spans only) |
+| `candata.cost_usd` | tokens × `TokenPricing`, only when pricing is passed. On `graph.run`: the sum over the nodes that have pricing, absent if none do |
 
 **One graph invocation is one trace.** `traced_run` opens the `graph.run` root span, calls `app.ainvoke` inside it, and the node spans become its children through OpenTelemetry's own context (checked with a real LangGraph graph; the context reaches the node tasks). The root span gives the run its end-to-end latency, so a run shows as one tree in Phoenix or LangSmith: `graph.run` → `agent.supervisor`, `agent.data_analyst`, `agent.citation_verifier`.
 
 - **Two questions on one thread are two traces.** `AgentState.trace_context` is checkpointed, so a node that read its parent from state would attach the second question to the first question's finished span. Node spans therefore never read parent context from state. `traced_run` also overwrites `input.trace_context` with the new root's context, so the checkpoint always points at the latest run.
 - **Tracing never writes a state channel.** `traced_node` returns the node's update unchanged. Two traced nodes in one parallel step cannot collide on `trace_context` (LangGraph rejects two writes to one key in a step).
+- **Run totals are per run.** The `graph.run` span sums what its own nodes added rather than reading the final `token_budget`, because a checkpointed budget is cumulative over the thread and would count earlier questions again.
 - **Resuming a trace.** To replay a checkpoint inside its original trace, pass the stored context: `traced_run(app, input, config, continue_from=stored_trace_context)`.
 - **Without `traced_run`**, each node span is the root of its own trace. Use `traced_run` wherever the graph is invoked.
 
@@ -56,8 +57,10 @@ Set in `.env` (see `.env.example`). With none set, `setup_tracing()` returns `No
 | `LANGSMITH_API_KEY` | Enables the LangSmith OTLP exporter (`api.smith.langchain.com/otel/v1/traces`). |
 | `LANGSMITH_PROJECT` | Sent as the `Langsmith-Project` header. |
 | `LANGSMITH_ENDPOINT` | LangSmith base URL, default `https://api.smith.langchain.com`. Use `https://eu.api.smith.langchain.com` for the EU region, or the self-hosted URL ending in `/api/v1`. The OTLP path `/otel/v1/traces` is appended. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Vendor-neutral fallback, used only when neither Phoenix nor LangSmith is configured. A base URL; `/v1/traces` is appended. `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is taken as the full URL instead. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Fallback headers as `key=value,key2=value2` (values percent-decoded). `OTEL_EXPORTER_OTLP_TRACES_HEADERS` takes precedence. |
 
-`opentelemetry-api` is a base dependency. The SDK and OTLP exporter are in the optional `tracing` extra (`uv sync --extra tracing`) and also in the dev group, so tests run without it.
+**Dependencies.** `opentelemetry-api`, the SDK and the OTLP exporter are all in the optional `tracing` extra (`uv sync --extra tracing`) and the dev group. The standalone MCP server has no use for them, so the base install does not carry them (AGENTS.md §5). Without the extra, `import candata_agent` still works: `traced_node` returns the node unchanged, `traced_run` just calls `ainvoke`, and `setup_tracing()` returns `None` for an empty environment but raises an `ImportError` naming the extra if a backend is configured. The fallbacks live in `candata_agent/_tracing_off.py`.
 
 ## Contract for node authors and graph callers
 
@@ -69,12 +72,14 @@ Set in `.env` (see `.env.example`). With none set, `setup_tracing()` returns `No
 
 ## Verification
 
-- 24 offline tests in `tests/test_tracing.py`:
-  - span name and attributes, token delta and cost, error status, dict state, `None` and non-mapping updates, the update returned unchanged;
+- 33 offline tests in `tests/test_tracing.py`:
+  - span name and attributes, token delta, total and cost, a shrinking budget clamped at 0, error status, dict state, `None` (returned as `None`) and non-mapping updates, the update returned unchanged;
+  - **run totals:** `graph.run` carries latency and the summed tokens and cost of its nodes, only its own run's on a second question, zero tokens and no cost without model nodes, and still recorded when the run raises;
+  - **optional dependency:** a subprocess with `opentelemetry` blocked imports `candata_agent` and gets the no-op fallbacks;
   - **traces:** a checkpointed fake graph invoked twice on one thread gives two distinct traces with the nodes parented to each run's root; a stale `trace_context` on the input is replaced; `continue_from` resumes the original trace; parallel nodes in one step do not conflict;
-  - the environment-to-exporter mapping;
+  - the environment-to-exporter mapping, including the standard `OTEL_EXPORTER_OTLP_*` fallback;
   - a **wire-level test** that runs a local OTLP/HTTP receiver and checks that Phoenix and LangSmith configurations each POST the span to the right path with the right headers (`authorization: Bearer …`, `x-api-key`, `langsmith-project`) and the project resource attribute.
-- Each of the trace and update tests fails when its bug is put back (decorator writes `trace_context` again, `None` update not handled, `traced_run` not resetting the context).
+- Each of the trace, update and total tests fails when its bug is put back (decorator writes `trace_context` again, `None` turned into `{}`, `traced_run` not resetting the context, no clamp on a shrinking budget, no totals on the root span).
 - `ruff`, `ruff format --check`, `pyright` (strict) and `pytest` pass.
 - **Smoke runs in a throwaway environment, not committed:**
   - A real LangGraph `StateGraph` with a `MemorySaver` checkpointer: two questions on one thread give two traces, each with a `graph.run` root and the three node spans as its children. A parallel step and a node returning `None` both run without error.

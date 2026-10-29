@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import subprocess
+import sys
 import threading
 from collections.abc import Awaitable, Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -14,6 +18,8 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
+import candata_agent
+import candata_mcp
 from candata_agent.state import AgentState, TokenBudget, TraceContext
 from candata_agent.tracing import (
     LANGSMITH_API_URL,
@@ -87,14 +93,14 @@ async def test_update_is_returned_unchanged_without_a_trace_context_write(
     assert _only_span(exporter).name == "agent.data_analyst"
 
 
-async def test_none_update_is_treated_as_empty(
+async def test_none_update_is_returned_as_none(
     provider: TracerProvider, exporter: InMemorySpanExporter, state: AgentState
 ) -> None:
     @traced_node("supervisor", pricing=TokenPricing(3.0, 15.0), tracer_provider=provider)
     async def node(state: AgentState) -> None:
         return None
 
-    assert await node(state) == {}
+    assert await node(state) is None
 
     attrs = _only_span(exporter).attributes or {}
     assert not any(key.startswith("gen_ai.usage") for key in attrs)
@@ -318,6 +324,7 @@ async def test_token_usage_is_the_delta_over_incoming_state(
     attrs = _only_span(exporter).attributes or {}
     assert attrs["gen_ai.usage.input_tokens"] == 1_000
     assert attrs["gen_ai.usage.output_tokens"] == 500
+    assert attrs["gen_ai.usage.total_tokens"] == 1_500
     assert attrs["candata.tokens_remaining"] == 128_000 - 1_620
     assert attrs["candata.cost_usd"] == pytest.approx(0.003 + 0.0075)
 
@@ -507,3 +514,203 @@ def test_langsmith_base_url_override_for_other_regions() -> None:
     )
 
     assert configs[0][0] == "https://eu.api.smith.langchain.com/otel/v1/traces"
+
+
+async def test_node_span_records_total_tokens_and_clamps_a_shrinking_budget(
+    provider: TracerProvider, exporter: InMemorySpanExporter, state: AgentState
+) -> None:
+    @traced_node("supervisor", pricing=TokenPricing(3.0, 15.0), tracer_provider=provider)
+    async def node(state: AgentState) -> dict[str, Any]:
+        # Prompt grows by 50; completion drops below the incoming 20 (a merge reset it).
+        return {"token_budget": TokenBudget(prompt_tokens_used=150, completion_tokens_used=5)}
+
+    await node(state)
+
+    attrs = _only_span(exporter).attributes or {}
+    assert attrs["gen_ai.usage.input_tokens"] == 50
+    assert attrs["gen_ai.usage.output_tokens"] == 0
+    assert attrs["gen_ai.usage.total_tokens"] == 50
+    assert attrs["candata.cost_usd"] == pytest.approx(50 * 3.0 / 1_000_000)
+
+
+def _model_nodes(provider: TracerProvider) -> tuple[Callable[..., Awaitable[Any]], ...]:
+    """Two nodes that each spend tokens: cumulative budgets, as a checkpointed graph holds them."""
+
+    def spend(state: AgentState, prompt: int, completion: int) -> dict[str, Any]:
+        used = state.token_budget
+        return {
+            "token_budget": TokenBudget(
+                prompt_tokens_used=used.prompt_tokens_used + prompt,
+                completion_tokens_used=used.completion_tokens_used + completion,
+            )
+        }
+
+    pricing = TokenPricing(3.0, 15.0)
+
+    @traced_node("supervisor", pricing=pricing, tracer_provider=provider)
+    async def supervisor(state: AgentState) -> dict[str, Any]:
+        return spend(state, 1_000, 200)
+
+    @traced_node("data_analyst", pricing=pricing, tracer_provider=provider)
+    async def analyst(state: AgentState) -> dict[str, Any]:
+        return spend(state, 500, 100)
+
+    return supervisor, analyst
+
+
+async def test_run_span_sums_the_tokens_and_cost_of_its_nodes_and_records_latency(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    supervisor, analyst = _model_nodes(provider)
+    graph = _FakeGraph([supervisor], [analyst])
+
+    await traced_run(graph, {}, {"configurable": {"thread_id": "t1"}}, tracer_provider=provider)
+
+    (run,) = _spans(exporter, "graph.run")
+    attrs = run.attributes or {}
+    assert attrs["gen_ai.usage.input_tokens"] == 1_500
+    assert attrs["gen_ai.usage.output_tokens"] == 300
+    assert attrs["gen_ai.usage.total_tokens"] == 1_800
+    assert attrs["candata.cost_usd"] == pytest.approx(1_500 * 3.0 / 1e6 + 300 * 15.0 / 1e6)
+    latency = attrs["candata.latency_ms"]
+    assert isinstance(latency, float) and latency >= 0
+
+
+async def test_second_question_on_a_thread_reports_only_its_own_tokens(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    supervisor, analyst = _model_nodes(provider)
+    graph = _FakeGraph([supervisor], [analyst])
+    config = {"configurable": {"thread_id": "t1"}}
+
+    await traced_run(graph, {}, config, tracer_provider=provider)
+    await traced_run(graph, {}, config, tracer_provider=provider)
+
+    first, second = _spans(exporter, "graph.run")
+    # The checkpointed budget is cumulative (3,000 prompt tokens now); the run span must not be.
+    assert graph.saved["t1"].token_budget.prompt_tokens_used == 3_000
+    assert (first.attributes or {})["gen_ai.usage.total_tokens"] == 1_800
+    assert (second.attributes or {})["gen_ai.usage.total_tokens"] == 1_800
+
+
+async def test_run_span_without_model_nodes_reports_zero_tokens_and_no_cost(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    supervisor, analyst = _nodes(provider)
+    graph = _FakeGraph([supervisor], [analyst])
+
+    await traced_run(graph, {}, {"configurable": {"thread_id": "t1"}}, tracer_provider=provider)
+
+    (run,) = _spans(exporter, "graph.run")
+    attrs = run.attributes or {}
+    assert attrs["gen_ai.usage.total_tokens"] == 0
+    assert "candata.cost_usd" not in attrs
+
+
+async def test_run_span_records_latency_and_tokens_when_the_run_raises(
+    provider: TracerProvider, exporter: InMemorySpanExporter
+) -> None:
+    supervisor, _ = _model_nodes(provider)
+
+    @traced_node("data_analyst", tracer_provider=provider)
+    async def failing(state: AgentState) -> dict[str, Any]:
+        raise RuntimeError("boom")
+
+    graph = _FakeGraph([supervisor], [failing])
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await traced_run(graph, {}, {"configurable": {"thread_id": "t1"}}, tracer_provider=provider)
+
+    (run,) = _spans(exporter, "graph.run")
+    attrs = run.attributes or {}
+    assert run.status.status_code is StatusCode.ERROR
+    assert "candata.latency_ms" in attrs
+    assert attrs["gen_ai.usage.total_tokens"] == 1_200  # the supervisor's spend before the failure
+
+
+def test_standard_otel_endpoint_is_the_fallback_when_no_vendor_is_set() -> None:
+    configs = _exporter_configs(
+        {
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318/",
+            "OTEL_EXPORTER_OTLP_HEADERS": "api-key=abc%20def, x-team=core",
+        }
+    )
+
+    assert configs == [
+        ("http://collector:4318/v1/traces", {"api-key": "abc def", "x-team": "core"})
+    ]
+
+
+def test_standard_otel_traces_endpoint_is_used_as_given_and_its_headers_win() -> None:
+    configs = _exporter_configs(
+        {
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://ignored:4318",
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://collector:4318/custom/traces",
+            "OTEL_EXPORTER_OTLP_HEADERS": "a=1",
+            "OTEL_EXPORTER_OTLP_TRACES_HEADERS": "b=2",
+        }
+    )
+
+    assert configs == [("http://collector:4318/custom/traces", {"b": "2"})]
+
+
+def test_standard_otel_variables_do_not_add_a_second_exporter_next_to_a_vendor() -> None:
+    configs = _exporter_configs(
+        {"LANGSMITH_API_KEY": "k", "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318"}
+    )
+
+    assert [url for url, _ in configs] == [LANGSMITH_API_URL + LANGSMITH_TRACES_PATH]
+
+
+_NO_OTEL_SCRIPT = """
+import asyncio
+import sys
+
+sys.modules["opentelemetry"] = None  # every `import opentelemetry...` now fails
+
+import candata_agent as ca
+
+assert ca.traced_node.__module__ == "candata_agent._tracing_off"
+
+
+async def node(state):
+    return None
+
+
+assert ca.traced_node("x")(node) is node
+
+
+class App:
+    async def ainvoke(self, input, config=None, **kwargs):
+        return ("ran", input, config)
+
+
+assert asyncio.run(ca.traced_run(App(), {"q": 1}, {"c": 2})) == ("ran", {"q": 1}, {"c": 2})
+assert ca.current_trace_context().traceparent is None
+assert ca.setup_tracing({}) is None
+try:
+    ca.setup_tracing({"LANGSMITH_API_KEY": "k"})
+except ImportError as exc:
+    assert "candata-mcp[tracing]" in str(exc)
+else:
+    raise SystemExit("expected ImportError")
+print("ok")
+"""
+
+
+def test_package_imports_and_degrades_to_no_ops_without_opentelemetry() -> None:
+    """`candata_agent` must import, and tracing must be inert, when the tracing extra is absent."""
+    source_roots = [
+        str(Path(module.__file__).resolve().parents[1]) for module in (candata_agent, candata_mcp)
+    ]
+    result = subprocess.run(
+        [sys.executable, "-c", _NO_OTEL_SCRIPT],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(source_roots)},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"

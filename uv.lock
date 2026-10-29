@@ -45,18 +45,19 @@ dependencies = [
     { name = "duckdb" },
     { name = "httpx" },
     { name = "mcp" },
-    { name = "opentelemetry-api" },
     { name = "pyarrow" },
 ]
 
 [package.optional-dependencies]
 tracing = [
+    { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
     { name = "pyarrow-stubs" },
@@ -72,7 +73,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.2.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "mcp", specifier = ">=1.2.0" },
-    { name = "opentelemetry-api", specifier = ">=1.27" },
+    { name = "opentelemetry-api", marker = "extra == 'tracing'", specifier = ">=1.27" },
     { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'tracing'", specifier = ">=1.27" },
     { name = "opentelemetry-sdk", marker = "extra == 'tracing'", specifier = ">=1.27" },
     { name = "pyarrow", specifier = ">=17.0.0" },
@@ -81,6 +82,7 @@ provides-extras = ["tracing"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "opentelemetry-api", specifier = ">=1.27" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.27" },
     { name = "opentelemetry-sdk", specifier = ">=1.27" },
     { name = "pyarrow-stubs", specifier = ">=20.0.0.20260819" },
