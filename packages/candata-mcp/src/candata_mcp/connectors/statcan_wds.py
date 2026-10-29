@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import re
 import time
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -32,6 +33,30 @@ PUBLISHER = "Statistics Canada"
 DEFAULT_USER_AGENT = (
     "CanDataMCP/0.1 (CAN-11; +https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform)"
 )
+
+_COMMON_UOM_CODES: Mapping[int, str] = {
+    17: "2002=100",
+    188: "Units",
+    191: "Number",
+    210: "Percentage",
+    242: "Percent",
+    248: "Dollars",
+    249: "Current dollars",
+    250: "Constant dollars",
+    286: "Ratio",
+    300: "Basis points",
+    453: "2022 constant dollars",
+    454: "2023 constant dollars",
+    455: "2024 constant dollars",
+    456: "2025 constant dollars",
+}
+
+
+def _normalize_search_term(text: str) -> str:
+    """Normalize unicode accents and lowercase for robust fuzzy search."""
+    nfkd = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
+
 
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
@@ -237,6 +262,8 @@ class StatCanSeriesResult:
     unit: str | None
     observations: tuple[Observation, ...]
     fetched_at: str
+    series_title_en: str | None = None
+    series_title_fr: str | None = None
 
     def citation(self) -> CitationEnvelope:
         if not self.observations:
@@ -293,6 +320,40 @@ class SeriesInfo:
 
 class StatCanClient:
     """Async client for Statistics Canada Web Data Service (WDS) API."""
+
+    @classmethod
+    def _resolve_series_details_from_coord(
+        cls, meta: CubeMetadata, coord: str
+    ) -> tuple[str | None, str | None, str | None]:
+        """Resolve series titles (en, fr) and unit of measure name from coordinate."""
+        if not coord:
+            return None, None, None
+        parts = coord.split(".")
+        titles_en: list[str] = []
+        titles_fr: list[str] = []
+        uom_name: str | None = None
+
+        for dim in meta.dimensions:
+            idx = dim.position_id - 1
+            if 0 <= idx < len(parts):
+                part_val = parts[idx]
+                if part_val.isdigit():
+                    m_id = int(part_val)
+                    if m_id > 0:
+                        member = next((m for m in dim.members if m.member_id == m_id), None)
+                        if member:
+                            if member.name_en:
+                                titles_en.append(member.name_en)
+                            if member.name_fr:
+                                titles_fr.append(member.name_fr)
+                            if member.member_uom_code and not uom_name:
+                                uom_name = _COMMON_UOM_CODES.get(
+                                    member.member_uom_code, f"UOM {member.member_uom_code}"
+                                )
+
+        s_title_en = "; ".join(titles_en) if titles_en else None
+        s_title_fr = "; ".join(titles_fr) if titles_fr else None
+        return s_title_en, s_title_fr, uom_name
 
     def __init__(
         self,
@@ -421,7 +482,7 @@ class StatCanClient:
         Returns true total match count alongside paginated results.
         """
         cubes = await self.get_all_cubes_list_lite(bypass_cache=bypass_cache)
-        tokens = [t.lower() for t in query.strip().split() if t]
+        tokens = [_normalize_search_term(t) for t in query.strip().split() if t]
         if not tokens:
             return CubeSearchResult(total_results=0, cubes=())
 
@@ -433,10 +494,10 @@ class StatCanClient:
             title_en = str(c.get("cubeTitleEn", ""))
             title_fr = c.get("cubeTitleFr")
             cansim = c.get("cansimId")
-            searchable = f"{pid} {title_en} {title_fr or ''} {cansim or ''}"
+            searchable = _normalize_search_term(f"{pid} {title_en} {title_fr or ''} {cansim or ''}")
 
             if all(p.search(searchable) for p in token_patterns):
-                freq_code = _int(c, "frequencyCode", 0)
+                freq_code = _required_int(c, "frequencyCode")
                 matches.append(
                     CubeSummary(
                         product_id=pid,
@@ -515,6 +576,7 @@ class StatCanClient:
         data_obj = self._extract_first_success_object(response_data, f"cube {pid} coord {coord}")
 
         meta = await self.get_cube_metadata(pid)
+        s_title_en, s_title_fr, uom_name = self._resolve_series_details_from_coord(meta, coord)
 
         vector_id_raw = _required_int(data_obj, "vectorId")
         observations = self._parse_observations(data_obj.get("vectorDataPoint"))
@@ -526,9 +588,11 @@ class StatCanClient:
             title_en=meta.title_en,
             title_fr=meta.title_fr,
             frequency_code=meta.frequency_code,
-            unit=None,
+            unit=uom_name,
             observations=observations,
             fetched_at=fetched_at,
+            series_title_en=s_title_en,
+            series_title_fr=s_title_fr,
         )
 
     async def get_data_from_vectors(
@@ -561,6 +625,7 @@ class StatCanClient:
             coord = _text(obj_dict, "coordinate", "")
 
             meta = await self.get_cube_metadata(pid)
+            s_title_en, s_title_fr, uom_name = self._resolve_series_details_from_coord(meta, coord)
             observations = self._parse_observations(obj_dict.get("vectorDataPoint"))
 
             results.append(
@@ -571,9 +636,11 @@ class StatCanClient:
                     title_en=meta.title_en,
                     title_fr=meta.title_fr,
                     frequency_code=meta.frequency_code,
-                    unit=None,
+                    unit=uom_name,
                     observations=observations,
                     fetched_at=fetched_at,
+                    series_title_en=s_title_en,
+                    series_title_fr=s_title_fr,
                 )
             )
 
@@ -595,7 +662,7 @@ class StatCanClient:
             vector_id=vid,
             product_id=pid,
             coordinate=_text(info_obj, "coordinate", ""),
-            frequency_code=_int(info_obj, "frequencyCode", 0),
+            frequency_code=_required_int(info_obj, "frequencyCode"),
             scalar_factor_code=_optional_int(info_obj, "scalarFactorCode"),
             decimals=_optional_int(info_obj, "decimals"),
             title_en=_text(info_obj, "SeriesTitleEn", ""),
@@ -652,13 +719,13 @@ class StatCanClient:
 
     @staticmethod
     def _parse_cube_metadata(obj: dict[str, Any], pid: int) -> CubeMetadata:
-        freq_code = _int(obj, "frequencyCode", 0)
+        freq_code = _required_int(obj, "frequencyCode")
         freq_name = FREQUENCY_NAMES.get(freq_code, f"code_{freq_code}")
 
         dimensions: list[Dimension] = []
         dim_list = _optional_dict_list(obj.get("dimension"))
         for d_dict in dim_list:
-            pos_id = _int(d_dict, "dimensionPositionId", 0)
+            pos_id = _required_int(d_dict, "dimensionPositionId")
             d_name_en = _text(d_dict, "dimensionNameEn", "")
             d_name_fr = _optional_text(d_dict, "dimensionNameFr")
             has_uom = bool(d_dict.get("hasUom", False))
@@ -668,7 +735,7 @@ class StatCanClient:
             for m_dict in m_list:
                 members.append(
                     DimensionMember(
-                        member_id=_int(m_dict, "memberId", 0),
+                        member_id=_required_int(m_dict, "memberId"),
                         parent_member_id=_optional_int(m_dict, "parentMemberId"),
                         name_en=_text(m_dict, "memberNameEn", ""),
                         name_fr=_optional_text(m_dict, "memberNameFr"),
@@ -755,15 +822,6 @@ def _text(source: Mapping[str, Any], key: str, default: str) -> str:
 def _optional_text(source: Mapping[str, Any], key: str) -> str | None:
     value = source.get(key)
     return str(value) if isinstance(value, str) else None
-
-
-def _int(source: Mapping[str, Any], key: str, default: int = 0) -> int:
-    value = source.get(key)
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str) and value.isdigit():
-        return int(value)
-    return default
 
 
 def _optional_int(source: Mapping[str, Any], key: str) -> int | None:

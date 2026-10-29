@@ -512,3 +512,70 @@ async def test_statcan_citation_carries_licence_url(statcan: StatCanClient) -> N
     citation = result.citation()
     assert citation.enrichment.license_url == STATCAN_LICENCE_URL
     assert citation.enrichment.license_url == "https://www.statcan.gc.ca/en/reference/licence"
+
+
+@respx.mock
+async def test_search_cubes_accent_insensitive_matching(statcan: StatCanClient) -> None:
+    """Verify that unaccented queries match accented French titles and vice versa."""
+    mock_cubes = [
+        {
+            "productId": 34100133,
+            "cansimId": "027-0040",
+            "cubeTitleEn": "Canada Mortgage and Housing Corporation, average rents",
+            "cubeTitleFr": (
+                "Société canadienne d'hypothèques et de logement, loyers moyens à Montréal"
+            ),
+            "cubeStartDate": "1990-01-01",
+            "cubeEndDate": "2025-01-01",
+            "releaseTime": "2025-01-15T08:30",
+            "frequencyCode": 12,
+        },
+    ]
+    respx.get(f"{STATCAN_WDS_BASE_URL}/getAllCubesListLite").mock(
+        return_value=httpx.Response(200, json=mock_cubes)
+    )
+
+    # "montreal" should match "Montréal"
+    res1 = await statcan.search_cubes("montreal", bypass_cache=True)
+    assert len(res1) == 1
+    assert res1[0].product_id == 34100133
+
+    # "societe" should match "Société"
+    res2 = await statcan.search_cubes("societe loyers", bypass_cache=True)
+    assert len(res2) == 1
+    assert res2[0].product_id == 34100133
+
+
+@respx.mock
+async def test_cube_metadata_fails_loud_on_missing_identifiers(statcan: StatCanClient) -> None:
+    """Guardrail 6: Missing memberId, positionId, or frequencyCode must fail loud."""
+    from candata_mcp.connectors.statcan_wds import StatCanResponseError
+
+    # Payload with missing/zero memberId
+    bad_cube_meta = [
+        {
+            "status": "SUCCESS",
+            "object": {
+                "productId": 18100004,
+                "cubeTitleEn": "Test",
+                "frequencyCode": 6,
+                "dimension": [
+                    {
+                        "dimensionPositionId": 1,
+                        "dimensionNameEn": "Dim 1",
+                        "member": [
+                            {
+                                "memberId": 0,  # Invalid: zero identifier
+                                "memberNameEn": "Bogus",
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+    ]
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=httpx.Response(200, json=bad_cube_meta)
+    )
+    with pytest.raises(StatCanResponseError, match="expected positive integer for 'memberId'"):
+        await statcan.get_cube_metadata(18100004, bypass_cache=True)

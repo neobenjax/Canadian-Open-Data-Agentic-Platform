@@ -305,3 +305,110 @@ def test_date_range_diagnostic_note_when_preceding_window(
     assert len(records) == 0
     assert "data_window_note" in summary
     assert "precedes earliest fetched observation" in summary["data_window_note"]
+
+
+def test_statcan_table_preserves_status_code_symbol_code_and_metadata(
+    engine: DuckDBSlicingEngine,
+) -> None:
+    """Guardrail 6: Quality flags (statusCode/symbolCode) and provenance must not be dropped."""
+    obs = (
+        StatCanObservation(
+            ref_per="2025-07-01",
+            value=None,
+            decimals=0,
+            release_time="2025-08-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=6,
+            status_code=1,  # suppressed / missing
+            symbol_code=0,
+        ),
+        StatCanObservation(
+            ref_per="2025-08-01",
+            value=2500.0,
+            decimals=1,
+            release_time="2025-09-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=6,
+            status_code=0,
+            symbol_code=2,  # use with caution
+        ),
+    )
+    res = MagicMock(spec=StatCanSeriesResult)
+    res.product_id = 34100143
+    res.coordinate = "125.1.0.0.0.0.0.0.0.0"
+    res.vector_id = 729961
+    res.title_en = "Housing starts"
+    res.title_fr = None
+    res.unit = "Units"
+    res.series_title_en = "Toronto, Ontario; Total units"
+    res.series_title_fr = None
+    res.observations = obs
+
+    table = engine.table_from_statcan(res)
+    assert "status_code" in table.column_names
+    assert "symbol_code" in table.column_names
+    assert table.schema.metadata[b"vector_id"] == b"729961"
+    assert table.schema.metadata[b"product_id"] == b"34100143"
+    assert table.schema.metadata[b"unit"] == b"Units"
+    assert table.schema.metadata[b"series_title_en"] == b"Toronto, Ontario; Total units"
+
+    records, _ = engine.slice_table(table, limit=10)
+    assert len(records) == 2
+    row0 = next(r for r in records if r["date"] == "2025-07-01")
+    assert row0["status_code"] == 1
+    assert row0["value"] is None
+    row1 = next(r for r in records if r["date"] == "2025-08-01")
+    assert row1["symbol_code"] == 2
+    assert row1["value"] == 2500.0
+
+
+def test_statcan_slice_includes_series_title_and_unit(
+    engine: DuckDBSlicingEngine,
+) -> None:
+    """Query response payloads must include series_title and unit for benchmark fidelity."""
+    obs = (
+        StatCanObservation(
+            ref_per="2024-01-01",
+            value=105000.0,
+            decimals=0,
+            release_time="2024-06-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=12,
+            status_code=0,
+            symbol_code=0,
+        ),
+    )
+    envelope = CitationEnvelope(
+        publisher="Statistics Canada",
+        core=CoreVerificationTuple(
+            table_id="11-10-0190-01",
+            vector_id="v123456",
+            reference_period="2024",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate="125.1",
+            release_or_revision_date="2024-06-15T08:30",
+            bilingual_title=BilingualTitle(
+                en="Income — Toronto, Ontario; Median income",
+                fr="Revenu",
+            ),
+            canonical_url="https://statcan.gc.ca",
+        ),
+    )
+    res = MagicMock(spec=StatCanSeriesResult)
+    res.product_id = 11100190
+    res.coordinate = "125.1"
+    res.vector_id = 123456
+    res.title_en = "Income"
+    res.title_fr = "Revenu"
+    res.unit = "2024 constant dollars"
+    res.series_title_en = "Toronto, Ontario; Median income"
+    res.series_title_fr = "Toronto, Ontario; Revenu median"
+    res.observations = obs
+    res.fetched_at = "2026-10-29T10:00:00Z"
+    res.citation.return_value = envelope
+
+    payload = engine.slice_statcan(res)
+    assert payload["unit"] == "2024 constant dollars"
+    assert payload["series_title"]["en"] == "Toronto, Ontario; Median income"
+    assert payload["data"][0]["status_code"] == 0

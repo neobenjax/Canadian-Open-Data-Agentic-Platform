@@ -122,21 +122,38 @@ class DuckDBSlicingEngine:
         values: list[float | None] = []
         release_times: list[str | None] = []
         decimals: list[int | None] = []
+        status_codes: list[int | None] = []
+        symbol_codes: list[int | None] = []
 
         for obs in result.observations:
             dates.append(obs.ref_per)
             values.append(obs.value)
             release_times.append(obs.release_time)
             decimals.append(obs.decimals)
+            status_codes.append(obs.status_code)
+            symbol_codes.append(obs.symbol_code)
 
-        return pa.Table.from_pydict(
+        metadata: dict[bytes, bytes] = {
+            b"product_id": str(result.product_id).encode("utf-8"),
+            b"vector_id": str(result.vector_id).encode("utf-8"),
+            b"coordinate": result.coordinate.encode("utf-8"),
+        }
+        if result.unit:
+            metadata[b"unit"] = result.unit.encode("utf-8")
+        if getattr(result, "series_title_en", None):
+            metadata[b"series_title_en"] = str(result.series_title_en).encode("utf-8")
+
+        table = pa.Table.from_pydict(
             {
                 "date": dates,
                 "value": values,
                 "release_time": release_times,
                 "decimals": decimals,
+                "status_code": status_codes,
+                "symbol_code": symbol_codes,
             }
         )
+        return table.replace_schema_metadata(metadata)
 
     def table_from_valet(self, result: ObservationSet) -> pa.Table:
         """Convert a Valet ObservationSet into an Arrow Table."""
@@ -277,6 +294,11 @@ class DuckDBSlicingEngine:
             "vector_id": f"v{result.vector_id}",
             "coordinate": result.coordinate,
             "title": {"en": result.title_en, "fr": result.title_fr},
+            "series_title": (
+                {"en": result.series_title_en, "fr": result.series_title_fr}
+                if getattr(result, "series_title_en", None)
+                else None
+            ),
             "display": localize_title(envelope.enrichment.bilingual_title, lang).to_payload(),
             "unit": result.unit,
             "total_available": len(result.observations),
