@@ -98,6 +98,9 @@ class SQLArtifact(BaseModel):
     sql_query: str
     row_count: int
     rows: tuple[dict[str, Any], ...] = Field(default_factory=tuple)
+    citation: CitationEnvelope | None = None
+    warnings: tuple[str, ...] = Field(default_factory=tuple)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
