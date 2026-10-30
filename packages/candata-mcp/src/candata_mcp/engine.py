@@ -140,6 +140,8 @@ class DuckDBSlicingEngine:
         }
         if result.unit:
             metadata[b"unit"] = result.unit.encode("utf-8")
+        if getattr(result, "unit_code", None) is not None:
+            metadata[b"unit_code"] = str(result.unit_code).encode("utf-8")
         if getattr(result, "series_title_en", None):
             metadata[b"series_title_en"] = str(result.series_title_en).encode("utf-8")
 
@@ -301,6 +303,7 @@ class DuckDBSlicingEngine:
             ),
             "display": localize_title(envelope.enrichment.bilingual_title, lang).to_payload(),
             "unit": result.unit,
+            "unit_code": getattr(result, "unit_code", None),
             "total_available": len(result.observations),
             "returned_count": len(records),
             "summary": summary,

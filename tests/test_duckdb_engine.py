@@ -402,13 +402,18 @@ def test_statcan_slice_includes_series_title_and_unit(
     res.title_en = "Income"
     res.title_fr = "Revenu"
     res.unit = "2024 constant dollars"
+    res.unit_code = 455
     res.series_title_en = "Toronto, Ontario; Median income"
     res.series_title_fr = "Toronto, Ontario; Revenu median"
     res.observations = obs
     res.fetched_at = "2026-10-29T10:00:00Z"
     res.citation.return_value = envelope
 
+    table = engine.table_from_statcan(res)
+    assert table.schema.metadata[b"unit_code"] == b"455"
+
     payload = engine.slice_statcan(res)
     assert payload["unit"] == "2024 constant dollars"
+    assert payload["unit_code"] == 455
     assert payload["series_title"]["en"] == "Toronto, Ontario; Median income"
     assert payload["data"][0]["status_code"] == 0

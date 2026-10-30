@@ -370,6 +370,13 @@ class CanDataServer:
                         "or escalate to Human-in-the-Loop review."
                     ),
                 }
+            except ValueError as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "INVALID_COORDINATE",
+                    "message": str(exc),
+                }
             except Exception as exc:
                 return {
                     "error": str(exc),

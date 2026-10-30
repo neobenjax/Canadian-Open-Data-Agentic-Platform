@@ -579,3 +579,110 @@ async def test_cube_metadata_fails_loud_on_missing_identifiers(statcan: StatCanC
     )
     with pytest.raises(StatCanResponseError, match="expected positive integer for 'memberId'"):
         await statcan.get_cube_metadata(18100004, bypass_cache=True)
+
+
+def test_normalize_coordinate_ten_parts() -> None:
+    from candata_mcp.connectors.statcan_wds import normalize_coordinate
+
+    # Short coordinates pad to 10 parts
+    assert normalize_coordinate("23") == "23.0.0.0.0.0.0.0.0.0"
+    assert normalize_coordinate("1.2.3") == "1.2.3.0.0.0.0.0.0.0"
+    assert normalize_coordinate("  23.1  ") == "23.1.0.0.0.0.0.0.0.0"
+    assert normalize_coordinate("1.2.3.4.5.6.7.8.9.10") == "1.2.3.4.5.6.7.8.9.10"
+
+    # Invalid coordinates fail loud
+    with pytest.raises(ValueError, match="coordinate cannot be empty"):
+        normalize_coordinate("")
+    with pytest.raises(ValueError, match="must be numeric"):
+        normalize_coordinate("23.abc")
+    with pytest.raises(ValueError, match="maximum is 10"):
+        normalize_coordinate("1.2.3.4.5.6.7.8.9.10.11")
+
+
+def test_statcan_client_uom_codesets_pinning(statcan: StatCanClient) -> None:
+    """Pin official StatCan WDS UOM codes to ensure zero hallucinated or guessed units (CAN-17)."""
+    # Key codes from benchmark questions
+    assert statcan.get_uom_name(300) == "Units"
+    assert statcan.get_uom_name(81) == "Dollars"
+    assert statcan.get_uom_name(239) == "Percent"
+    assert statcan.get_uom_name(257) == "Rate"
+    assert statcan.get_uom_name(455) == "2024 constant dollars"
+    assert statcan.get_uom_name(17) == "2002=100"
+
+    # French localization
+    assert statcan.get_uom_name(239, lang="fr") == "Pourcent"
+    assert statcan.get_uom_name(257, lang="fr") == "Taux"
+
+    # Zero or unmapped returns None (strict no-guessing)
+    assert statcan.get_uom_name(0) is None
+    assert statcan.get_uom_name(None) is None
+    assert statcan.get_uom_name(999999) is None
+
+
+@respx.mock
+async def test_get_data_from_cube_auto_pads_short_coordinate(statcan: StatCanClient) -> None:
+    """Short coordinate '23' must auto-pad to '23.0.0.0.0.0.0.0.0.0' to prevent WDS 406."""
+    mock_point = [
+        {
+            "status": "SUCCESS",
+            "object": {
+                "responseStatusCode": 0,
+                "productId": 34100127,
+                "coordinate": "23.0.0.0.0.0.0.0.0.0",
+                "vectorId": 733349,
+                "vectorDataPoint": [
+                    {
+                        "refPer": "2024-01-01",
+                        "value": 150.0,
+                        "decimals": 1,
+                        "releaseTime": "2024-02-01T08:30",
+                        "frequencyCode": 12,
+                        "statusCode": 0,
+                        "symbolCode": 0,
+                    }
+                ],
+            },
+        }
+    ]
+    mock_meta = [
+        {
+            "status": "SUCCESS",
+            "object": {
+                "productId": 34100127,
+                "cubeTitleEn": "Building permits",
+                "frequencyCode": 12,
+                "dimension": [
+                    {
+                        "dimensionPositionId": 1,
+                        "dimensionNameEn": "Geography",
+                        "member": [
+                            {
+                                "memberId": 23,
+                                "memberNameEn": "Toronto, Ontario",
+                                "memberUomCode": 257,
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+    ]
+
+    route = respx.post(f"{STATCAN_WDS_BASE_URL}/getDataFromCubePidCoordAndLatestNPeriods").mock(
+        return_value=httpx.Response(200, json=mock_point)
+    )
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=httpx.Response(200, json=mock_meta)
+    )
+
+    # Calling with short coordinate "23"
+    result = await statcan.get_data_from_cube(34100127, "23", latest_n=1)
+
+    # Verify WDS was sent the full 10-part coordinate
+    sent_body = json.loads(route.calls.last.request.content.decode("utf-8"))
+    assert sent_body[0]["coordinate"] == "23.0.0.0.0.0.0.0.0.0"
+    assert result.coordinate == "23.0.0.0.0.0.0.0.0.0"
+    assert result.vector_id == 733349
+    assert result.unit == "Rate"
+    assert result.unit_code == 257
+    assert result.series_title_en == "Toronto, Ontario"

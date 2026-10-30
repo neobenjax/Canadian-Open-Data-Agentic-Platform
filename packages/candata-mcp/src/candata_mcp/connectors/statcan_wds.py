@@ -11,7 +11,7 @@ import asyncio
 import re
 import time
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
@@ -26,6 +26,10 @@ from candata_mcp.citation import (
     CoreVerificationTuple,
     MetadataEnrichment,
 )
+from candata_mcp.connectors.statcan_codesets import (
+    STATCAN_UOM_EN,
+    STATCAN_UOM_FR,
+)
 
 STATCAN_WDS_BASE_URL = "https://www150.statcan.gc.ca/t1/wds/rest"
 STATCAN_LICENCE_URL = "https://www.statcan.gc.ca/en/reference/licence"
@@ -33,23 +37,6 @@ PUBLISHER = "Statistics Canada"
 DEFAULT_USER_AGENT = (
     "CanDataMCP/0.1 (CAN-11; +https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform)"
 )
-
-_COMMON_UOM_CODES: Mapping[int, str] = {
-    17: "2002=100",
-    188: "Units",
-    191: "Number",
-    210: "Percentage",
-    242: "Percent",
-    248: "Dollars",
-    249: "Current dollars",
-    250: "Constant dollars",
-    286: "Ratio",
-    300: "Basis points",
-    453: "2022 constant dollars",
-    454: "2023 constant dollars",
-    455: "2024 constant dollars",
-    456: "2025 constant dollars",
-}
 
 
 def _normalize_search_term(text: str) -> str:
@@ -172,6 +159,25 @@ def normalize_product_id(product_id: int | str) -> int:
     return int(s)
 
 
+def normalize_coordinate(coordinate: str) -> str:
+    """Normalize a StatCan coordinate string to standard 10-part format.
+
+    Pads short coordinates with zeroes (e.g. '23' -> '23.0.0.0.0.0.0.0.0.0')
+    to prevent WDS HTTP 406 invalid coordinate errors.
+    """
+    cleaned = coordinate.strip()
+    if not cleaned:
+        raise ValueError("coordinate cannot be empty")
+    parts = cleaned.split(".")
+    for p in parts:
+        if not p.isdigit():
+            raise ValueError(f"invalid coordinate segment {p!r} in {coordinate!r}; must be numeric")
+    if len(parts) > 10:
+        raise ValueError(f"coordinate {coordinate!r} has {len(parts)} parts; maximum is 10")
+    padded = parts + ["0"] * (10 - len(parts))
+    return ".".join(padded)
+
+
 @dataclass(frozen=True, slots=True)
 class DimensionMember:
     member_id: int
@@ -264,6 +270,7 @@ class StatCanSeriesResult:
     fetched_at: str
     series_title_en: str | None = None
     series_title_fr: str | None = None
+    unit_code: int | None = None
 
     def citation(self) -> CitationEnvelope:
         if not self.observations:
@@ -316,6 +323,7 @@ class SeriesInfo:
     title_en: str
     title_fr: str | None
     member_uom_code: int | None
+    unit: str | None = None
 
 
 class StatCanClient:
@@ -323,15 +331,19 @@ class StatCanClient:
 
     @classmethod
     def _resolve_series_details_from_coord(
-        cls, meta: CubeMetadata, coord: str
-    ) -> tuple[str | None, str | None, str | None]:
-        """Resolve series titles (en, fr) and unit of measure name from coordinate."""
+        cls,
+        meta: CubeMetadata,
+        coord: str,
+        uom_resolver: Callable[[int | None], str | None] | None = None,
+    ) -> tuple[str | None, str | None, str | None, int | None]:
+        """Resolve series titles (en, fr) and unit of measure name/code from coordinate."""
         if not coord:
-            return None, None, None
+            return None, None, None, None
         parts = coord.split(".")
         titles_en: list[str] = []
         titles_fr: list[str] = []
         uom_name: str | None = None
+        uom_code: int | None = None
 
         for dim in meta.dimensions:
             idx = dim.position_id - 1
@@ -346,14 +358,16 @@ class StatCanClient:
                                 titles_en.append(member.name_en)
                             if member.name_fr:
                                 titles_fr.append(member.name_fr)
-                            if member.member_uom_code and not uom_name:
-                                uom_name = _COMMON_UOM_CODES.get(
-                                    member.member_uom_code, f"UOM {member.member_uom_code}"
-                                )
+                            if member.member_uom_code and uom_code is None:
+                                uom_code = member.member_uom_code
+                                if uom_resolver is not None:
+                                    uom_name = uom_resolver(uom_code)
+                                else:
+                                    uom_name = STATCAN_UOM_EN.get(uom_code)
 
         s_title_en = "; ".join(titles_en) if titles_en else None
         s_title_fr = "; ".join(titles_fr) if titles_fr else None
-        return s_title_en, s_title_fr, uom_name
+        return s_title_en, s_title_fr, uom_name, uom_code
 
     def __init__(
         self,
@@ -364,6 +378,7 @@ class StatCanClient:
         backoff: float = 0.5,
         metadata_ttl_seconds: float = 3600.0,
         cubes_list_ttl_seconds: float = 86400.0,
+        codesets_ttl_seconds: float = 86400.0,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
@@ -371,8 +386,10 @@ class StatCanClient:
         self._backoff = backoff
         self._metadata_ttl = metadata_ttl_seconds
         self._cubes_list_ttl = cubes_list_ttl_seconds
+        self._codesets_ttl = codesets_ttl_seconds
         self._metadata_cache: dict[int, tuple[CubeMetadata, float]] = {}
         self._cubes_list_cache: tuple[list[dict[str, Any]], float] | None = None
+        self._uom_cache: dict[str, tuple[dict[int, str], float]] = {}
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=timeout,
@@ -395,9 +412,69 @@ class StatCanClient:
             await self._client.aclose()
 
     def clear_cache(self) -> None:
-        """Clear in-memory metadata and catalog caches."""
+        """Clear in-memory metadata, catalog, and codesets caches."""
         self._metadata_cache.clear()
         self._cubes_list_cache = None
+        self._uom_cache.clear()
+
+    async def get_uom_codes(
+        self, *, lang: str = "en", bypass_cache: bool = False
+    ) -> Mapping[int, str]:
+        """Fetch official UOM codes from WDS getCodeSets with TTL caching and snapshot fallback."""
+        now = time.monotonic()
+        if not bypass_cache and lang in self._uom_cache:
+            cached_data, cached_time = self._uom_cache[lang]
+            if now - cached_time < self._codesets_ttl:
+                return cached_data
+
+        url = f"{self._base_url}/getCodeSets"
+        try:
+            response = await self._client.get(url)
+            if response.status_code == 200:
+                raw = response.json()
+                root = _dict(raw)
+                if root.get("status") == "SUCCESS":
+                    obj = _dict(root.get("object"))
+                    uom_list = _optional_dict_list(obj.get("uom"))
+                    en_map: dict[int, str] = {}
+                    fr_map: dict[int, str] = {}
+                    for u in uom_list:
+                        c = _optional_int(u, "memberUomCode")
+                        if c is not None and c > 0:
+                            en_val = _optional_text(u, "memberUomEn")
+                            fr_val = _optional_text(u, "memberUomFr")
+                            if en_val:
+                                en_map[c] = en_val
+                            if fr_val:
+                                fr_map[c] = fr_val
+                    if en_map:
+                        self._uom_cache["en"] = (en_map, now)
+                    if fr_map:
+                        self._uom_cache["fr"] = (fr_map, now)
+                    if lang == "fr" and fr_map:
+                        return fr_map
+                    if en_map:
+                        return en_map
+        except Exception:
+            pass
+
+        snapshot = STATCAN_UOM_FR if lang == "fr" else STATCAN_UOM_EN
+        self._uom_cache[lang] = (dict(snapshot), now)
+        return snapshot
+
+    def get_uom_name(self, uom_code: int | None, *, lang: str = "en") -> str | None:
+        """Resolve a UOM code to its official name (en/fr).
+
+        Returns None if uom_code is None, 0, or unmapped, strictly avoiding synthetic labels.
+        """
+        if uom_code is None or uom_code <= 0:
+            return None
+        if lang in self._uom_cache:
+            codes, _ = self._uom_cache[lang]
+            if uom_code in codes:
+                return codes[uom_code]
+        snapshot = STATCAN_UOM_FR if lang == "fr" else STATCAN_UOM_EN
+        return snapshot.get(uom_code)
 
     async def get_cube_metadata(
         self, product_id: int | str, *, bypass_cache: bool = False
@@ -567,7 +644,7 @@ class StatCanClient:
     ) -> StatCanSeriesResult:
         """Fetch observations by product ID and 10-part coordinate for the latest N periods."""
         pid = normalize_product_id(product_id)
-        coord = coordinate.strip()
+        coord = normalize_coordinate(coordinate)
         body = [{"productId": pid, "coordinate": coord, "latestN": latest_n}]
 
         response_data, fetched_at = await self._post_json(
@@ -576,7 +653,9 @@ class StatCanClient:
         data_obj = self._extract_first_success_object(response_data, f"cube {pid} coord {coord}")
 
         meta = await self.get_cube_metadata(pid)
-        s_title_en, s_title_fr, uom_name = self._resolve_series_details_from_coord(meta, coord)
+        s_title_en, s_title_fr, uom_name, uom_code = self._resolve_series_details_from_coord(
+            meta, coord, uom_resolver=self.get_uom_name
+        )
 
         vector_id_raw = _required_int(data_obj, "vectorId")
         observations = self._parse_observations(data_obj.get("vectorDataPoint"))
@@ -593,6 +672,7 @@ class StatCanClient:
             fetched_at=fetched_at,
             series_title_en=s_title_en,
             series_title_fr=s_title_fr,
+            unit_code=uom_code,
         )
 
     async def get_data_from_vectors(
@@ -625,7 +705,9 @@ class StatCanClient:
             coord = _text(obj_dict, "coordinate", "")
 
             meta = await self.get_cube_metadata(pid)
-            s_title_en, s_title_fr, uom_name = self._resolve_series_details_from_coord(meta, coord)
+            s_title_en, s_title_fr, uom_name, uom_code = self._resolve_series_details_from_coord(
+                meta, coord, uom_resolver=self.get_uom_name
+            )
             observations = self._parse_observations(obj_dict.get("vectorDataPoint"))
 
             results.append(
@@ -641,6 +723,7 @@ class StatCanClient:
                     fetched_at=fetched_at,
                     series_title_en=s_title_en,
                     series_title_fr=s_title_fr,
+                    unit_code=uom_code,
                 )
             )
 
@@ -658,6 +741,8 @@ class StatCanClient:
             raise StatCanResponseError(f"getSeriesInfoFromVector missing 'productId': {info_obj}")
         pid = normalize_product_id(str(pid_raw))
 
+        uom_code = _optional_int(info_obj, "memberUomCode")
+        uom_name = self.get_uom_name(uom_code)
         return SeriesInfo(
             vector_id=vid,
             product_id=pid,
@@ -667,7 +752,8 @@ class StatCanClient:
             decimals=_optional_int(info_obj, "decimals"),
             title_en=_text(info_obj, "SeriesTitleEn", ""),
             title_fr=_optional_text(info_obj, "SeriesTitleFr"),
-            member_uom_code=_optional_int(info_obj, "memberUomCode"),
+            member_uom_code=uom_code,
+            unit=uom_name,
         )
 
     async def _post_json(self, endpoint: str, body: list[dict[str, Any]]) -> tuple[Any, str]:
