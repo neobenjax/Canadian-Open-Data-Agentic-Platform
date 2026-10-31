@@ -165,6 +165,15 @@ python scripts/verify.py
      - Self-healing PR creator: `python scripts/sync_tasks.py --create-pr CAN-XX` automatically checks off the task in `TASKS.md`, commits, and pushes if not already bundled.
      - Non-task branches (`chore/*`, `docs/*`, `main`) pass verification automatically.
 
+### 26. Full-Lifecycle Graph Execution Guardrail ("Press the Start Button" Invariant)
+- **Zero-Assumption Dynamic Verification:** Unit, integration, and evaluation tests for multi-agent graphs, orchestrator nodes, checkpointers, and channel reducers MUST NEVER stop at graph compilation (`builder.compile()`).
+- **Compulsory Dynamic Execution:** Every test asserting graph behavior MUST execute end-to-end execution paths:
+  1. **Multi-Turn Invocation:** Invoke the compiled graph with `app.ainvoke()` (or `app.astream()`) at least twice on the same thread, asserting that state channel reducers (e.g. `messages`, `citations`) merge rather than overwrite.
+  2. **Checkpointer State Roundtrip:** Assert that checkpointer writes succeed without database or foreign key constraint crashes and that deserialized state values retain strict type fidelity (`Decimal`, `date`).
+  3. **History & Time-Travel Replay:** Assert that `app.aget_state_history()` returns chronological checkpoints and that resuming/forking execution from a past `checkpoint_id` produces deterministic state restoration.
+- Static graph compilation checks without dynamic execution are strictly classified as incomplete coverage.
+
+
 ---
 
 ## 🚀 Deterministic Feature Execution Protocol

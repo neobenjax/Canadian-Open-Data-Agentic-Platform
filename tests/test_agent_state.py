@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 import pytest_asyncio
@@ -441,3 +441,195 @@ async def test_time_travel_keyerror_on_unknown_checkpoint(
         await checkpointer.arollback_to(
             thread_id="th_nonexistent", target_checkpoint_id="chk_unknown"
         )
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_scratchpad_deepcopy_immutability(
+    checkpointer: AsyncSqliteSaver,
+) -> None:
+    """Activity 21.2: Mutating mutable scratchpad after aput must not corrupt saved checkpoint."""
+    initial_scratch = {"series_data": [1, 2, 3], "meta": {"owner": "benjamin"}}
+    s = AgentState(
+        session_id="sess_immutable",
+        thread_id="th_immutable",
+        messages=[],
+        scratchpad=initial_scratch,
+    )
+    cfg = cast(
+        RunnableConfig,
+        {"configurable": {"thread_id": "th_immutable", "checkpoint_id": "chk_imm_1"}},
+    )
+    await checkpointer.aput(cfg, s)
+
+    # Mutate the in-memory scratchpad dictionary in place
+    initial_scratch["series_data"].append(999)
+    initial_scratch["meta"]["owner"] = "corrupted"
+
+    # Fetch stored state from checkpointer
+    restored = await checkpointer.aget_state(cfg)
+    assert restored is not None
+    assert restored.scratchpad["series_data"] == [1, 2, 3]
+    assert restored.scratchpad["meta"]["owner"] == "benjamin"
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_strict_citation_typeadapter(
+    checkpointer: AsyncSqliteSaver,
+) -> None:
+    """Activity 21.1: CitationEnvelope must roundtrip via TypeAdapter without defaults."""
+    envelope = CitationEnvelope(
+        publisher="Statistics Canada",
+        core=CoreVerificationTuple(
+            table_id="18-10-0004-01",
+            vector_id="v41690973",
+            reference_period="2024-01/2024-12",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate="2.1",
+            release_or_revision_date="2024-12-15T08:30",
+            bilingual_title=BilingualTitle(en="Consumer Price Index", fr="IPC"),
+            canonical_url="https://statcan.gc.ca",
+        ),
+    )
+    s = AgentState(
+        session_id="sess_cit",
+        thread_id="th_cit",
+        messages=[],
+        citations=(envelope,),
+        scratchpad={"target_val": Decimal("105.75"), "as_of": date(2024, 6, 1)},
+    )
+    cfg = cast(
+        RunnableConfig, {"configurable": {"thread_id": "th_cit", "checkpoint_id": "chk_cit_1"}}
+    )
+    await checkpointer.aput(cfg, s)
+
+    restored = await checkpointer.aget_state(cfg)
+    assert restored is not None
+    assert len(restored.citations) == 1
+    assert restored.citations[0] == envelope
+    assert restored.scratchpad["target_val"] == Decimal("105.75")
+    assert restored.scratchpad["as_of"] == date(2024, 6, 1)
+
+
+def test_token_budget_non_negative_and_derived_total() -> None:
+    """Activity 21.4: TokenBudget must enforce non-negative values and synchronized total."""
+    tb = TokenBudget(prompt_tokens_used=150, completion_tokens_used=50)
+    assert tb.total_tokens_used == 200
+
+    with pytest.raises(ValidationError):
+        TokenBudget(prompt_tokens_used=-10)
+
+    with pytest.raises(ValidationError):
+        TokenBudget(completion_tokens_used=-5)
+
+
+# ==============================================================================
+# 6. Full-Lifecycle Graph Execution & Dynamic Verification (Guardrail 26)
+# ==============================================================================
+
+
+@pytest.mark.asyncio
+async def test_langgraph_full_lifecycle_ainvoke_multi_turn_and_history_replay(
+    checkpointer: AsyncSqliteSaver,
+    sample_citation: CitationEnvelope,
+) -> None:
+    """Guardrail 26: Full graph lifecycle via ainvoke with parallel nodes, history, and replay."""
+    builder = StateGraph(AgentState)
+
+    # 1. Parallel node A: adds user message and citation
+    def node_a(state: AgentState) -> dict[str, Any]:
+        return {
+            "messages": [AgentMessage(role=MessageRole.ASSISTANT, content="from a")],
+            "citations": [sample_citation],
+        }
+
+    # 2. Parallel node B: adds assistant message and SQLArtifact with exact Decimal and date
+    def node_b(state: AgentState) -> dict[str, Any]:
+        artifact = SQLArtifact(
+            source_series_id="v41690973",
+            sql_query="SELECT date, amount FROM cpi_table",
+            row_count=1,
+            rows=({"date": date(2025, 1, 1), "amount": Decimal("2045.50")},),
+        )
+        return {
+            "messages": [AgentMessage(role=MessageRole.ASSISTANT, content="from b")],
+            "sql_artifacts": [artifact],
+        }
+
+    # 3. Downstream Analyst node: joins both parallel branches
+    def node_analyst(state: AgentState) -> dict[str, Any]:
+        return {
+            "messages": [AgentMessage(role=MessageRole.ASSISTANT, content="analyst")],
+        }
+
+    builder.add_node("node_a", node_a)
+    builder.add_node("node_b", node_b)
+    builder.add_node("node_analyst", node_analyst)
+
+    builder.add_edge(START, "node_a")
+    builder.add_edge(START, "node_b")
+    builder.add_edge("node_a", "node_analyst")
+    builder.add_edge("node_b", "node_analyst")
+    builder.add_edge("node_analyst", END)
+
+    app = builder.compile(checkpointer=checkpointer)
+
+    thread_cfg = cast(RunnableConfig, {"configurable": {"thread_id": "thread_lifecycle_test"}})
+
+    # Check 1: ainvoke, two parallel nodes then one -> NO Foreign Key crash, reducers merge
+    input_state: dict[str, Any] = {
+        "session_id": "sess_lifecycle",
+        "thread_id": "thread_lifecycle_test",
+        "messages": [AgentMessage(role=MessageRole.USER, content="user q1")],
+    }
+    res1 = await app.ainvoke(input_state, config=thread_cfg)
+
+    # Messages merged in order: user q1, from a, from b, analyst (4 messages)
+    assert len(res1["messages"]) == 4
+    contents = [m.content for m in res1["messages"]]
+    assert contents[0] == "user q1"
+    assert "from a" in contents
+    assert "from b" in contents
+    assert contents[-1] == "analyst"
+
+    # Citation reducer merged citation from node_a
+    assert len(res1["citations"]) == 1
+    assert res1["citations"][0].core.vector_id == "v41690973"
+
+    # Check 2: Decimal and date preserved in SQLArtifact.rows after graph run
+    assert len(res1["sql_artifacts"]) == 1
+    row = res1["sql_artifacts"][0].rows[0]
+    assert isinstance(row["amount"], Decimal)
+    assert row["amount"] == Decimal("2045.50")
+    assert isinstance(row["date"], date)
+    assert not isinstance(row["date"], datetime)
+    assert row["date"] == date(2025, 1, 1)
+
+    # Check 3: Second question on the same thread -> appends to thread
+    res2 = await app.ainvoke(
+        {"messages": [AgentMessage(role=MessageRole.USER, content="user q2")]},
+        config=thread_cfg,
+    )
+    # Total messages now: 4 previous + 1 user q2 + 3 from nodes = 8 messages
+    assert len(res2["messages"]) == 8
+    assert res2["messages"][4].content == "user q2"
+
+    # Check 4: aget_state_history -> retrieves chronological checkpoints
+    history = [s async for s in app.aget_state_history(thread_cfg)]
+    assert len(history) >= 4
+
+    # Check 5: Replay from a historical checkpoint_id
+    historical_chk = history[-2]  # Earlier checkpoint from the first invocation
+    replay_cfg = cast(
+        RunnableConfig,
+        {
+            "configurable": {
+                "thread_id": "thread_lifecycle_test",
+                "checkpoint_id": historical_chk.config["configurable"]["checkpoint_id"],
+            }
+        },
+    )
+    historical_state = await app.aget_state(replay_cfg)
+    assert historical_state is not None
+    assert len(historical_state.values["messages"]) < 8
+    assert historical_state.values["session_id"] == "sess_lifecycle"
