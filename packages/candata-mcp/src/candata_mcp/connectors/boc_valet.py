@@ -1,14 +1,18 @@
-"""Async client for the Bank of Canada Valet API (CAN-12).
+"""Async client for the Bank of Canada Valet API (CAN-12 / CAN-17 Hardening).
 
 Valet publishes series values, labels and units but no release or revision timestamp and no
 French labels, so ``release_or_revision_date`` is left empty rather than guessed and French
 titles come only from the sourced ``FRENCH_TITLES`` table. Every result carries
-``fetched_at`` (the server's HTTP ``Date``) so a figure can still be pinned to the moment it
-was read.
+``fetched_at`` (the server's HTTP ``Date``) paired with ``fetched_at_source`` ("server_date"
+or "local_clock") so a figure can still be pinned to the moment and provenance of retrieval.
 """
 
+from __future__ import annotations
+
 import asyncio
+import random
 import re
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -27,8 +31,12 @@ from candata_mcp.citation import (
 )
 
 VALET_BASE_URL = "https://www.bankofcanada.ca/valet"
+VALET_TERMS_URL = "https://www.bankofcanada.ca/terms/"
 PUBLISHER = "Bank of Canada"
 TABLE_ID = "Valet"
+DEFAULT_USER_AGENT = (
+    "CanDataMCP/0.1.0 (+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform)"
+)
 
 POLICY_RATE_SERIES = "V39079"
 
@@ -129,11 +137,13 @@ class GroupDetail:
 
 @dataclass(frozen=True, slots=True)
 class ObservationSet:
-    """Observations for one series, oldest first, with the moment they were fetched."""
+    """Observations for one series, oldest first, with the moment and source of retrieval."""
 
     series: SeriesDetail
     observations: tuple[Observation, ...]
     fetched_at: str
+    fetched_at_source: str = "server_date"
+    license_url: str = VALET_TERMS_URL
 
     def citation(self) -> CitationEnvelope:
         if not self.observations:
@@ -152,6 +162,7 @@ class ObservationSet:
                     en=self.series.label, fr=FRENCH_TITLES.get(self.series.name)
                 ),
                 canonical_url=f"{VALET_BASE_URL}/observations/{self.series.name}",
+                license_url=self.license_url,
             ),
         )
 
@@ -173,15 +184,30 @@ class ValetClient:
         timeout: float = 30.0,
         retries: int = 2,
         backoff: float = 0.5,
+        max_concurrency: int = 5,
+        cache_ttl_seconds: float = 30.0,
         client: httpx.AsyncClient | None = None,
     ) -> None:
+        parsed_base = base_url.rstrip("/").lower()
+        if not parsed_base.startswith("https://"):
+            allowed_local = (
+                "http://localhost",
+                "http://127.0.0.1",
+                "http://testserver",
+            )
+            if not any(parsed_base.startswith(prefix) for prefix in allowed_local):
+                raise ValueError(f"Valet base_url must use HTTPS in production (got {base_url!r})")
+
         self._base_url = base_url.rstrip("/")
         self._retries = retries
         self._backoff = backoff
+        self._semaphore = asyncio.Semaphore(max_concurrency)
+        self._cache_ttl = cache_ttl_seconds
+        self._cache: dict[str, tuple[dict[str, Any], str, str, float]] = {}
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             timeout=timeout,
-            headers={"Accept": "application/json", "User-Agent": "candata-mcp"},
+            headers={"Accept": "application/json", "User-Agent": DEFAULT_USER_AGENT},
         )
 
     async def __aenter__(self) -> Self:
@@ -199,12 +225,16 @@ class ValetClient:
         if self._owns_client:
             await self._client.aclose()
 
+    def clear_cache(self) -> None:
+        """Clear the in-memory response cache."""
+        self._cache.clear()
+
     async def get_series(self, series_id: str) -> SeriesDetail:
-        body, _ = await self._get_json(f"series/{_name(series_id)}/json")
+        body, _, _ = await self._get_json(f"series/{_name(series_id)}/json")
         return _series_detail(_dict(body, "seriesDetails"), series_id)
 
     async def get_group(self, group: str) -> GroupDetail:
-        body, _ = await self._get_json(f"groups/{_name(group)}/json")
+        body, _, _ = await self._get_json(f"groups/{_name(group)}/json")
         detail = _dict(body, "groupDetail")
         series = _dict(detail, "groupSeries")
         return GroupDetail(
@@ -224,7 +254,7 @@ class ValetClient:
         )
 
     async def list_groups(self) -> tuple[GroupSummary, ...]:
-        body, _ = await self._get_json("lists/groups/json")
+        body, _, _ = await self._get_json("lists/groups/json")
         groups = _dict(body, "groups")
         return tuple(
             GroupSummary(
@@ -252,12 +282,18 @@ class ValetClient:
             if recent < 1:
                 raise ValueError("recent must be a positive integer")
             params["recent"] = str(recent)
+        elif start_date is None and end_date is None:
+            # Default to recent=10 to bound history and avoid unbounded data dumps (V-F3)
+            params["recent"] = "10"
+
         if start_date is not None:
             params["start_date"] = _iso_date(start_date, "start_date")
         if end_date is not None:
             params["end_date"] = _iso_date(end_date, "end_date")
 
-        body, fetched_at = await self._get_json(f"observations/{name}/json", params)
+        body, fetched_at, fetched_at_source = await self._get_json(
+            f"observations/{name}/json", params
+        )
         series = _series_detail(_dict(_dict(body, "seriesDetail"), name), name)
         rows = body.get("observations")
         if not isinstance(rows, list):
@@ -266,7 +302,9 @@ class ValetClient:
             (_observation(row, name) for row in rows),  # pyright: ignore[reportUnknownVariableType]
             key=lambda o: o.date,
         )
-        return ObservationSet(series, tuple(observations), fetched_at)
+        return ObservationSet(
+            series, tuple(observations), fetched_at, fetched_at_source, VALET_TERMS_URL
+        )
 
     async def get_policy_rate(
         self,
@@ -296,20 +334,44 @@ class ValetClient:
 
     async def _get_json(
         self, path: str, params: Mapping[str, str] | None = None
-    ) -> tuple[dict[str, Any], str]:
+    ) -> tuple[dict[str, Any], str, str]:
         url = f"{self._base_url}/{path}"
+        cache_key = f"{url}?{sorted(params.items()) if params else ''}"
+        now_mono = time.monotonic()
+        if cache_key in self._cache:
+            body, fetched_at, source, cached_time = self._cache[cache_key]
+            if now_mono - cached_time < self._cache_ttl:
+                return body, fetched_at, source
+
         response: httpx.Response | None = None
         for attempt in range(self._retries + 1):
             last_attempt = attempt == self._retries
             try:
-                response = await self._client.get(url, params=params)
+                async with self._semaphore:
+                    response = await self._client.get(url, params=params)
             except httpx.TransportError as exc:
                 if last_attempt:
                     raise ValetRequestError(f"request to {url} failed: {exc!r}") from exc
             else:
                 if response.status_code not in _RETRY_STATUSES or last_attempt:
                     break
-            await asyncio.sleep(self._backoff * 2**attempt)
+
+            sleep_time: float
+            if response is not None and response.status_code in (429, 503):
+                retry_header = response.headers.get("retry-after")
+                parsed_wait = _parse_retry_after(retry_header)
+                if parsed_wait is not None:
+                    sleep_time = min(parsed_wait, 60.0) + (
+                        0.0 if self._backoff == 0 else random.uniform(0.01, 0.05)
+                    )
+                else:
+                    sleep_time = self._backoff * (2**attempt)
+            else:
+                sleep_time = self._backoff * (2**attempt)
+
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
+
         assert response is not None
 
         if response.status_code >= 400:
@@ -322,11 +384,14 @@ class ValetClient:
             raise ValetResponseError(f"response from {url} is not valid JSON") from exc
         if not isinstance(body, dict):
             raise ValetResponseError(f"response from {url} is not a JSON object")
-        return body, _fetched_at(response)  # pyright: ignore[reportUnknownVariableType]
+
+        fetched_at, fetched_at_source = _fetched_at(response)
+        self._cache[cache_key] = (body, fetched_at, fetched_at_source, now_mono)
+        return body, fetched_at, fetched_at_source  # pyright: ignore[reportUnknownVariableType]
 
 
 def _name(value: str) -> str:
-    if not _NAME.match(value):
+    if not _NAME.fullmatch(value):
         raise ValueError(f"invalid Valet name {value!r}")
     return quote(value)
 
@@ -340,6 +405,21 @@ def _iso_date(value: date | str, field: str) -> str:
         raise ValueError(f"{field} must be an ISO date (YYYY-MM-DD), got {value!r}") from exc
 
 
+def _parse_retry_after(header_val: str | None) -> float | None:
+    """Parse RFC 7231 Retry-After header (delta-seconds or IMF-fixdate HTTP-date)."""
+    if not header_val:
+        return None
+    val = header_val.strip()
+    if val.isdigit():
+        return float(val)
+    try:
+        dt = parsedate_to_datetime(val)
+        delta = (dt - datetime.now(UTC)).total_seconds()
+        return max(0.0, delta)
+    except (TypeError, ValueError):
+        return None
+
+
 def _error_message(response: httpx.Response) -> str:
     try:
         body: Any = response.json()
@@ -350,14 +430,17 @@ def _error_message(response: httpx.Response) -> str:
     return response.reason_phrase
 
 
-def _fetched_at(response: httpx.Response) -> str:
+def _fetched_at(response: httpx.Response) -> tuple[str, str]:
     header = response.headers.get("date")
     if header:
         try:
-            return parsedate_to_datetime(header).astimezone(UTC).isoformat(timespec="seconds")
+            return (
+                parsedate_to_datetime(header).astimezone(UTC).isoformat(timespec="seconds"),
+                "server_date",
+            )
         except (TypeError, ValueError):
             pass
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    return (datetime.now(UTC).isoformat(timespec="seconds"), "local_clock")
 
 
 def _dict(source: Mapping[str, Any], key: str) -> dict[str, Any]:

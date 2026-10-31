@@ -29,6 +29,7 @@ def run_command(cmd: list[str], cwd: str = ROOT_DIR) -> tuple[int, str, float]:
         proc = subprocess.run(
             cmd,
             cwd=cwd,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,

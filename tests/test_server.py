@@ -149,6 +149,8 @@ async def test_tool_registration_and_annotations(mock_server: CanDataServer) -> 
         "query_valet_policy_rate",
         "query_valet_cpi",
         "execute_sql_analytics",
+        "search_statcan_cubes",
+        "get_cube_dimensions",
     }
     assert set(tool_map.keys()) == expected_tools
 
@@ -159,6 +161,8 @@ async def test_tool_registration_and_annotations(mock_server: CanDataServer) -> 
         "query_valet_series",
         "query_valet_policy_rate",
         "query_valet_cpi",
+        "search_statcan_cubes",
+        "get_cube_dimensions",
     ]:
         annotations = tool_map[name].annotations
         assert annotations is not None
@@ -402,3 +406,181 @@ async def test_sql_analytics_records_how_the_numbers_were_derived(
     assert lineage["steps"][0] == "fetched 12 observations"
     assert lineage["steps"][1].startswith("computed in DuckDB with the read-only SQL shown")
     assert len(result.content[0].text.encode("utf-8")) < MAX_PAYLOAD_BYTES  # type: ignore[union-attr]
+
+
+async def test_call_search_statcan_cubes(mock_server: CanDataServer) -> None:
+    from candata_mcp.connectors.statcan_wds import CubeSummary
+
+    mock_summary = CubeSummary(
+        product_id=18100004,
+        table_id="18-10-0004-01",
+        cansim_id="326-0020",
+        title_en="Consumer Price Index, monthly",
+        title_fr="Indice des prix à la consommation, mensuel",
+        start_date="1914-01-01",
+        end_date="2026-09-01",
+        release_time="2026-10-20T08:30",
+        frequency_code=6,
+        frequency_name="monthly",
+    )
+    mock_server.statcan_client.search_cubes = AsyncMock(return_value=(mock_summary,))
+
+    result = await mock_server.mcp.call_tool(
+        "search_statcan_cubes",
+        {"query": "consumer price index", "limit": 5},
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)
+    assert payload["query"] == "consumer price index"
+    assert "cubes" in payload
+    assert len(payload["cubes"]) == 1
+    assert payload["cubes"][0]["product_id"] == 18100004
+
+
+async def test_call_get_cube_dimensions(mock_server: CanDataServer) -> None:
+    # Set up mock cube metadata on statcan_client
+    from candata_mcp.connectors.statcan_wds import CubeMetadata, Dimension, DimensionMember
+
+    mock_meta = CubeMetadata(
+        product_id=18100004,
+        cansim_id="326-0020",
+        title_en="Consumer Price Index, monthly",
+        title_fr="Indice des prix à la consommation, mensuel",
+        start_date="1914-01-01",
+        end_date="2026-09-01",
+        release_time="2026-10-20T08:30",
+        frequency_code=6,
+        frequency_name="monthly",
+        dimensions=(
+            Dimension(
+                position_id=1,
+                name_en="Geography",
+                name_fr="Géographie",
+                has_uom=False,
+                members=(
+                    DimensionMember(1, None, "Canada", "Canada", None),
+                    DimensionMember(2, None, "Ontario", "Ontario", None),
+                ),
+            ),
+        ),
+    )
+    mock_server.statcan_client.get_cube_metadata = AsyncMock(return_value=mock_meta)
+
+    result = await mock_server.mcp.call_tool(
+        "get_cube_dimensions",
+        {"product_id": "18100004", "max_members_per_dim": 10},
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)
+    assert payload["product_id"] == 18100004
+    assert payload["table_id"] == "18-10-0004-01"
+    assert len(payload["dimensions"]) == 1
+    dim = payload["dimensions"][0]
+    assert dim["name_en"] == "Geography"
+    assert dim["total_members"] == 2
+    assert len(dim["members"]) == 2
+
+
+async def test_call_query_statcan_coordinate_ambiguous_member_envelope(
+    mock_server: CanDataServer,
+) -> None:
+    from candata_mcp.connectors.statcan_wds import DimensionMember, StatCanAmbiguousMemberError
+
+    cand = (
+        DimensionMember(100, None, "Kentville", None, None),
+        DimensionMember(200, None, "Kentville", None, None),
+    )
+    err = StatCanAmbiguousMemberError("Kentville", 1, "Geography", 34100133, cand)
+    mock_server.statcan_client.get_data_from_cube = AsyncMock(side_effect=err)
+
+    result = await mock_server.mcp.call_tool(
+        "query_statcan_coordinate",
+        {"table_id": "34100133", "coordinate": "Kentville"},
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)
+    assert payload["isError"] is True
+    assert payload["error_code"] == "AMBIGUOUS_MEMBER"
+    assert "troubleshooting" in payload
+    assert payload["details"]["candidate_ids"] == [100, 200]
+
+
+async def test_call_get_cube_dimensions_with_member_query_and_pagination(
+    mock_server: CanDataServer,
+) -> None:
+    from candata_mcp.connectors.statcan_wds import CubeMetadata, Dimension, DimensionMember
+
+    # Create mock dimension with 200 members where Toronto is #160
+    members = [DimensionMember(i, None, f"City {i}", f"Ville {i}", None) for i in range(1, 201)]
+    members[159] = DimensionMember(125, None, "Toronto, Ontario", "Toronto, Ontario", None)
+
+    mock_meta = CubeMetadata(
+        product_id=34100133,
+        cansim_id="027-0040",
+        title_en="CMHC average rents",
+        title_fr="SCHL loyers moyens",
+        start_date="1987-01-01",
+        end_date="2025-01-01",
+        release_time="2025-01-15T08:30",
+        frequency_code=12,
+        frequency_name="annual",
+        dimensions=(
+            Dimension(
+                position_id=1,
+                name_en="Geography",
+                name_fr="Géographie",
+                has_uom=False,
+                members=tuple(members),
+            ),
+        ),
+    )
+    mock_server.statcan_client.get_cube_metadata = AsyncMock(return_value=mock_meta)
+
+    # 1. Search with member_query="Toronto" directly retrieves Toronto (member 125)
+    result = await mock_server.mcp.call_tool(
+        "get_cube_dimensions",
+        {"product_id": "34100133", "member_query": "Toronto"},
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)
+    dim = payload["dimensions"][0]
+    assert dim["total_members"] == 200
+    assert dim["matched_members_count"] == 1
+    assert len(dim["members"]) == 1
+    assert dim["members"][0]["member_id"] == 125
+    assert dim["members"][0]["name_en"] == "Toronto, Ontario"
+
+    # 2. Test pagination with offset=50, limit=10
+    paged_result = await mock_server.mcp.call_tool(
+        "get_cube_dimensions",
+        {"product_id": "34100133", "offset": 50, "limit": 10},
+    )
+    paged_payload = json.loads(paged_result.content[0].text)
+    paged_dim = paged_payload["dimensions"][0]
+    assert paged_dim["total_members"] == 200
+    assert paged_dim["matched_members_count"] == 200
+    assert paged_dim["offset"] == 50
+    assert paged_dim["limit"] == 10
+    assert len(paged_dim["members"]) == 10
+    assert paged_dim["has_more_members"] is True
+
+
+async def test_call_search_statcan_cubes_statcan_unavailable_payload(
+    mock_server: CanDataServer,
+) -> None:
+    from candata_mcp.connectors.statcan_wds import StatCanUnavailableError
+
+    mock_server.statcan_client.search_cubes = AsyncMock(
+        side_effect=StatCanUnavailableError("WDS Catalog outage", retry_after=45)
+    )
+
+    result = await mock_server.mcp.call_tool(
+        "search_statcan_cubes",
+        {"query": "toronto rent"},
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)
+    assert payload["isError"] is True
+    assert payload["error_code"] == "STATCAN_UNAVAILABLE"
+    assert payload["retry_after"] == 45
+    assert "suggested_action" in payload

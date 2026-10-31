@@ -88,7 +88,7 @@
 - [x] **CAN-26:** Bilingual French/English metadata mapping and data lineage tracking. *(Owner: Yassir · 2h)*
 
 ### Feature 2.3: Connector & FastMCP Server Hardening
-- [ ] **CAN-17:** Connector & FastMCP Server Hardening: Valet fixes (V-F1..8), StatCan quality flags and ambiguity resolution, FastMCP discovery tools (`search_statcan_cubes`, `get_cube_dimensions`), and actionable error payloads. *(Owner: Benjamin · 2.5h · BEN-45)*
+- [x] **CAN-17:** Connector & FastMCP Server Hardening: Valet fixes (V-F1..8), StatCan quality flags and ambiguity resolution, FastMCP discovery tools (`search_statcan_cubes`, `get_cube_dimensions`), and actionable error payloads. *(Owner: Benjamin · 2.5h · BEN-45)*
 
 ---
 
