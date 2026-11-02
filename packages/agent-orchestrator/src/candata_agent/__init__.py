@@ -7,6 +7,7 @@ from candata_agent.analyst import (
     data_analyst_node,
 )
 from candata_agent.checkpoint import AsyncSqliteSaver
+from candata_agent.pricing import TokenPricing
 from candata_agent.state import (
     AgentMessage,
     AgentState,
@@ -23,6 +24,24 @@ from candata_agent.state import (
     merge_citations,
 )
 
+try:
+    from candata_agent.tracing import (
+        current_trace_context,
+        setup_tracing,
+        traced_node,
+        traced_run,
+    )
+except ModuleNotFoundError as error:
+    # Only the optional `tracing` extra may be missing; any other missing module is a real bug.
+    if not (error.name or "").startswith("opentelemetry"):
+        raise
+    from candata_agent._tracing_off import (  # type: ignore[assignment]
+        current_trace_context,
+        setup_tracing,
+        traced_node,
+        traced_run,
+    )
+
 __all__ = [
     "AgentMessage",
     "AgentState",
@@ -38,8 +57,13 @@ __all__ = [
     "SecurityValidationError",
     "StepStatus",
     "TokenBudget",
+    "TokenPricing",
     "TraceContext",
     "add_messages",
+    "current_trace_context",
     "data_analyst_node",
     "merge_citations",
+    "setup_tracing",
+    "traced_node",
+    "traced_run",
 ]
