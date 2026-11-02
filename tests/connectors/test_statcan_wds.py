@@ -15,7 +15,9 @@ import respx
 
 from candata_mcp.connectors.statcan_wds import (
     DEFAULT_USER_AGENT,
+    STATCAN_LICENCE_URL,
     STATCAN_WDS_BASE_URL,
+    CubeSummary,
     StatCanAmbiguousMemberError,
     StatCanClient,
     StatCanHTTPError,
@@ -380,3 +382,307 @@ async def test_live_statcan_wds_cpi_smoke() -> None:
         assert citation.publisher == "Statistics Canada"
         assert citation.core.table_id == "18-10-0004-01"
         assert citation.enrichment.release_or_revision_date is not None
+
+
+@respx.mock
+async def test_ambiguous_member_error_carries_structured_attributes(statcan: StatCanClient) -> None:
+    ambiguous_meta = [
+        {
+            "status": "SUCCESS",
+            "object": {
+                "productId": 34100133,
+                "cubeTitleEn": "Rental Market Survey",
+                "frequencyCode": 12,
+                "dimension": [
+                    {
+                        "dimensionPositionId": 1,
+                        "dimensionNameEn": "Geography",
+                        "hasUom": False,
+                        "member": [
+                            {"memberId": 100, "memberNameEn": "Kentville", "memberNameFr": None},
+                            {"memberId": 200, "memberNameEn": "Kentville", "memberNameFr": None},
+                        ],
+                    }
+                ],
+            },
+        }
+    ]
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=httpx.Response(200, json=ambiguous_meta, headers={"Date": DATE_HEADER})
+    )
+
+    with pytest.raises(StatCanAmbiguousMemberError) as exc_info:
+        await statcan.resolve_coordinate(34100133, ["Kentville"])
+
+    err = exc_info.value
+    assert err.member_name == "Kentville"
+    assert err.dimension_position == 1
+    assert err.dimension_name == "Geography"
+    assert err.product_id == 34100133
+    assert err.candidate_ids == (100, 200)
+    assert len(err.candidates) == 2
+
+
+@respx.mock
+async def test_search_cubes_returns_compact_summaries(statcan: StatCanClient) -> None:
+    mock_cubes = [
+        {
+            "productId": 18100004,
+            "cansimId": "326-0020",
+            "cubeTitleEn": "Consumer Price Index, monthly, not seasonally adjusted",
+            "cubeTitleFr": "Indice des prix à la consommation, mensuel, non désaisonnalisé",
+            "cubeStartDate": "1914-01-01",
+            "cubeEndDate": "2026-09-01",
+            "releaseTime": "2026-10-20T08:30",
+            "frequencyCode": 6,
+        },
+        {
+            "productId": 34100133,
+            "cansimId": "027-0040",
+            "cubeTitleEn": (
+                "Canada Mortgage and Housing Corporation, average rents for areas "
+                "with a population of 10,000 and over"
+            ),
+            "cubeTitleFr": "Société canadienne d'hypothèques et de logement, loyers moyens",
+            "cubeStartDate": "1987-01-01",
+            "cubeEndDate": "2025-01-01",
+            "releaseTime": "2025-01-15T08:30",
+            "frequencyCode": 12,
+        },
+        {
+            "productId": 10100001,
+            "cansimId": "100-0001",
+            "cubeTitleEn": "Current account balance and international investment position",
+            "cubeTitleFr": "Solde du compte courant",
+            "cubeStartDate": "1990-01-01",
+            "cubeEndDate": "2025-01-01",
+            "releaseTime": "2025-01-15T08:30",
+            "frequencyCode": 7,
+        },
+    ]
+    respx.get(f"{STATCAN_WDS_BASE_URL}/getAllCubesListLite").mock(
+        return_value=httpx.Response(200, json=mock_cubes)
+    )
+
+    # 1. Basic search
+    results = await statcan.search_cubes("consumer price index", limit=5)
+    assert len(results) == 1
+    assert results.total_results == 1
+    first = results[0]
+    assert isinstance(first, CubeSummary)
+    assert first.product_id == 18100004
+    assert first.table_id == "18-10-0004-01"
+    assert "Consumer Price Index" in first.title_en
+    assert first.frequency_code == 6
+
+    # 2. Multi-word tokenized search ("housing rent" -> finds 34100133)
+    rent_results = await statcan.search_cubes("housing rent", limit=5)
+    assert len(rent_results) == 1
+    assert rent_results[0].product_id == 34100133
+
+    # 3. Word boundary check ("rent" matches "rents", but rejects "current account")
+    rent_word = await statcan.search_cubes("rent", limit=5)
+    assert len(rent_word) == 1
+    assert rent_word[0].product_id == 34100133
+
+
+@respx.mock
+async def test_search_cubes_fails_loud_on_statcan_outage(statcan: StatCanClient) -> None:
+    from candata_mcp.connectors.statcan_wds import StatCanUnavailableError
+
+    respx.get(f"{STATCAN_WDS_BASE_URL}/getAllCubesListLite").mock(
+        return_value=httpx.Response(503, text="Service Unavailable")
+    )
+    with pytest.raises(StatCanUnavailableError) as exc_info:
+        await statcan.search_cubes("cpi", bypass_cache=True)
+    assert exc_info.value.retry_after == 30
+    assert "temporarily unreachable" in str(exc_info.value) or "HTTP 503" in str(exc_info.value)
+
+
+@respx.mock
+async def test_statcan_citation_carries_licence_url(statcan: StatCanClient) -> None:
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getDataFromCubePidCoordAndLatestNPeriods").mock(
+        return_value=ok("data_coord_18100004_cpi")
+    )
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=ok("cube_metadata_18100004")
+    )
+
+    result = await statcan.get_data_from_cube("18-10-0004-01", "2.1", latest_n=1)
+    citation = result.citation()
+    assert citation.enrichment.license_url == STATCAN_LICENCE_URL
+    assert citation.enrichment.license_url == "https://www.statcan.gc.ca/en/reference/licence"
+
+
+@respx.mock
+async def test_search_cubes_accent_insensitive_matching(statcan: StatCanClient) -> None:
+    """Verify that unaccented queries match accented French titles and vice versa."""
+    mock_cubes = [
+        {
+            "productId": 34100133,
+            "cansimId": "027-0040",
+            "cubeTitleEn": "Canada Mortgage and Housing Corporation, average rents",
+            "cubeTitleFr": (
+                "Société canadienne d'hypothèques et de logement, loyers moyens à Montréal"
+            ),
+            "cubeStartDate": "1990-01-01",
+            "cubeEndDate": "2025-01-01",
+            "releaseTime": "2025-01-15T08:30",
+            "frequencyCode": 12,
+        },
+    ]
+    respx.get(f"{STATCAN_WDS_BASE_URL}/getAllCubesListLite").mock(
+        return_value=httpx.Response(200, json=mock_cubes)
+    )
+
+    # "montreal" should match "Montréal"
+    res1 = await statcan.search_cubes("montreal", bypass_cache=True)
+    assert len(res1) == 1
+    assert res1[0].product_id == 34100133
+
+    # "societe" should match "Société"
+    res2 = await statcan.search_cubes("societe loyers", bypass_cache=True)
+    assert len(res2) == 1
+    assert res2[0].product_id == 34100133
+
+
+@respx.mock
+async def test_cube_metadata_fails_loud_on_missing_identifiers(statcan: StatCanClient) -> None:
+    """Guardrail 6: Missing memberId, positionId, or frequencyCode must fail loud."""
+    from candata_mcp.connectors.statcan_wds import StatCanResponseError
+
+    # Payload with missing/zero memberId
+    bad_cube_meta = [
+        {
+            "status": "SUCCESS",
+            "object": {
+                "productId": 18100004,
+                "cubeTitleEn": "Test",
+                "frequencyCode": 6,
+                "dimension": [
+                    {
+                        "dimensionPositionId": 1,
+                        "dimensionNameEn": "Dim 1",
+                        "member": [
+                            {
+                                "memberId": 0,  # Invalid: zero identifier
+                                "memberNameEn": "Bogus",
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+    ]
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=httpx.Response(200, json=bad_cube_meta)
+    )
+    with pytest.raises(StatCanResponseError, match="expected positive integer for 'memberId'"):
+        await statcan.get_cube_metadata(18100004, bypass_cache=True)
+
+
+def test_normalize_coordinate_ten_parts() -> None:
+    from candata_mcp.connectors.statcan_wds import normalize_coordinate
+
+    # Short coordinates pad to 10 parts
+    assert normalize_coordinate("23") == "23.0.0.0.0.0.0.0.0.0"
+    assert normalize_coordinate("1.2.3") == "1.2.3.0.0.0.0.0.0.0"
+    assert normalize_coordinate("  23.1  ") == "23.1.0.0.0.0.0.0.0.0"
+    assert normalize_coordinate("1.2.3.4.5.6.7.8.9.10") == "1.2.3.4.5.6.7.8.9.10"
+
+    # Invalid coordinates fail loud
+    with pytest.raises(ValueError, match="coordinate cannot be empty"):
+        normalize_coordinate("")
+    with pytest.raises(ValueError, match="must be numeric"):
+        normalize_coordinate("23.abc")
+    with pytest.raises(ValueError, match="maximum is 10"):
+        normalize_coordinate("1.2.3.4.5.6.7.8.9.10.11")
+
+
+def test_statcan_client_uom_codesets_pinning(statcan: StatCanClient) -> None:
+    """Pin official StatCan WDS UOM codes to ensure zero hallucinated or guessed units (CAN-17)."""
+    # Key codes from benchmark questions
+    assert statcan.get_uom_name(300) == "Units"
+    assert statcan.get_uom_name(81) == "Dollars"
+    assert statcan.get_uom_name(239) == "Percent"
+    assert statcan.get_uom_name(257) == "Rate"
+    assert statcan.get_uom_name(455) == "2024 constant dollars"
+    assert statcan.get_uom_name(17) == "2002=100"
+
+    # French localization
+    assert statcan.get_uom_name(239, lang="fr") == "Pourcent"
+    assert statcan.get_uom_name(257, lang="fr") == "Taux"
+
+    # Zero or unmapped returns None (strict no-guessing)
+    assert statcan.get_uom_name(0) is None
+    assert statcan.get_uom_name(None) is None
+    assert statcan.get_uom_name(999999) is None
+
+
+@respx.mock
+async def test_get_data_from_cube_auto_pads_short_coordinate(statcan: StatCanClient) -> None:
+    """Short coordinate '23' must auto-pad to '23.0.0.0.0.0.0.0.0.0' to prevent WDS 406."""
+    mock_point = [
+        {
+            "status": "SUCCESS",
+            "object": {
+                "responseStatusCode": 0,
+                "productId": 34100127,
+                "coordinate": "23.0.0.0.0.0.0.0.0.0",
+                "vectorId": 733349,
+                "vectorDataPoint": [
+                    {
+                        "refPer": "2024-01-01",
+                        "value": 150.0,
+                        "decimals": 1,
+                        "releaseTime": "2024-02-01T08:30",
+                        "frequencyCode": 12,
+                        "statusCode": 0,
+                        "symbolCode": 0,
+                    }
+                ],
+            },
+        }
+    ]
+    mock_meta = [
+        {
+            "status": "SUCCESS",
+            "object": {
+                "productId": 34100127,
+                "cubeTitleEn": "Building permits",
+                "frequencyCode": 12,
+                "dimension": [
+                    {
+                        "dimensionPositionId": 1,
+                        "dimensionNameEn": "Geography",
+                        "member": [
+                            {
+                                "memberId": 23,
+                                "memberNameEn": "Toronto, Ontario",
+                                "memberUomCode": 257,
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+    ]
+
+    route = respx.post(f"{STATCAN_WDS_BASE_URL}/getDataFromCubePidCoordAndLatestNPeriods").mock(
+        return_value=httpx.Response(200, json=mock_point)
+    )
+    respx.post(f"{STATCAN_WDS_BASE_URL}/getCubeMetadata").mock(
+        return_value=httpx.Response(200, json=mock_meta)
+    )
+
+    # Calling with short coordinate "23"
+    result = await statcan.get_data_from_cube(34100127, "23", latest_n=1)
+
+    # Verify WDS was sent the full 10-part coordinate
+    sent_body = json.loads(route.calls.last.request.content.decode("utf-8"))
+    assert sent_body[0]["coordinate"] == "23.0.0.0.0.0.0.0.0.0"
+    assert result.coordinate == "23.0.0.0.0.0.0.0.0.0"
+    assert result.vector_id == 733349
+    assert result.unit == "Rate"
+    assert result.unit_code == 257
+    assert result.series_title_en == "Toronto, Ontario"

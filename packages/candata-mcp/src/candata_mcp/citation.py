@@ -33,6 +33,7 @@ class MetadataEnrichment:
     release_or_revision_date: str | None
     bilingual_title: BilingualTitle
     canonical_url: str
+    license_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

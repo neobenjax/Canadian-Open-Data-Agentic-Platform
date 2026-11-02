@@ -15,10 +15,12 @@ import respx
 
 from candata_mcp.connectors.boc_valet import (
     CPI_SERIES,
+    DEFAULT_USER_AGENT,
     INFLATION_TARGET_PCT,
     INFLATION_TARGET_RANGE,
     POLICY_RATE_SERIES,
     VALET_BASE_URL,
+    VALET_TERMS_URL,
     ValetClient,
     ValetHTTPError,
     ValetNotFoundError,
@@ -374,3 +376,107 @@ async def test_live_policy_rate_matches_published_shape() -> None:
     assert result.series.name == "V39079"
     assert result.observations[0].value is not None
     assert result.citation().core.table_id == "Valet"
+
+
+@respx.mock
+async def test_trailing_newline_rejected_by_fullmatch(valet: ValetClient) -> None:
+    with pytest.raises(ValueError, match="invalid Valet name"):
+        await valet.get_series("V39079\n")
+    with pytest.raises(ValueError, match="invalid Valet name"):
+        await valet.get_series("V39079\r")
+
+
+def test_insecure_http_base_url_fails_closed() -> None:
+    with pytest.raises(ValueError, match="Valet base_url must use HTTPS"):
+        ValetClient(base_url="http://www.bankofcanada.ca/valet")
+
+
+def test_local_http_base_url_permitted_for_tests() -> None:
+    client = ValetClient(base_url="http://localhost:8000/valet")
+    assert client._base_url == "http://localhost:8000/valet"
+
+
+def test_default_user_agent_format() -> None:
+    client = ValetClient()
+    agent = client._client.headers.get("user-agent")
+    assert agent == DEFAULT_USER_AGENT
+    assert "CanDataMCP" in agent
+    assert "https://github.com/neobenjax" in agent
+
+
+@respx.mock
+async def test_citation_carries_terms_url(valet: ValetClient) -> None:
+    respx.get(f"{VALET_BASE_URL}/observations/V39079/json").mock(
+        return_value=ok("observations_V39079_jan2025")
+    )
+    result = await valet.get_policy_rate(recent=1)
+    citation = result.citation()
+    assert citation.enrichment.license_url == VALET_TERMS_URL
+    assert citation.enrichment.license_url == "https://www.bankofcanada.ca/terms/"
+
+
+@respx.mock
+async def test_fetched_at_source_distinguishes_server_date_vs_local_clock(
+    valet: ValetClient,
+) -> None:
+    respx.get(f"{VALET_BASE_URL}/observations/V39079/json").mock(
+        return_value=httpx.Response(
+            200, json=fixture("observations_V39079_jan2025"), headers={"Date": DATE_HEADER}
+        )
+    )
+    res_server = await valet.get_policy_rate(recent=1)
+    assert res_server.fetched_at_source == "server_date"
+    assert res_server.fetched_at == "2026-10-19T22:30:00+00:00"
+
+    valet.clear_cache()
+    respx.get(f"{VALET_BASE_URL}/observations/V39079/json").mock(
+        return_value=httpx.Response(200, json=fixture("observations_V39079_jan2025"), headers={})
+    )
+    res_local = await valet.get_policy_rate(recent=1)
+    assert res_local.fetched_at_source == "local_clock"
+
+
+@respx.mock
+async def test_unbounded_history_defaults_to_recent_10(valet: ValetClient) -> None:
+    route = respx.get(f"{VALET_BASE_URL}/observations/V39079/json").mock(
+        return_value=ok("observations_V39079_jan2025")
+    )
+    await valet.get_observations("V39079")
+    assert route.calls.last.request.url.params["recent"] == "10"
+
+
+@respx.mock
+async def test_retry_after_delta_seconds_handled() -> None:
+    route = respx.get(f"{VALET_BASE_URL}/observations/V39079/json").mock(
+        side_effect=[
+            httpx.Response(429, headers={"Retry-After": "0"}),
+            ok("observations_V39079_jan2025"),
+        ]
+    )
+    async with ValetClient(backoff=0) as client:
+        result = await client.get_observations("V39079", recent=1)
+    assert route.call_count == 2
+    assert result.observations
+
+
+@respx.mock
+async def test_retry_after_http_date_handled() -> None:
+    route = respx.get(f"{VALET_BASE_URL}/observations/V39079/json").mock(
+        side_effect=[
+            httpx.Response(503, headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}),
+            ok("observations_V39079_jan2025"),
+        ]
+    )
+    async with ValetClient(backoff=0) as client:
+        result = await client.get_observations("V39079", recent=1)
+    assert route.call_count == 2
+    assert result.observations
+
+
+@respx.mock
+async def test_client_response_cache_and_concurrency(valet: ValetClient) -> None:
+    route = respx.get(f"{VALET_BASE_URL}/series/V39079/json").mock(return_value=ok("series_V39079"))
+    res1 = await valet.get_series("V39079")
+    res2 = await valet.get_series("V39079")
+    assert res1.name == res2.name
+    assert route.call_count == 1
