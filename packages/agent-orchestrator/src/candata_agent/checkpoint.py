@@ -199,18 +199,23 @@ class AsyncSqliteSaver(_BaseAsyncSqliteSaver):
         state = AgentState.model_validate(values)
 
         if new_thread_id:
-            # Fork into new branch thread while strictly preserving original session_id
+            # Fork by copying the source checkpoint as LangGraph wrote it: its channel versions
+            # and step metadata are what let the graph resume on the new thread. Only the state's
+            # own thread_id changes; session_id is kept, so the fork stays tied to its session.
             forked_state = state.model_copy(update={"thread_id": new_thread_id}, deep=True)
+            checkpoint: Checkpoint = {
+                **tup.checkpoint,
+                "channel_values": {**values, "thread_id": new_thread_id},
+            }
             fork_cfg = self._normalize_config(
-                {
-                    "configurable": {
-                        "thread_id": new_thread_id,
-                        "checkpoint_id": f"chk_fork_{uuid.uuid4().hex[:8]}",
-                        "parent_checkpoint_id": target_checkpoint_id,
-                    }
-                }
+                {"configurable": {"thread_id": new_thread_id, "checkpoint_ns": ""}}
             )
-            await self.aput(fork_cfg, forked_state)
+            await self.aput(
+                fork_cfg,
+                checkpoint,
+                {**tup.metadata, "source": "fork"},  # type: ignore[typeddict-item]
+                checkpoint["channel_versions"],
+            )
             return forked_state
 
         return state
