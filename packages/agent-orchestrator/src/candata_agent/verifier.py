@@ -142,7 +142,9 @@ class CitationVerifier:
 
     async def _verify_statcan(self, claim: Claim) -> ClaimVerdict:
         core, enrichment = claim.citation.core, claim.citation.enrichment
-        start, end = _period_bounds(core.reference_period)
+        period = core.reference_period
+        assert period is not None
+        start, end = _period_bounds(period)
         try:
             series = await self._statcan.get_data_by_reference_period(
                 core.vector_id, _wds_date(start), _wds_date(end)
@@ -243,7 +245,9 @@ class CitationVerifier:
 
     async def _verify_valet(self, claim: Claim) -> ClaimVerdict:
         core = claim.citation.core
-        start, end = _period_bounds(core.reference_period)
+        period = core.reference_period
+        assert period is not None
+        start, end = _period_bounds(period)
         try:
             obs = await self._valet.get_observations(
                 core.vector_id, start_date=_first_day(start), end_date=_last_day(end)
@@ -322,9 +326,9 @@ def make_citation_verifier_node(
 
 def _format_problem(claim: Claim) -> str | None:
     core = claim.citation.core
-    match = _PERIOD_FORMAT.match(core.reference_period)
-    if not match:
-        return f"reference_period {core.reference_period!r} is not YYYY, YYYY-MM or YYYY-MM-DD"
+    period = core.reference_period
+    if period is None or _PERIOD_FORMAT.match(period) is None:
+        return f"reference_period {period!r} is not YYYY, YYYY-MM or YYYY-MM-DD"
     if core.table_id == VALET_TABLE_ID:
         if not _VALET_SERIES.match(core.vector_id):
             return f"Valet series {core.vector_id!r} is not a valid series name"

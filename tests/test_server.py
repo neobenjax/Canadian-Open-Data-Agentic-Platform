@@ -758,7 +758,7 @@ async def test_call_execute_sql_analytics_ckan(mock_server: CanDataServer) -> No
         release_or_revision_date="2026-01-01T10:00:00",
         fetched_at="2026-10-29T10:00:00Z",
     )
-    mock_server.ckan_client.query_datastore = AsyncMock(return_value=ds_result)
+    mock_server.ckan_client.query_datastore_complete = AsyncMock(return_value=ds_result)
 
     result = await mock_server.mcp.call_tool(
         "execute_sql_analytics",
@@ -772,3 +772,91 @@ async def test_call_execute_sql_analytics_ckan(mock_server: CanDataServer) -> No
     payload = json.loads(result.content[0].text)
     assert payload["source"] == "ckan"
     assert payload["data"][0]["avg_starts"] == 550.0
+    mock_server.ckan_client.query_datastore_complete.assert_awaited_once_with(
+        "res-1", package_id="cmhc-starts"
+    )
+    mock_server.ckan_client.query_datastore.assert_not_called()
+
+
+async def test_ckan_sql_analytics_counts_every_row(mock_server: CanDataServer) -> None:
+    from candata_mcp.connectors.ckan_open_canada import (
+        CKANDataStoreResult,
+        CKANFieldSchema,
+    )
+
+    records = tuple({"_id": i, "value": 1} for i in range(526))
+    ds_result = CKANDataStoreResult(
+        resource_id="f9a392dc-0000-4000-8000-000000000001",
+        package_id="pkg-population",
+        title_en="Population estimates",
+        title_fr=None,
+        publisher_en="Open Government Canada",
+        fields=(
+            CKANFieldSchema("_id", "int"),
+            CKANFieldSchema("value", "int"),
+        ),
+        records=records,
+        total_records=526,
+        release_or_revision_date="2024-06-01T00:00:00",
+        fetched_at="2026-10-29T10:00:00Z",
+    )
+    mock_server.ckan_client.query_datastore_complete = AsyncMock(return_value=ds_result)
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "ckan",
+            "series_id": "f9a392dc-0000-4000-8000-000000000001",
+            "sql_query": "SELECT count(*) AS n, sum(value) AS total FROM series",
+        },
+    )
+    payload = json.loads(result.content[0].text)
+    assert payload["data"][0]["n"] == 526
+    assert int(payload["data"][0]["total"]) == 526
+    assert "whole table" in payload["lineage"]["steps"][0]
+
+
+async def test_ckan_sql_analytics_refuses_tables_past_the_cap(mock_server: CanDataServer) -> None:
+    from candata_mcp.connectors.ckan_open_canada import CKANResultTooLargeError
+
+    mock_server.ckan_client.query_datastore_complete = AsyncMock(
+        side_effect=CKANResultTooLargeError("res-big", 12000, 5000)
+    )
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "ckan",
+            "series_id": "res-big",
+            "sql_query": "SELECT count(*) AS n FROM series",
+        },
+    )
+    payload = json.loads(result.content[0].text)
+    assert payload["isError"] is True
+    assert payload["error_code"] == "RESULT_TOO_LARGE"
+    assert payload["total_available"] == 12000
+    assert payload["row_cap"] == 5000
+    assert "data" not in payload
+
+
+async def test_invalid_datastore_filters_are_rejected(mock_server: CanDataServer) -> None:
+    result = await mock_server.mcp.call_tool(
+        "query_open_canada_datastore",
+        {"resource_id": "res-1", "filters": "{not json"},
+    )
+    payload = json.loads(result.content[0].text)
+    assert payload["isError"] is True
+    assert payload["error_code"] == "INVALID_ARGUMENT"
+    assert "JSON object" in payload["error"]
+    mock_server.ckan_client.query_datastore.assert_not_called()
+
+    # A JSON string that is not an object stays a string through MCP pre-parse
+    # (numbers are left as text) and must not be dropped.
+    number = await mock_server.mcp.call_tool(
+        "query_open_canada_datastore",
+        {"resource_id": "res-1", "filters": "42"},
+    )
+    number_payload = json.loads(number.content[0].text)
+    assert number_payload["isError"] is True
+    assert number_payload["error_code"] == "INVALID_ARGUMENT"
+    mock_server.ckan_client.query_datastore.assert_not_called()

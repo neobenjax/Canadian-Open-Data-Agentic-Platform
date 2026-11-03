@@ -34,6 +34,16 @@ CKAN_BASE_URL = "https://open.canada.ca/data/api/3/action"
 OPEN_CANADA_DATASET_URL = "https://open.canada.ca/data/en/dataset"
 OPEN_CANADA_LICENCE_URL = "https://open.canada.ca/en/open-government-licence-canada"
 PUBLISHER = "Open Government Canada"
+# Relevance first, then recency. Recency alone ranks unrelated new tables above the match.
+SEARCH_SORT = "score desc, metadata_modified desc"
+# package_search page size when datastore_only must scan past non-DataStore datasets.
+_SEARCH_PAGE_SIZE = 50
+# Stop a datastore_only scan that matches nothing so it cannot walk the whole portal.
+_SEARCH_SCAN_CAP = 1000
+# datastore_search page size. Open Canada rejects larger pages on some resources.
+DATASTORE_PAGE_SIZE = 100
+# Full-table analytics refuse above this instead of aggregating a silent prefix.
+DATASTORE_ANALYTICS_MAX_ROWS = 5000
 DEFAULT_USER_AGENT = (
     "CanDataMCP/0.1.0 (CAN-34; +https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform)"
 )
@@ -65,6 +75,20 @@ class CKANNotFoundError(CKANHTTPError):
 
 class CKANResponseError(CKANError):
     """CKAN returned 200 OK or an unexpected body that indicates failure or non-JSON."""
+
+
+class CKANResultTooLargeError(CKANError):
+    """The DataStore table is larger than the analytics cap, so no aggregate was computed."""
+
+    def __init__(self, resource_id: str, total: int, cap: int) -> None:
+        super().__init__(
+            f"CKAN DataStore resource {resource_id} has {total} rows, which exceeds the "
+            f"analytics cap of {cap}. Aggregates were not computed over a partial table. "
+            "Narrow the resource, or query a subset with query_open_canada_datastore."
+        )
+        self.resource_id = resource_id
+        self.total = total
+        self.cap = cap
 
 
 def validate_identifier(identifier: str, field_name: str = "identifier") -> str:
@@ -137,6 +161,67 @@ def _get_translated(
     return ("", None)
 
 
+def _coverage_period(start: object, end: object) -> tuple[str | None, str]:
+    """Reference period from the catalogue's time_period_coverage fields only.
+
+    Returns ``(period, source)``. ``source`` is ``time_period_coverage`` when either
+    bound is present, and ``unknown`` when the publisher did not supply coverage.
+    """
+    start_text = start.strip() if isinstance(start, str) else ""
+    end_text = end.strip() if isinstance(end, str) else ""
+    if start_text and end_text:
+        return f"{start_text}/{end_text}", "time_period_coverage"
+    if start_text:
+        return start_text, "time_period_coverage"
+    if end_text:
+        return end_text, "time_period_coverage"
+    return None, "unknown"
+
+
+def _dataset_summaries(raw_packages: object) -> list[CKANDatasetSummary]:
+    """Build dataset summaries, recording resource ids that have DataStore active."""
+    if not isinstance(raw_packages, list):
+        return []
+    summaries: list[CKANDatasetSummary] = []
+    for pkg in raw_packages:
+        if not isinstance(pkg, dict):
+            continue
+        pkg_id = str(pkg.get("id") or pkg.get("name") or "")
+        if not pkg_id:
+            continue
+        title_en, title_fr = _get_translated(pkg, "title", "name")
+        org_raw = pkg.get("organization")
+        org: Mapping[str, Any] = org_raw if isinstance(org_raw, dict) else {}
+        org_en, org_fr = _get_translated(org, "title", "name")
+        raw_resources = pkg.get("resources", [])
+        datastore_ids: list[str] = []
+        if isinstance(raw_resources, list):
+            for res in raw_resources:
+                if isinstance(res, dict) and res.get("datastore_active") is True:
+                    rid = str(res.get("id", ""))
+                    if rid:
+                        datastore_ids.append(rid)
+        resource_count = raw_resources if isinstance(raw_resources, list) else []
+        summaries.append(
+            CKANDatasetSummary(
+                package_id=pkg_id,
+                name=str(pkg.get("name", pkg_id)),
+                title_en=title_en,
+                title_fr=title_fr,
+                organization_en=org_en or None,
+                organization_fr=org_fr or None,
+                metadata_modified=(
+                    pkg.get("metadata_modified")
+                    if isinstance(pkg.get("metadata_modified"), str)
+                    else None
+                ),
+                num_resources=int(pkg.get("num_resources", len(resource_count))),
+                datastore_resource_ids=tuple(datastore_ids),
+            )
+        )
+    return summaries
+
+
 @dataclass(frozen=True, slots=True)
 class CKANResourceSummary:
     """Summary of a single resource/distribution within a CKAN dataset."""
@@ -194,15 +279,9 @@ class CKANDatasetDetail:
             if self.organization_en
             else PUBLISHER
         )
-        period: str
-        if self.time_period_coverage_start and self.time_period_coverage_end:
-            period = f"{self.time_period_coverage_start}/{self.time_period_coverage_end}"
-        elif self.time_period_coverage_start:
-            period = self.time_period_coverage_start
-        elif self.metadata_modified:
-            period = self.metadata_modified[:10]
-        else:
-            period = "current"
+        period, period_source = _coverage_period(
+            self.time_period_coverage_start, self.time_period_coverage_end
+        )
 
         return CitationEnvelope(
             publisher=publisher_name,
@@ -217,6 +296,7 @@ class CKANDatasetDetail:
                 bilingual_title=BilingualTitle(en=self.title_en, fr=self.title_fr),
                 canonical_url=f"{OPEN_CANADA_DATASET_URL}/{self.package_id}",
                 license_url=self.license_url,
+                reference_period_source=period_source,
             ),
         )
 
@@ -230,6 +310,9 @@ class CKANSearchResult:
     datasets: tuple[CKANDatasetSummary, ...]
     fetched_at: str
     fetched_at_source: str = "server_date"
+    # False when datastore_only stopped after filling the page, so total_results
+    # is only the number of matches seen so far.
+    total_is_exact: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,53 +339,28 @@ class CKANDataStoreResult:
     fetched_at: str
     fetched_at_source: str = "server_date"
     license_url: str = OPEN_CANADA_LICENCE_URL
+    time_period_coverage_start: str | None = None
+    time_period_coverage_end: str | None = None
 
     def citation(self) -> CitationEnvelope:
-        """Produce the Two-Tier Citation Envelope for the DataStore query."""
-        table_id = self.package_id or "CKAN"
+        """Produce the Two-Tier Citation Envelope for the DataStore query.
 
-        # Deduce temporal coverage from records if date/temporal column is present
-        period: str = "current"
-        date_candidates = (
-            "date",
-            "ref_per",
-            "period",
-            "reporting_period",
-            "year",
-            "annee",
-            "reference_period",
-        )
-        found_dates: list[str] = []
-        if self.records:
-            matched_col: str | None = None
-            for candidate in date_candidates:
-                for col in self.records[0].keys():
-                    if col.lower() == candidate:
-                        matched_col = col
-                        break
-                if matched_col:
-                    break
-            if matched_col:
-                for r in self.records:
-                    val = r.get(matched_col)
-                    if val is not None and str(val).strip():
-                        found_dates.append(str(val).strip())
-
-        if found_dates:
-            sorted_dates = sorted(found_dates)
-            first_d, last_d = sorted_dates[0], sorted_dates[-1]
-            period = first_d if first_d == last_d else f"{first_d}/{last_d}"
-        elif self.release_or_revision_date:
-            period = self.release_or_revision_date[:10]
-        canonical_url = (
-            f"{OPEN_CANADA_DATASET_URL}/{self.package_id}"
-            if self.package_id
-            else "https://open.canada.ca/data/en/dataset"
+        The reference period comes only from the dataset's ``time_period_coverage``
+        fields. Column values, catalogue edit dates, and the literal ``current`` are
+        not used.
+        """
+        if not self.package_id:
+            raise CKANResponseError(
+                f"DataStore resource {self.resource_id} has no package_id; "
+                "refusing to cite it as table_id 'CKAN'."
+            )
+        period, period_source = _coverage_period(
+            self.time_period_coverage_start, self.time_period_coverage_end
         )
         return CitationEnvelope(
             publisher=self.publisher_en,
             core=CoreVerificationTuple(
-                table_id=table_id,
+                table_id=self.package_id,
                 vector_id=self.resource_id,
                 reference_period=period,
             ),
@@ -310,8 +368,9 @@ class CKANDataStoreResult:
                 coordinate=f"DataStore ({len(self.records)} rows)",
                 release_or_revision_date=self.release_or_revision_date,
                 bilingual_title=BilingualTitle(en=self.title_en, fr=self.title_fr),
-                canonical_url=canonical_url,
+                canonical_url=f"{OPEN_CANADA_DATASET_URL}/{self.package_id}",
                 license_url=self.license_url,
+                reference_period_source=period_source,
             ),
         )
 
@@ -490,65 +549,81 @@ class CKANClient:
         if organization:
             clean_org = validate_identifier(organization, "organization")
             fq_parts.append(f'organization:"{clean_org}"')
-        if datastore_only:
-            fq_parts.append('datastore_active:"true"')
+        # datastore_active is a resource property on this portal, not an indexed
+        # package field, so it is filtered after the search returns.
 
-        payload: dict[str, Any] = {
-            "q": q,
-            "rows": limit,
-            "start": offset,
-            "sort": "metadata_modified desc",
-        }
-        if fq_parts:
-            payload["fq"] = " AND ".join(fq_parts)
+        if not datastore_only:
+            result, fetched_at, source = await self._post_action(
+                "package_search",
+                self._search_payload(q, rows=limit, start=offset, fq_parts=fq_parts),
+            )
+            summaries = _dataset_summaries(result.get("results", []))
+            return CKANSearchResult(
+                query=q,
+                total_results=int(result.get("count", 0)),
+                datasets=tuple(summaries),
+                fetched_at=fetched_at,
+                fetched_at_source=source,
+            )
 
-        result, fetched_at, source = await self._post_action("package_search", payload)
-        count = int(result.get("count", 0))
-        raw_packages = result.get("results", [])
+        needed = offset + limit
+        matched: list[CKANDatasetSummary] = []
+        start = 0
+        fetched_at = ""
+        source = "server_date"
+        upstream_count = 0
+        exhausted = False
+        while len(matched) < needed and start < _SEARCH_SCAN_CAP:
+            result, fetched_at, source = await self._post_action(
+                "package_search",
+                self._search_payload(q, rows=_SEARCH_PAGE_SIZE, start=start, fq_parts=fq_parts),
+            )
+            upstream_count = int(result.get("count", 0))
+            raw_packages = result.get("results", [])
+            page = raw_packages if isinstance(raw_packages, list) else []
+            if not page:
+                exhausted = True
+                break
+            for summary in _dataset_summaries(page):
+                if summary.datastore_resource_ids:
+                    matched.append(summary)
+            start += len(page)
+            if start >= upstream_count:
+                exhausted = True
+                break
 
-        summaries: list[CKANDatasetSummary] = []
-        for pkg in raw_packages:
-            if not isinstance(pkg, dict):
-                continue
-            pkg_id = str(pkg.get("id") or pkg.get("name") or "")
-            if not pkg_id:
-                continue
-
-            title_en, title_fr = _get_translated(pkg, "title", "name")
-            org_raw = pkg.get("organization")
-            org: Mapping[str, Any] = org_raw if isinstance(org_raw, dict) else {}
-            org_en, org_fr = _get_translated(org, "title", "name")
-
-            raw_resources = pkg.get("resources", [])
-            datastore_ids: list[str] = []
-            if isinstance(raw_resources, list):
-                for res in raw_resources:
-                    if isinstance(res, dict) and res.get("datastore_active") is True:
-                        rid = str(res.get("id", ""))
-                        if rid:
-                            datastore_ids.append(rid)
-
-            summaries.append(
-                CKANDatasetSummary(
-                    package_id=pkg_id,
-                    name=str(pkg.get("name", pkg_id)),
-                    title_en=title_en,
-                    title_fr=title_fr,
-                    organization_en=org_en or None,
-                    organization_fr=org_fr or None,
-                    metadata_modified=pkg.get("metadata_modified"),
-                    num_resources=int(pkg.get("num_resources", len(raw_resources))),
-                    datastore_resource_ids=tuple(datastore_ids),
-                )
+        if not exhausted and not matched and start >= _SEARCH_SCAN_CAP:
+            raise CKANResponseError(
+                f"datastore_only scan stopped after {_SEARCH_SCAN_CAP} packages for {q!r} "
+                "without finding a DataStore resource. Narrow the query."
             )
 
         return CKANSearchResult(
             query=q,
-            total_results=count,
-            datasets=tuple(summaries),
+            total_results=len(matched),
+            datasets=tuple(matched[offset : offset + limit]),
             fetched_at=fetched_at,
             fetched_at_source=source,
+            total_is_exact=exhausted,
         )
+
+    @staticmethod
+    def _search_payload(
+        query: str,
+        *,
+        rows: int,
+        start: int,
+        fq_parts: Sequence[str],
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "q": query,
+            "rows": rows,
+            "start": start,
+            "sort": SEARCH_SORT,
+        }
+        if fq_parts:
+            payload["fq"] = " AND ".join(fq_parts)
+        return payload
 
     async def get_dataset(self, package_id: str) -> CKANDatasetDetail:
         """Fetch complete metadata and resource inventory for a specific dataset."""
@@ -625,15 +700,106 @@ class CKANClient:
         limit: int = 25,
         offset: int = 0,
     ) -> CKANDataStoreResult:
-        """Query tabular records from an active CKAN DataStore resource."""
+        """Query one page of tabular records from an active CKAN DataStore resource."""
         clean_resource_id = validate_identifier(resource_id, "resource_id")
-        clean_package_id = validate_identifier(package_id, "package_id") if package_id else None
-
-        limit = max(1, min(limit, 100))
+        limit = max(1, min(limit, DATASTORE_PAGE_SIZE))
         offset = max(0, offset)
+        fields_schema, records, total, fetched_at, source = await self._datastore_page(
+            clean_resource_id,
+            q=q,
+            filters=filters,
+            fields=fields,
+            sort=sort,
+            limit=limit,
+            offset=offset,
+        )
+        detail = await self._require_dataset(clean_resource_id, package_id)
+        return self._datastore_result(
+            clean_resource_id,
+            detail,
+            fields=fields_schema,
+            records=records,
+            total=total,
+            fetched_at=fetched_at,
+            source=source,
+        )
 
+    async def query_datastore_complete(
+        self,
+        resource_id: str,
+        *,
+        package_id: str | None = None,
+        max_rows: int = DATASTORE_ANALYTICS_MAX_ROWS,
+    ) -> CKANDataStoreResult:
+        """Fetch every DataStore row, or refuse when the table exceeds ``max_rows``.
+
+        Aggregates must not run on a silent prefix. The first page reports ``total``;
+        a total above the cap raises :class:`CKANResultTooLargeError` before further
+        pages are requested.
+        """
+        clean_resource_id = validate_identifier(resource_id, "resource_id")
+        cap = max(1, max_rows)
+        fields_schema, records, total, fetched_at, source = await self._datastore_page(
+            clean_resource_id,
+            limit=DATASTORE_PAGE_SIZE,
+            offset=0,
+        )
+        if total > cap:
+            raise CKANResultTooLargeError(clean_resource_id, total, cap)
+
+        collected = list(records)
+        offset = len(records)
+        while offset < total:
+            _, page_records, page_total, fetched_at, source = await self._datastore_page(
+                clean_resource_id,
+                limit=DATASTORE_PAGE_SIZE,
+                offset=offset,
+            )
+            if not page_records:
+                raise CKANResponseError(
+                    f"datastore_search for {clean_resource_id} stopped at offset {offset} "
+                    f"before the reported total of {total} rows."
+                )
+            if page_total != total:
+                raise CKANResponseError(
+                    f"datastore_search for {clean_resource_id} changed total from {total} "
+                    f"to {page_total} while paging."
+                )
+            collected.extend(page_records)
+            offset += len(page_records)
+            if len(collected) > cap:
+                raise CKANResultTooLargeError(clean_resource_id, len(collected), cap)
+
+        if len(collected) != total:
+            raise CKANResponseError(
+                f"datastore_search for {clean_resource_id} returned {len(collected)} rows, "
+                f"not the reported total of {total}."
+            )
+
+        detail = await self._require_dataset(clean_resource_id, package_id)
+        return self._datastore_result(
+            clean_resource_id,
+            detail,
+            fields=fields_schema,
+            records=collected,
+            total=total,
+            fetched_at=fetched_at,
+            source=source,
+        )
+
+    async def _datastore_page(
+        self,
+        resource_id: str,
+        *,
+        q: str | None = None,
+        filters: Mapping[str, Any] | None = None,
+        fields: Sequence[str] | None = None,
+        sort: str | None = None,
+        limit: int,
+        offset: int,
+    ) -> tuple[tuple[CKANFieldSchema, ...], list[dict[str, Any]], int, str, str]:
         payload: dict[str, Any] = {
-            "resource_id": clean_resource_id,
+            "resource_id": resource_id,
             "limit": limit,
             "offset": offset,
         }
@@ -647,64 +813,69 @@ class CKANClient:
             payload["sort"] = sort.strip()
 
         result, fetched_at, source = await self._post_action("datastore_search", payload)
-
         raw_fields = result.get("fields", [])
         field_schemas: list[CKANFieldSchema] = []
         if isinstance(raw_fields, list):
-            for f in raw_fields:
-                if isinstance(f, dict) and "id" in f:
+            for field in raw_fields:
+                if isinstance(field, dict) and "id" in field:
                     field_schemas.append(
                         CKANFieldSchema(
-                            field_id=str(f["id"]),
-                            field_type=str(f.get("type", "text")),
+                            field_id=str(field["id"]),
+                            field_type=str(field.get("type", "text")),
                         )
                     )
-
         raw_records = result.get("records", [])
-        records_list: list[dict[str, Any]] = []
+        records: list[dict[str, Any]] = []
         if isinstance(raw_records, list):
-            for r in raw_records:
-                if isinstance(r, dict):
-                    records_list.append(dict(r))
+            for record in raw_records:
+                if isinstance(record, dict):
+                    records.append(dict(record))
+        total = int(result.get("total", len(records)))
+        return tuple(field_schemas), records, total, fetched_at, source
 
-        total = int(result.get("total", len(records_list)))
+    async def _require_dataset(self, resource_id: str, package_id: str | None) -> CKANDatasetDetail:
+        """Resolve the parent dataset. Lookup failures propagate; they are not swallowed."""
+        clean_package_id = validate_identifier(package_id, "package_id") if package_id else None
+        if clean_package_id is None:
+            res_meta = await self.get_resource(resource_id)
+            parent_id = res_meta.get("package_id")
+            if not isinstance(parent_id, str) or not parent_id.strip():
+                raise CKANResponseError(
+                    f"resource_show for {resource_id!r} did not include a package_id; "
+                    "refusing to cite the table without its dataset."
+                )
+            clean_package_id = validate_identifier(parent_id, "package_id")
+        return await self.get_dataset(clean_package_id)
 
-        # Metadata resolution for citation: if package_id is provided or can be looked up
-        title_en = f"Open Canada DataStore Table ({clean_resource_id[:8]})"
-        title_fr: str | None = None
-        publisher_en = PUBLISHER
-        release_date: str | None = None
-
-        if not clean_package_id:
-            try:
-                res_meta = await self.get_resource(clean_resource_id)
-                parent_id = res_meta.get("package_id")
-                if parent_id and isinstance(parent_id, str):
-                    clean_package_id = validate_identifier(parent_id, "package_id")
-            except Exception:
-                pass
-
-        if clean_package_id:
-            try:
-                pkg_detail = await self.get_dataset(clean_package_id)
-                title_en = pkg_detail.title_en
-                title_fr = pkg_detail.title_fr
-                if pkg_detail.organization_en:
-                    publisher_en = f"Open Government Canada / {pkg_detail.organization_en}"
-                release_date = pkg_detail.metadata_modified
-            except Exception:
-                pass
-
+    @staticmethod
+    def _datastore_result(
+        resource_id: str,
+        detail: CKANDatasetDetail,
+        *,
+        fields: tuple[CKANFieldSchema, ...],
+        records: list[dict[str, Any]],
+        total: int,
+        fetched_at: str,
+        source: str,
+    ) -> CKANDataStoreResult:
+        publisher = (
+            f"Open Government Canada / {detail.organization_en}"
+            if detail.organization_en
+            else PUBLISHER
+        )
         return CKANDataStoreResult(
-            resource_id=clean_resource_id,
-            package_id=clean_package_id,
-            title_en=title_en,
-            title_fr=title_fr,
-            publisher_en=publisher_en,
-            fields=tuple(field_schemas),
-            records=tuple(records_list),
+            resource_id=resource_id,
+            package_id=detail.package_id,
+            title_en=detail.title_en or detail.name,
+            title_fr=detail.title_fr,
+            publisher_en=publisher,
+            fields=fields,
+            records=tuple(records),
             total_records=total,
-            release_or_revision_date=release_date,
+            release_or_revision_date=detail.metadata_modified,
             fetched_at=fetched_at,
             fetched_at_source=source,
+            license_url=detail.license_url,
+            time_period_coverage_start=detail.time_period_coverage_start,
+            time_period_coverage_end=detail.time_period_coverage_end,
         )

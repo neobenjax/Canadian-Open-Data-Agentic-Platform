@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import asdict
-from typing import Any
+from typing import Any, cast
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
@@ -18,8 +18,10 @@ from mcp.types import ToolAnnotations
 from candata_mcp.bilingual import Language, parse_language
 from candata_mcp.connectors.boc_valet import ObservationSet, ValetClient
 from candata_mcp.connectors.ckan_open_canada import (
+    DATASTORE_PAGE_SIZE,
     CKANClient,
     CKANNotFoundError,
+    CKANResultTooLargeError,
 )
 from candata_mcp.connectors.statcan_wds import (
     StatCanAmbiguousMemberError,
@@ -626,6 +628,7 @@ class CanDataServer:
                 return {
                     "query": q,
                     "total_results": search_res.total_results,
+                    "total_is_exact": search_res.total_is_exact,
                     "offset": offset,
                     "limit": limit,
                     "datasets": [asdict(d) for d in search_res.datasets],
@@ -733,19 +736,38 @@ class CanDataServer:
                     "message": "resource_id cannot be empty.",
                 }
 
-            # Parse string-serialized filter/field parameters gracefully
+            # A filters string that is not a JSON object is an argument error.
+            # Dropping it would run the query unfiltered and present it as filtered.
             parsed_filters: dict[str, Any] | None = None
             if isinstance(filters, str):
                 s_filters = filters.strip()
                 if s_filters:
                     try:
                         raw = json.loads(s_filters)
-                        if isinstance(raw, dict):
-                            parsed_filters = raw  # pyright: ignore[reportUnknownVariableType]
-                    except Exception:
-                        pass
+                    except json.JSONDecodeError as exc:
+                        return {
+                            "error": f"filters must be a JSON object: {exc}",
+                            "isError": True,
+                            "error_code": "INVALID_ARGUMENT",
+                            "message": f"filters must be a JSON object: {exc}",
+                        }
+                    if not isinstance(raw, dict):
+                        return {
+                            "error": "filters must be a JSON object.",
+                            "isError": True,
+                            "error_code": "INVALID_ARGUMENT",
+                            "message": "filters must be a JSON object.",
+                        }
+                    parsed_filters = cast(dict[str, Any], raw)
             elif isinstance(filters, dict):
                 parsed_filters = filters
+            elif filters is not None:
+                return {
+                    "error": "filters must be a JSON object.",
+                    "isError": True,
+                    "error_code": "INVALID_ARGUMENT",
+                    "message": "filters must be a JSON object.",
+                }
 
             parsed_fields: list[str] | None = None
             if isinstance(fields, str):
@@ -841,6 +863,7 @@ class CanDataServer:
                     {"vectorId": target_result.vector_id, "latestN": 100},
                 )
                 fetched_count = len(target_result.observations)
+                fetch_step = f"fetched {fetched_count} observations"
             elif src in ("valet", "boc", "bank of canada"):
                 clean_sid = series_id.strip()
                 valet_result = await self.valet_client.get_observations(clean_sid, recent=100)
@@ -850,15 +873,29 @@ class CanDataServer:
                 fetched_at = valet_result.fetched_at
                 source_call = _valet_call(valet_result, start_date=None, end_date=None, recent=100)
                 fetched_count = len(valet_result.observations)
+                fetch_step = f"fetched {fetched_count} observations"
             elif src in ("ckan", "open_canada", "open canada", "open government"):
                 res_id = series_id.strip()
                 pack_id: str | None = None
                 if ":" in res_id:
                     pack_id, res_id = res_id.split(":", 1)
                 try:
-                    datastore_res = await self.ckan_client.query_datastore(
-                        res_id, package_id=pack_id, limit=100
+                    datastore_res = await self.ckan_client.query_datastore_complete(
+                        res_id, package_id=pack_id
                     )
+                except CKANResultTooLargeError as exc:
+                    return {
+                        "error": str(exc),
+                        "isError": True,
+                        "error_code": "RESULT_TOO_LARGE",
+                        "message": str(exc),
+                        "total_available": exc.total,
+                        "row_cap": exc.cap,
+                        "suggested_action": (
+                            "Aggregates were not computed. Narrow the resource, or use "
+                            "query_open_canada_datastore with filters for a subset."
+                        ),
+                    }
                 except Exception as exc:
                     return {
                         "error": str(exc),
@@ -879,9 +916,13 @@ class CanDataServer:
                 fetched_at = datastore_res.fetched_at
                 source_call = ckan_call(
                     "datastore_search",
-                    {"resource_id": res_id, "limit": 100},
+                    {"resource_id": res_id, "limit": DATASTORE_PAGE_SIZE},
                 )
                 fetched_count = len(datastore_res.records)
+                fetch_step = (
+                    f"fetched all {fetched_count} rows via paged datastore_search "
+                    f"(page size {DATASTORE_PAGE_SIZE}); aggregate covers the whole table"
+                )
             else:
                 return {
                     "error": f"Unsupported source '{source}'. Choose statcan, valet, or ckan.",
@@ -913,7 +954,7 @@ class CanDataServer:
                     upstream_release=envelope.enrichment.release_or_revision_date,
                     source_call=source_call,
                     steps=(
-                        f"fetched {fetched_count} observations",
+                        fetch_step,
                         f"computed in DuckDB with the read-only SQL shown; {len(results_list)} "
                         "rows returned",
                     ),

@@ -20,11 +20,15 @@ class BilingualTitle:
 
 @dataclass(frozen=True, slots=True)
 class CoreVerificationTuple:
-    """``reference_period`` is ``2025``, ``2025-10``, ``2025-01-30`` or ``start/end``."""
+    """``reference_period`` is ``2025``, ``2025-10``, ``2025-01-30`` or ``start/end``.
+
+    ``None`` means the publisher did not supply a period. Callers must not substitute
+    another date.
+    """
 
     table_id: str
     vector_id: str
-    reference_period: str
+    reference_period: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +38,9 @@ class MetadataEnrichment:
     bilingual_title: BilingualTitle
     canonical_url: str
     license_url: str | None = None
+    # ``time_period_coverage`` when the period is the publisher's coverage fields.
+    # ``unknown`` when those fields are absent. Other connectors leave this unset.
+    reference_period_source: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
