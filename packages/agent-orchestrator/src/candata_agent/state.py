@@ -113,7 +113,7 @@ def merge_citations(
     Prevents duplicate citations when multiple agents cite the same official table,
     vector ID, and reference period.
     """
-    merged: dict[tuple[str, str, str], CitationEnvelope] = {}
+    merged: dict[tuple[str, str, str | None], CitationEnvelope] = {}
     for cit in existing:
         key = (cit.core.table_id, cit.core.vector_id, cit.core.reference_period)
         merged[key] = cit

@@ -21,6 +21,7 @@ from candata_mcp.connectors.boc_valet import (
     SeriesDetail,
     ValetClient,
 )
+from candata_mcp.connectors.ckan_open_canada import CKANClient
 from candata_mcp.connectors.statcan_wds import (
     Observation as StatCanObservation,
 )
@@ -134,8 +135,19 @@ def mock_server(
     valet.get_cpi = AsyncMock(return_value=mock_valet_result)
     valet.aclose = AsyncMock()
 
+    ckan = MagicMock(spec=CKANClient)
+    ckan.search_datasets = AsyncMock()
+    ckan.get_dataset = AsyncMock()
+    ckan.query_datastore = AsyncMock()
+    ckan.aclose = AsyncMock()
+
     engine = DuckDBSlicingEngine()
-    return create_server(statcan_client=statcan, valet_client=valet, engine=engine)
+    return create_server(
+        statcan_client=statcan,
+        valet_client=valet,
+        ckan_client=ckan,
+        engine=engine,
+    )
 
 
 async def test_tool_registration_and_annotations(mock_server: CanDataServer) -> None:
@@ -151,6 +163,9 @@ async def test_tool_registration_and_annotations(mock_server: CanDataServer) -> 
         "execute_sql_analytics",
         "search_statcan_cubes",
         "get_cube_dimensions",
+        "search_open_canada_datasets",
+        "get_open_canada_dataset",
+        "query_open_canada_datastore",
     }
     assert set(tool_map.keys()) == expected_tools
 
@@ -163,6 +178,9 @@ async def test_tool_registration_and_annotations(mock_server: CanDataServer) -> 
         "query_valet_cpi",
         "search_statcan_cubes",
         "get_cube_dimensions",
+        "search_open_canada_datasets",
+        "get_open_canada_dataset",
+        "query_open_canada_datastore",
     ]:
         annotations = tool_map[name].annotations
         assert annotations is not None
@@ -584,3 +602,261 @@ async def test_call_search_statcan_cubes_statcan_unavailable_payload(
     assert payload["error_code"] == "STATCAN_UNAVAILABLE"
     assert payload["retry_after"] == 45
     assert "suggested_action" in payload
+
+
+async def test_call_search_open_canada_datasets(mock_server: CanDataServer) -> None:
+    from candata_mcp.connectors.ckan_open_canada import (
+        CKANDatasetSummary,
+        CKANSearchResult,
+    )
+
+    mock_server.ckan_client.search_datasets = AsyncMock(
+        return_value=CKANSearchResult(
+            query="housing",
+            total_results=1,
+            datasets=(
+                CKANDatasetSummary(
+                    package_id="cmhc-starts",
+                    name="cmhc-starts",
+                    title_en="Housing Starts",
+                    title_fr="Mises en chantier",
+                    organization_en="CMHC",
+                    organization_fr="SCHL",
+                    metadata_modified="2026-01-01T10:00:00",
+                    num_resources=1,
+                    datastore_resource_ids=("res-1",),
+                ),
+            ),
+            fetched_at="2026-10-29T10:00:00Z",
+        )
+    )
+
+    result = await mock_server.mcp.call_tool(
+        "search_open_canada_datasets",
+        {"query": "housing"},
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)
+    assert payload["total_results"] == 1
+    assert payload["datasets"][0]["package_id"] == "cmhc-starts"
+
+
+async def test_call_get_open_canada_dataset(mock_server: CanDataServer) -> None:
+    from candata_mcp.connectors.ckan_open_canada import (
+        CKANDatasetDetail,
+        CKANResourceSummary,
+    )
+
+    detail = CKANDatasetDetail(
+        package_id="cmhc-starts",
+        name="cmhc-starts",
+        title_en="Housing Starts",
+        title_fr="Mises en chantier",
+        notes_en="Monthly starts",
+        notes_fr="Mises mensuelles",
+        organization_en="CMHC",
+        organization_fr="SCHL",
+        metadata_modified="2026-01-01T10:00:00",
+        time_period_coverage_start="2020-01-01",
+        time_period_coverage_end="2025-12-31",
+        license_title="Open Government Licence - Canada",
+        license_url="https://open.canada.ca/en/open-government-licence-canada",
+        resources=(
+            CKANResourceSummary(
+                resource_id="res-1",
+                name_en="Starts Table",
+                name_fr="Tableau",
+                format="CSV",
+                datastore_active=True,
+                url="https://open.canada.ca/res-1.csv",
+                last_modified="2026-01-01T10:00:00",
+                size=1024,
+            ),
+        ),
+        fetched_at="2026-10-29T10:00:00Z",
+    )
+    mock_server.ckan_client.get_dataset = AsyncMock(return_value=detail)
+
+    result = await mock_server.mcp.call_tool(
+        "get_open_canada_dataset",
+        {"package_id": "cmhc-starts"},
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)
+    assert payload["package_id"] == "cmhc-starts"
+    assert payload["citation"]["core"]["table_id"] == "cmhc-starts"
+    assert len(payload["resources"]) == 1
+
+
+async def test_call_query_open_canada_datastore(mock_server: CanDataServer) -> None:
+    from candata_mcp.connectors.ckan_open_canada import (
+        CKANDataStoreResult,
+        CKANFieldSchema,
+    )
+
+    ds_result = CKANDataStoreResult(
+        resource_id="res-1",
+        package_id="cmhc-starts",
+        title_en="Housing Starts",
+        title_fr="Mises en chantier",
+        publisher_en="Open Government Canada / CMHC",
+        fields=(
+            CKANFieldSchema("id", "int"),
+            CKANFieldSchema("starts", "numeric"),
+        ),
+        records=({"id": 1, "starts": 500.0}, {"id": 2, "starts": 600.0}),
+        total_records=2,
+        release_or_revision_date="2026-01-01T10:00:00",
+        fetched_at="2026-10-29T10:00:00Z",
+    )
+    mock_server.ckan_client.query_datastore = AsyncMock(return_value=ds_result)
+
+    result = await mock_server.mcp.call_tool(
+        "query_open_canada_datastore",
+        {
+            "resource_id": "res-1",
+            "package_id": "cmhc-starts",
+            "filters": '{"city": "Toronto"}',
+            "fields": "id, starts",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)
+    assert payload["resource_id"] == "res-1"
+    assert payload["returned_count"] == 2
+    assert payload["citation"]["core"]["table_id"] == "cmhc-starts"
+    mock_server.ckan_client.query_datastore.assert_called_with(
+        "res-1",
+        package_id="cmhc-starts",
+        q=None,
+        filters={"city": "Toronto"},
+        fields=["id", "starts"],
+        sort=None,
+        limit=25,
+        offset=0,
+    )
+
+
+async def test_call_execute_sql_analytics_ckan(mock_server: CanDataServer) -> None:
+    from candata_mcp.connectors.ckan_open_canada import (
+        CKANDataStoreResult,
+        CKANFieldSchema,
+    )
+
+    ds_result = CKANDataStoreResult(
+        resource_id="res-1",
+        package_id="cmhc-starts",
+        title_en="Housing Starts",
+        title_fr="Mises en chantier",
+        publisher_en="Open Government Canada / CMHC",
+        fields=(
+            CKANFieldSchema("id", "int"),
+            CKANFieldSchema("starts", "numeric"),
+        ),
+        records=({"id": 1, "starts": 500.0}, {"id": 2, "starts": 600.0}),
+        total_records=2,
+        release_or_revision_date="2026-01-01T10:00:00",
+        fetched_at="2026-10-29T10:00:00Z",
+    )
+    mock_server.ckan_client.query_datastore_complete = AsyncMock(return_value=ds_result)
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "ckan",
+            "series_id": "cmhc-starts:res-1",
+            "sql_query": "SELECT avg(starts) as avg_starts FROM series",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)
+    assert payload["source"] == "ckan"
+    assert payload["data"][0]["avg_starts"] == 550.0
+    mock_server.ckan_client.query_datastore_complete.assert_awaited_once_with(
+        "res-1", package_id="cmhc-starts"
+    )
+    mock_server.ckan_client.query_datastore.assert_not_called()
+
+
+async def test_ckan_sql_analytics_counts_every_row(mock_server: CanDataServer) -> None:
+    from candata_mcp.connectors.ckan_open_canada import (
+        CKANDataStoreResult,
+        CKANFieldSchema,
+    )
+
+    records = tuple({"_id": i, "value": 1} for i in range(526))
+    ds_result = CKANDataStoreResult(
+        resource_id="f9a392dc-0000-4000-8000-000000000001",
+        package_id="pkg-population",
+        title_en="Population estimates",
+        title_fr=None,
+        publisher_en="Open Government Canada",
+        fields=(
+            CKANFieldSchema("_id", "int"),
+            CKANFieldSchema("value", "int"),
+        ),
+        records=records,
+        total_records=526,
+        release_or_revision_date="2024-06-01T00:00:00",
+        fetched_at="2026-10-29T10:00:00Z",
+    )
+    mock_server.ckan_client.query_datastore_complete = AsyncMock(return_value=ds_result)
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "ckan",
+            "series_id": "f9a392dc-0000-4000-8000-000000000001",
+            "sql_query": "SELECT count(*) AS n, sum(value) AS total FROM series",
+        },
+    )
+    payload = json.loads(result.content[0].text)
+    assert payload["data"][0]["n"] == 526
+    assert int(payload["data"][0]["total"]) == 526
+    assert "whole table" in payload["lineage"]["steps"][0]
+
+
+async def test_ckan_sql_analytics_refuses_tables_past_the_cap(mock_server: CanDataServer) -> None:
+    from candata_mcp.connectors.ckan_open_canada import CKANResultTooLargeError
+
+    mock_server.ckan_client.query_datastore_complete = AsyncMock(
+        side_effect=CKANResultTooLargeError("res-big", 12000, 5000)
+    )
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "ckan",
+            "series_id": "res-big",
+            "sql_query": "SELECT count(*) AS n FROM series",
+        },
+    )
+    payload = json.loads(result.content[0].text)
+    assert payload["isError"] is True
+    assert payload["error_code"] == "RESULT_TOO_LARGE"
+    assert payload["total_available"] == 12000
+    assert payload["row_cap"] == 5000
+    assert "data" not in payload
+
+
+async def test_invalid_datastore_filters_are_rejected(mock_server: CanDataServer) -> None:
+    result = await mock_server.mcp.call_tool(
+        "query_open_canada_datastore",
+        {"resource_id": "res-1", "filters": "{not json"},
+    )
+    payload = json.loads(result.content[0].text)
+    assert payload["isError"] is True
+    assert payload["error_code"] == "INVALID_ARGUMENT"
+    assert "JSON object" in payload["error"]
+    mock_server.ckan_client.query_datastore.assert_not_called()
+
+    # A JSON string that is not an object stays a string through MCP pre-parse
+    # (numbers are left as text) and must not be dropped.
+    number = await mock_server.mcp.call_tool(
+        "query_open_canada_datastore",
+        {"resource_id": "res-1", "filters": "42"},
+    )
+    number_payload = json.loads(number.content[0].text)
+    assert number_payload["isError"] is True
+    assert number_payload["error_code"] == "INVALID_ARGUMENT"
+    mock_server.ckan_client.query_datastore.assert_not_called()

@@ -102,7 +102,7 @@
 - [ ] **CAN-33:** Implement LangGraph `interrupt()` breakpoint when data ambiguities arise (e.g. municipal vs CMA boundaries). *(Owner: Samir / Benjamin · 2h)*
 
 ### Feature 3.2: Federal CKAN Integration & User Testing
-- [ ] **CAN-34:** Add connector for Open Government Canada CKAN federal datasets. *(Owner: Yassir / Benjamin · 2h)*
+- [x] **CAN-34:** Add connector for Open Government Canada CKAN federal datasets. *(Owner: Yassir / Benjamin · 2h)*
 - [ ] **CAN-35:** User testing session with 3 external Canadian policy/data researchers; log feedback. *(Owner: Yassir · 2h)*
 
 ---

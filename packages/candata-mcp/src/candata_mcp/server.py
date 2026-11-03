@@ -1,21 +1,28 @@
 """FastMCP 2.0 Server for Canadian Open Data Agentic Platform (CanData-MCP).
 
-Exposes official Statistics Canada and Bank of Canada datasets via FastMCP tools,
-streaming upstream observations through an in-memory DuckDB Arrow engine to ensure
-all outputs are strictly bounded (<3KB) and paired with Two-Tier Citation Envelopes.
+Exposes official Statistics Canada, Bank of Canada, and Open Government Canada CKAN datasets
+via FastMCP tools, streaming upstream observations through an in-memory DuckDB Arrow engine
+to ensure all outputs are strictly bounded (<3KB) and paired with Two-Tier Citation Envelopes.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import asdict
-from typing import Any
+from typing import Any, cast
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from candata_mcp.bilingual import Language, parse_language
 from candata_mcp.connectors.boc_valet import ObservationSet, ValetClient
+from candata_mcp.connectors.ckan_open_canada import (
+    DATASTORE_PAGE_SIZE,
+    CKANClient,
+    CKANNotFoundError,
+    CKANResultTooLargeError,
+)
 from candata_mcp.connectors.statcan_wds import (
     StatCanAmbiguousMemberError,
     StatCanClient,
@@ -24,7 +31,13 @@ from candata_mcp.connectors.statcan_wds import (
     format_table_id,
 )
 from candata_mcp.engine import DuckDBSlicingEngine
-from candata_mcp.lineage import SourceCall, build_lineage, statcan_call, valet_call
+from candata_mcp.lineage import (
+    SourceCall,
+    build_lineage,
+    ckan_call,
+    statcan_call,
+    valet_call,
+)
 
 # FastMCP 2026 Tool Annotation Presets
 READ_ONLY_TOOL = ToolAnnotations(
@@ -66,10 +79,12 @@ class CanDataServer:
         self,
         statcan_client: StatCanClient | None = None,
         valet_client: ValetClient | None = None,
+        ckan_client: CKANClient | None = None,
         engine: DuckDBSlicingEngine | None = None,
     ) -> None:
         self.statcan_client: StatCanClient = statcan_client or StatCanClient()
         self.valet_client: ValetClient = valet_client or ValetClient()
+        self.ckan_client: CKANClient = ckan_client or CKANClient()
         self.engine: DuckDBSlicingEngine = engine or DuckDBSlicingEngine()
 
         self.mcp: MCPServer = MCPServer(
@@ -77,8 +92,9 @@ class CanDataServer:
             title="Canadian Open Data Agentic Platform MCP Server",
             version="0.1.0",
             description=(
-                "Official StatCan WDS and BoC Valet open-data MCP server with in-memory "
-                "DuckDB Arrow slicing engine and Two-Tier Citation Envelopes."
+                "Official StatCan WDS, BoC Valet, and Open Government Canada CKAN open-data "
+                "MCP server with in-memory DuckDB Arrow slicing engine and "
+                "Two-Tier Citation Envelopes."
             ),
         )
         self._register_tools()
@@ -87,6 +103,7 @@ class CanDataServer:
         """Close all active connector sessions and DuckDB engine connection."""
         await self.statcan_client.aclose()
         await self.valet_client.aclose()
+        await self.ckan_client.aclose()
         self.engine.close()
 
     def _register_tools(self) -> None:
@@ -575,11 +592,247 @@ class CanDataServer:
             )
 
         @self.mcp.tool(
+            name="search_open_canada_datasets",
+            description=(
+                "Search official Open Government Canada (open.canada.ca) CKAN catalog by keyword. "
+                "Discovers federal datasets (CMHC, IRCC, Environment Canada), returning "
+                "titles, organizations, metadata dates, and DataStore-active resource IDs."
+            ),
+            annotations=READ_ONLY_TOOL,
+        )
+        async def search_open_canada_datasets(
+            query: str,
+            organization: str | None = None,
+            datastore_only: bool = False,
+            limit: int = 10,
+            offset: int = 0,
+        ) -> dict[str, Any]:
+            q = query.strip()
+            if not q:
+                return {
+                    "error": "Query string cannot be empty.",
+                    "isError": True,
+                    "error_code": "INVALID_ARGUMENT",
+                    "message": "Query string cannot be empty.",
+                }
+            limit = max(1, min(limit, 50))
+            offset = max(0, offset)
+            try:
+                search_res = await self.ckan_client.search_datasets(
+                    q,
+                    organization=organization,
+                    datastore_only=datastore_only,
+                    limit=limit,
+                    offset=offset,
+                )
+                return {
+                    "query": q,
+                    "total_results": search_res.total_results,
+                    "total_is_exact": search_res.total_is_exact,
+                    "offset": offset,
+                    "limit": limit,
+                    "datasets": [asdict(d) for d in search_res.datasets],
+                }
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "CKAN_ERROR",
+                    "message": str(exc),
+                }
+
+        @self.mcp.tool(
+            name="get_open_canada_dataset",
+            description=(
+                "Retrieve detailed metadata and resource inventories for a specific dataset from "
+                "Open Government Canada (open.canada.ca) by package ID or slug. Returns "
+                "bilingual titles, descriptions, licensing, and available distributions."
+            ),
+            annotations=READ_ONLY_TOOL,
+        )
+        async def get_open_canada_dataset(
+            package_id: str,
+        ) -> dict[str, Any]:
+            pid = package_id.strip()
+            if not pid:
+                return {
+                    "error": "package_id cannot be empty.",
+                    "isError": True,
+                    "error_code": "INVALID_ARGUMENT",
+                    "message": "package_id cannot be empty.",
+                }
+            try:
+                detail = await self.ckan_client.get_dataset(pid)
+                envelope = detail.citation()
+                return {
+                    "package_id": detail.package_id,
+                    "name": detail.name,
+                    "title": {"en": detail.title_en, "fr": detail.title_fr},
+                    "notes": {"en": detail.notes_en, "fr": detail.notes_fr},
+                    "organization": {"en": detail.organization_en, "fr": detail.organization_fr},
+                    "metadata_modified": detail.metadata_modified,
+                    "temporal_coverage": {
+                        "start": detail.time_period_coverage_start,
+                        "end": detail.time_period_coverage_end,
+                    },
+                    "license_title": detail.license_title,
+                    "license_url": detail.license_url,
+                    "resources": [asdict(r) for r in detail.resources],
+                    "citation": asdict(envelope),
+                }
+            except CKANNotFoundError as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "NOT_FOUND",
+                    "message": str(exc),
+                    "suggested_action": (
+                        "Search available datasets using search_open_canada_datasets."
+                    ),
+                }
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "CKAN_ERROR",
+                    "message": str(exc),
+                }
+
+        @self.mcp.tool(
+            name="query_open_canada_datastore",
+            description=(
+                "Query tabular records from an active Open Canada CKAN DataStore resource. "
+                "Streams records through DuckDB Arrow engine, returning a strictly <3KB "
+                "payload complete with Two-Tier Citation Envelope and data lineage." + LANG_NOTE
+            ),
+            annotations=READ_ONLY_TOOL,
+        )
+        async def query_open_canada_datastore(
+            resource_id: str,
+            package_id: str | None = None,
+            q: str | None = None,
+            filters: dict[str, Any] | str | None = None,
+            fields: list[str] | str | None = None,
+            sort: str | None = None,
+            limit: int = 25,
+            offset: int = 0,
+            lang: str = "en",
+        ) -> dict[str, Any]:
+            try:
+                language: Language = parse_language(lang)
+            except ValueError as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "INVALID_LANGUAGE",
+                    "message": str(exc),
+                }
+            rid = resource_id.strip()
+            if not rid:
+                return {
+                    "error": "resource_id cannot be empty.",
+                    "isError": True,
+                    "error_code": "INVALID_ARGUMENT",
+                    "message": "resource_id cannot be empty.",
+                }
+
+            # A filters string that is not a JSON object is an argument error.
+            # Dropping it would run the query unfiltered and present it as filtered.
+            parsed_filters: dict[str, Any] | None = None
+            if isinstance(filters, str):
+                s_filters = filters.strip()
+                if s_filters:
+                    try:
+                        raw = json.loads(s_filters)
+                    except json.JSONDecodeError as exc:
+                        return {
+                            "error": f"filters must be a JSON object: {exc}",
+                            "isError": True,
+                            "error_code": "INVALID_ARGUMENT",
+                            "message": f"filters must be a JSON object: {exc}",
+                        }
+                    if not isinstance(raw, dict):
+                        return {
+                            "error": "filters must be a JSON object.",
+                            "isError": True,
+                            "error_code": "INVALID_ARGUMENT",
+                            "message": "filters must be a JSON object.",
+                        }
+                    parsed_filters = cast(dict[str, Any], raw)
+            elif isinstance(filters, dict):
+                parsed_filters = filters
+            elif filters is not None:
+                return {
+                    "error": "filters must be a JSON object.",
+                    "isError": True,
+                    "error_code": "INVALID_ARGUMENT",
+                    "message": "filters must be a JSON object.",
+                }
+
+            parsed_fields: list[str] | None = None
+            if isinstance(fields, str):
+                s_fields = fields.strip()
+                if s_fields:
+                    if s_fields.startswith("["):
+                        try:
+                            raw_f = json.loads(s_fields)
+                            if isinstance(raw_f, list):
+                                parsed_fields = [str(x) for x in raw_f]  # pyright: ignore[reportUnknownVariableType,reportUnknownArgumentType]
+                        except Exception:
+                            parsed_fields = [f.strip() for f in s_fields.split(",") if f.strip()]
+                    else:
+                        parsed_fields = [f.strip() for f in s_fields.split(",") if f.strip()]
+            elif isinstance(fields, list):
+                parsed_fields = [str(x) for x in fields]
+
+            try:
+                result = await self.ckan_client.query_datastore(
+                    rid,
+                    package_id=package_id,
+                    q=q,
+                    filters=parsed_filters,
+                    fields=parsed_fields,
+                    sort=sort,
+                    limit=limit,
+                    offset=offset,
+                )
+            except CKANNotFoundError as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "NOT_FOUND",
+                    "message": str(exc),
+                }
+            except Exception as exc:
+                return {
+                    "error": str(exc),
+                    "isError": True,
+                    "error_code": "CKAN_ERROR",
+                    "message": str(exc),
+                }
+
+            return self.engine.slice_ckan(
+                result,
+                limit=limit,
+                lang=language,
+                source_call=ckan_call(
+                    "datastore_search",
+                    {
+                        "resource_id": rid,
+                        "limit": limit,
+                        "offset": offset,
+                        "q": q,
+                        "sort": sort,
+                    },
+                ),
+            )
+
+        @self.mcp.tool(
             name="execute_sql_analytics",
             description=(
                 "Execute read-only SQL calculations over an official Canadian dataset. "
-                "Fetches the series from StatCan or Valet, registers it as Arrow table 'series' "
-                "in DuckDB, executes exact SQL math (mean, min, max, percentage changes), "
+                "Fetches the series from StatCan, Valet, or CKAN DataStore, registers it as "
+                "Arrow table 'series' in DuckDB, executes exact SQL math (mean, min, max), "
                 "and returns deterministic results to prevent LLM mental math errors."
             ),
             annotations=LOCAL_ANALYTIC_TOOL,
@@ -610,6 +863,7 @@ class CanDataServer:
                     {"vectorId": target_result.vector_id, "latestN": 100},
                 )
                 fetched_count = len(target_result.observations)
+                fetch_step = f"fetched {fetched_count} observations"
             elif src in ("valet", "boc", "bank of canada"):
                 clean_sid = series_id.strip()
                 valet_result = await self.valet_client.get_observations(clean_sid, recent=100)
@@ -619,12 +873,62 @@ class CanDataServer:
                 fetched_at = valet_result.fetched_at
                 source_call = _valet_call(valet_result, start_date=None, end_date=None, recent=100)
                 fetched_count = len(valet_result.observations)
+                fetch_step = f"fetched {fetched_count} observations"
+            elif src in ("ckan", "open_canada", "open canada", "open government"):
+                res_id = series_id.strip()
+                pack_id: str | None = None
+                if ":" in res_id:
+                    pack_id, res_id = res_id.split(":", 1)
+                try:
+                    datastore_res = await self.ckan_client.query_datastore_complete(
+                        res_id, package_id=pack_id
+                    )
+                except CKANResultTooLargeError as exc:
+                    return {
+                        "error": str(exc),
+                        "isError": True,
+                        "error_code": "RESULT_TOO_LARGE",
+                        "message": str(exc),
+                        "total_available": exc.total,
+                        "row_cap": exc.cap,
+                        "suggested_action": (
+                            "Aggregates were not computed. Narrow the resource, or use "
+                            "query_open_canada_datastore with filters for a subset."
+                        ),
+                    }
+                except Exception as exc:
+                    return {
+                        "error": str(exc),
+                        "isError": True,
+                        "error_code": "CKAN_ERROR",
+                        "message": str(exc),
+                    }
+                if not datastore_res.records:
+                    return {
+                        "error": f"No records found for CKAN resource {series_id}",
+                        "isError": True,
+                        "error_code": "NOT_FOUND",
+                        "message": f"No records found for CKAN resource {series_id}",
+                    }
+                table = self.engine.table_from_ckan(datastore_res)
+                envelope = datastore_res.citation()
+                citation = asdict(envelope)
+                fetched_at = datastore_res.fetched_at
+                source_call = ckan_call(
+                    "datastore_search",
+                    {"resource_id": res_id, "limit": DATASTORE_PAGE_SIZE},
+                )
+                fetched_count = len(datastore_res.records)
+                fetch_step = (
+                    f"fetched all {fetched_count} rows via paged datastore_search "
+                    f"(page size {DATASTORE_PAGE_SIZE}); aggregate covers the whole table"
+                )
             else:
                 return {
-                    "error": f"Unsupported source '{source}'. Choose 'statcan' or 'valet'.",
+                    "error": f"Unsupported source '{source}'. Choose statcan, valet, or ckan.",
                     "isError": True,
                     "error_code": "INVALID_SOURCE",
-                    "message": f"Unsupported source '{source}'. Choose 'statcan' or 'valet'.",
+                    "message": f"Unsupported source '{source}'. Choose statcan, valet, or ckan.",
                 }
 
             try:
@@ -650,7 +954,7 @@ class CanDataServer:
                     upstream_release=envelope.enrichment.release_or_revision_date,
                     source_call=source_call,
                     steps=(
-                        f"fetched {fetched_count} observations",
+                        fetch_step,
                         f"computed in DuckDB with the read-only SQL shown; {len(results_list)} "
                         "rows returned",
                     ),
@@ -662,12 +966,14 @@ class CanDataServer:
 def create_server(
     statcan_client: StatCanClient | None = None,
     valet_client: ValetClient | None = None,
+    ckan_client: CKANClient | None = None,
     engine: DuckDBSlicingEngine | None = None,
 ) -> CanDataServer:
     """Factory creating an instance of CanDataServer."""
     return CanDataServer(
         statcan_client=statcan_client,
         valet_client=valet_client,
+        ckan_client=ckan_client,
         engine=engine,
     )
 
