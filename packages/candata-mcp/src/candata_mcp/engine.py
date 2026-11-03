@@ -25,6 +25,7 @@ from candata_mcp.lineage import SourceCall, build_lineage
 
 if TYPE_CHECKING:
     from candata_mcp.connectors.boc_valet import ObservationSet
+    from candata_mcp.connectors.ckan_open_canada import CKANDataStoreResult
     from candata_mcp.connectors.statcan_wds import StatCanSeriesResult
 
 # Regex matching date inputs (YYYY, YYYY-MM, or YYYY-MM-DD)
@@ -172,6 +173,24 @@ class DuckDBSlicingEngine:
                 "value": values,
             }
         )
+
+    def table_from_ckan(self, result: CKANDataStoreResult) -> pa.Table:
+        """Convert a CKANDataStoreResult into an Arrow Table."""
+        if not result.records:
+            if result.fields:
+                arrays = [pa.array([], type=pa.string()) for _ in result.fields]
+                names = [f.field_id for f in result.fields]
+                return pa.Table.from_arrays(arrays, names=names)
+            return pa.Table.from_pydict({})
+
+        table = pa.Table.from_pylist(list(result.records))
+        metadata: dict[bytes, bytes] = {
+            b"resource_id": result.resource_id.encode("utf-8"),
+            b"publisher": result.publisher_en.encode("utf-8"),
+        }
+        if result.package_id:
+            metadata[b"package_id"] = result.package_id.encode("utf-8")
+        return table.replace_schema_metadata(metadata)
 
     def slice_table(
         self,
@@ -385,6 +404,66 @@ class DuckDBSlicingEngine:
                         limit=limit,
                         descending=descending,
                     ),
+                ),
+            ),
+        }
+
+        return self.clamp_payload(payload)
+
+    def slice_ckan(
+        self,
+        result: CKANDataStoreResult,
+        *,
+        limit: int = 25,
+        lang: Language = "en",
+        source_call: SourceCall | None = None,
+    ) -> dict[str, Any]:
+        """Slice CKAN DataStore records into an LLM-ready <3KB payload with citation envelope."""
+        table = self.table_from_ckan(result)
+        temp_name = f"_ckan_{abs(hash(result.resource_id))}"
+        self._con.register(temp_name, table)
+        try:
+            col_names = table.column_names
+            returned_records = list(result.records[:limit])
+            summary: dict[str, Any] = {
+                "total_records": result.total_records,
+                "resource_id": result.resource_id,
+                "columns": col_names,
+                "returned_count": len(returned_records),
+            }
+        finally:
+            self._con.unregister(temp_name)
+
+        envelope = result.citation()
+        citation = asdict(envelope)
+        fetch_step = f"fetched {len(result.records)} records"
+        if source_call is not None:
+            fetch_step += f" via {source_call.endpoint.rsplit('/', 1)[-1]}"
+
+        payload: dict[str, Any] = {
+            "source": result.publisher_en,
+            "resource_id": result.resource_id,
+            "package_id": result.package_id,
+            "title": {"en": result.title_en, "fr": result.title_fr},
+            "display": localize_title(envelope.enrichment.bilingual_title, lang).to_payload(),
+            "total_available": result.total_records,
+            "returned_count": len(returned_records),
+            "summary": summary,
+            "data": returned_records,
+            "citation": citation,
+            "lineage": build_lineage(
+                publisher=envelope.publisher,
+                fetched_at=result.fetched_at,
+                upstream_release=envelope.enrichment.release_or_revision_date,
+                source_call=source_call,
+                title_source=(
+                    f"package_show package_id {result.package_id}"
+                    if result.package_id
+                    else "datastore_search"
+                ),
+                steps=(
+                    fetch_step,
+                    f"sliced in DuckDB: limit {limit}; {len(returned_records)} returned",
                 ),
             ),
         }

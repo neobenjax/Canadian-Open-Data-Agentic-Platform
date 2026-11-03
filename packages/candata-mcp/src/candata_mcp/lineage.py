@@ -1,4 +1,4 @@
-"""Data lineage returned alongside every figure (CAN-26).
+"""Data lineage returned alongside every figure (CAN-26 / CAN-34).
 
 The Citation Envelope says *which* official figure an answer rests on. Lineage says *how it got
 here*: the upstream request, when it was fetched, the release it came from, and each
@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from candata_mcp.connectors.boc_valet import VALET_BASE_URL
+from candata_mcp.connectors.ckan_open_canada import CKAN_BASE_URL
 from candata_mcp.connectors.statcan_wds import STATCAN_WDS_BASE_URL
 
 
@@ -42,6 +43,14 @@ def statcan_call(method: str, request: Mapping[str, str | int]) -> SourceCall:
 def valet_call(path: str, params: Mapping[str, str | int | None]) -> SourceCall:
     request = {k: v for k, v in params.items() if v is not None}
     return SourceCall(endpoint=f"{VALET_BASE_URL}/{path}", request=request)
+
+
+def ckan_call(action: str, params: Mapping[str, Any]) -> SourceCall:
+    request: dict[str, str | int] = {}
+    for k, v in params.items():
+        if v is not None:
+            request[k] = v if isinstance(v, (str, int)) else str(v)
+    return SourceCall(endpoint=f"{CKAN_BASE_URL}/{action}", request=request)
 
 
 def build_lineage(

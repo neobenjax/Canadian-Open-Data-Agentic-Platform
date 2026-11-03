@@ -417,3 +417,49 @@ def test_statcan_slice_includes_series_title_and_unit(
     assert payload["unit_code"] == 455
     assert payload["series_title"]["en"] == "Toronto, Ontario; Median income"
     assert payload["data"][0]["status_code"] == 0
+
+
+def test_table_from_ckan_and_slice_ckan(engine: DuckDBSlicingEngine) -> None:
+    from candata_mcp.connectors.ckan_open_canada import (
+        CKANDataStoreResult,
+        CKANFieldSchema,
+    )
+
+    fields = (
+        CKANFieldSchema(field_id="id", field_type="int"),
+        CKANFieldSchema(field_id="city", field_type="text"),
+        CKANFieldSchema(field_id="starts", field_type="numeric"),
+    )
+    records = tuple({"id": i, "city": f"City {i}", "starts": 100.0 * i} for i in range(1, 15))
+    res = CKANDataStoreResult(
+        resource_id="res-12345",
+        package_id="pkg-cmhc-starts",
+        title_en="Urban Housing Starts",
+        title_fr="Mises en chantier urbaines",
+        publisher_en="Open Government Canada / CMHC",
+        fields=fields,
+        records=records,
+        total_records=14,
+        release_or_revision_date="2026-01-15T12:00:00",
+        fetched_at="2026-10-29T10:00:00Z",
+    )
+
+    table = engine.table_from_ckan(res)
+    assert table.num_rows == 14
+    assert table.schema.metadata[b"resource_id"] == b"res-12345"
+    assert table.schema.metadata[b"package_id"] == b"pkg-cmhc-starts"
+
+    # Test slice_ckan
+    payload = engine.slice_ckan(res, limit=5)
+    assert payload["returned_count"] == 5
+    assert len(payload["data"]) == 5
+    assert payload["total_available"] == 14
+    assert payload["citation"]["core"]["table_id"] == "pkg-cmhc-starts"
+    assert payload["citation"]["core"]["vector_id"] == "res-12345"
+    assert len(json.dumps(payload, default=str).encode("utf-8")) <= MAX_PAYLOAD_BYTES
+
+    # Test execute_analytics on CKAN table
+    sql = "SELECT avg(starts) as mean_starts FROM series"
+    analytics = engine.execute_analytics(table, sql)
+    assert len(analytics) == 1
+    assert analytics[0]["mean_starts"] > 0
