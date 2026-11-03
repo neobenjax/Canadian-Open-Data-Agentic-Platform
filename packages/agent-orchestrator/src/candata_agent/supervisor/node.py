@@ -6,9 +6,9 @@ Flow for one question:
     supervisor --plan--> data_fetcher / data_analyst (one step each, back to supervisor)
               --plan complete--> citation_verifier --> END
 
-The Supervisor plans once per question (a new user message after a completed plan starts a new
-plan) and otherwise only routes. Every executor marks its step COMPLETED or FAILED and moves
-``active_step_id`` on; a FAILED step ends the run with the failure in the messages.
+The Supervisor plans once per user message (keyed on the message ID, so asking the same text
+again plans again) and otherwise only routes. Every executor marks its step COMPLETED or FAILED
+and moves ``active_step_id`` on; a FAILED step ends the run with the failure in the messages.
 """
 
 from __future__ import annotations
@@ -40,6 +40,7 @@ from candata_mcp.citation import CitationEnvelope
 SUPERVISOR: Final = "supervisor"
 CITATION_VERIFIER: Final = "citation_verifier"
 RUN_CITATIONS: Final = "run_citations"
+PLANNED_MESSAGE: Final = "planned_message_id"
 
 Node = Callable[[AgentState], Awaitable[dict[str, Any]]]
 
@@ -68,11 +69,12 @@ def make_supervisor_node(planner: Planner) -> Node:
     async def supervisor(state: AgentState) -> dict[str, Any]:
         if state.plan is not None and not state.plan.completed and not _failed(state.plan):
             return {}
-        question = _latest_question(state)
-        if question is None:
+        asked = _latest_user_message(state)
+        if asked is None:
             return {"messages": (_say("No question to plan: the thread has no user message."),)}
-        if state.plan is not None and _planned_for(state, question):
-            return {}  # this question already ran; nothing new to plan
+        if state.scratchpad.get(PLANNED_MESSAGE) == asked.id:
+            return {}  # this message was already planned; only route
+        question = asked.content.strip()
 
         try:
             outcome = await planner.plan(question)
@@ -80,6 +82,7 @@ def make_supervisor_node(planner: Planner) -> Node:
             return {
                 "plan": None,
                 "verification": None,
+                "scratchpad": {**state.scratchpad, PLANNED_MESSAGE: asked.id, RUN_CITATIONS: []},
                 "messages": (_say(f"Planning failed: {type(error).__name__}: {error}"),),
             }
 
@@ -91,7 +94,7 @@ def make_supervisor_node(planner: Planner) -> Node:
                 completion_tokens_used=budget.completion_tokens_used + outcome.output_tokens,
             ),
             # A new question starts a new set of citations to verify, and drops the last report.
-            "scratchpad": {**state.scratchpad, "planned_question": question, RUN_CITATIONS: []},
+            "scratchpad": {**state.scratchpad, PLANNED_MESSAGE: asked.id, RUN_CITATIONS: []},
             "verification": None,
         }
 
@@ -237,15 +240,11 @@ def _failed(plan: QueryPlan) -> bool:
     return any(s.status is StepStatus.FAILED for s in plan.steps)
 
 
-def _latest_question(state: AgentState) -> str | None:
+def _latest_user_message(state: AgentState) -> AgentMessage | None:
     for message in reversed(state.messages):
         if message.role is MessageRole.USER and message.content.strip():
-            return message.content.strip()
+            return message
     return None
-
-
-def _planned_for(state: AgentState, question: str) -> bool:
-    return state.scratchpad.get("planned_question") == question
 
 
 def _unique(citations: tuple[CitationEnvelope, ...]) -> list[CitationEnvelope]:

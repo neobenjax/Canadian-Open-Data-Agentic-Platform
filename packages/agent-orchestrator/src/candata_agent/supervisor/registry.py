@@ -4,7 +4,8 @@ The planner proposes steps; nothing runs until ``validate_plan`` has checked eve
 this registry. Fetch steps load an official series into a named data slot. Analyst steps run a
 Data Analyst (CAN-23) recipe over slots that earlier fetch steps filled. Identifiers the model
 could get wrong are not taken from the model: an analyst step's ``series_id`` is copied from the
-fetch step that filled its slot.
+fetch step that filled its slot, and a planner can require every StatCan vector to be one its
+discovery calls confirmed.
 
 Recipes that would need the model to type numbers (``multi_year_cagr``), free-form SQL, or
 inputs a fetch step cannot produce (``cross_geography_ranking``) are deliberately not exposed.
@@ -14,11 +15,12 @@ from __future__ import annotations
 
 import calendar
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import date
 from typing import Annotated, Any, Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from candata_agent.state import PlanStep, QueryPlan
 
@@ -27,7 +29,22 @@ DATA_ANALYST: Final = "data_analyst"
 MAX_STEPS: Final = 12
 
 DataSlot = Literal["series_table", "table_a", "table_b", "rent_table", "income_table"]
-Period = Annotated[str, Field(pattern=r"^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$")]
+
+
+def _real_date(period: str) -> str:
+    if len(period) == 10:
+        try:
+            date.fromisoformat(period)
+        except ValueError:
+            raise ValueError(f"{period} is not a calendar date") from None
+    return period
+
+
+Period = Annotated[
+    str,
+    Field(pattern=r"^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$"),
+    AfterValidator(_real_date),
+]
 
 
 class _Args(BaseModel):
@@ -62,11 +79,17 @@ class FetchValetArgs(_Args):
         return self
 
 
-class AnnualInflationArgs(_Args):
+class _SingleSeriesArgs(_Args):
+    """A recipe over one series; ``slot`` says which filled slot to read."""
+
+    slot: DataSlot = "series_table"
+
+
+class AnnualInflationArgs(_SingleSeriesArgs):
     expected_periods: Annotated[int, Field(ge=1, le=366)] = 12
 
 
-class YoYArgs(_Args):
+class YoYArgs(_SingleSeriesArgs):
     lag: Annotated[int, Field(ge=1, le=120)] | None = None
     interval_years: Annotated[int, Field(ge=1, le=50)] | None = None
 
@@ -80,12 +103,12 @@ class NoArgs(_Args):
     pass
 
 
-class CalendarYearArgs(_Args):
+class CalendarYearArgs(_SingleSeriesArgs):
     agg_func: Literal["SUM", "AVG", "MIN", "MAX"] = "SUM"
     expected_periods: Annotated[int, Field(ge=1, le=366)] = 12
 
 
-class RegimeChangeArgs(_Args):
+class RegimeChangeArgs(_SingleSeriesArgs):
     year: Annotated[int, Field(ge=1900, le=2100)]
 
 
@@ -95,7 +118,7 @@ class ToolSpec:
     agent: str
     description: str
     args: type[_Args]
-    reads: tuple[DataSlot, ...] = ()
+    reads: tuple[DataSlot, ...] = ()  # two-series recipes; single-series ones read their ``slot``
 
 
 TOOLS: Final[Mapping[str, ToolSpec]] = {
@@ -116,16 +139,14 @@ TOOLS: Final[Mapping[str, ToolSpec]] = {
         ToolSpec(
             "annual_inflation_rate",
             DATA_ANALYST,
-            "Annual % change of the calendar-year average of a monthly index in series_table.",
+            "Annual % change of the calendar-year average of a monthly index in one slot.",
             AnnualInflationArgs,
-            ("series_table",),
         ),
         ToolSpec(
             "yoy_point_to_point",
             DATA_ANALYST,
-            "Change against the same period a year (or lag) earlier, for series_table.",
+            "Change against the same period a year (or lag) earlier, for one slot.",
             YoYArgs,
-            ("series_table",),
         ),
         ToolSpec(
             "percentage_point_spread",
@@ -144,16 +165,14 @@ TOOLS: Final[Mapping[str, ToolSpec]] = {
         ToolSpec(
             "calendar_year_aggregation",
             DATA_ANALYST,
-            "Calendar-year SUM/AVG/MIN/MAX of a monthly series_table; incomplete years -> null.",
+            "Calendar-year SUM/AVG/MIN/MAX of a monthly series in a slot; partial years -> null.",
             CalendarYearArgs,
-            ("series_table",),
         ),
         ToolSpec(
             "discrete_regime_change_counter",
             DATA_ANALYST,
-            "Count level changes in series_table within one calendar year (e.g. policy rate).",
+            "Count level changes in one slot within one calendar year (e.g. policy rate).",
             RegimeChangeArgs,
-            ("series_table",),
         ),
     )
 }
@@ -184,8 +203,14 @@ class PlanValidationError(ValueError):
         super().__init__("invalid plan: " + "; ".join(self.problems))
 
 
-def validate_plan(draft: PlanDraft) -> QueryPlan:
+def validate_plan(
+    draft: PlanDraft, *, confirmed_vectors: Collection[str] | None = None
+) -> QueryPlan:
     """Check a draft against the registry and return an executable ``QueryPlan``.
+
+    ``confirmed_vectors`` is the set of StatCan vector IDs the planner's discovery calls returned;
+    when given, any other vector is rejected (a well-formed guess would fetch the wrong series).
+    ``None`` skips the check for plans that were not discovered by a model.
 
     Raises ``PlanValidationError`` listing every problem, so a planner can fix them in one turn.
     """
@@ -225,9 +250,19 @@ def validate_plan(draft: PlanDraft) -> QueryPlan:
                     "each slot holds one series"
                 )
             source = parsed.vector_id if isinstance(parsed, FetchStatCanArgs) else parsed.series_id
+            if (
+                isinstance(parsed, FetchStatCanArgs)
+                and confirmed_vectors is not None
+                and source not in confirmed_vectors
+            ):
+                problems.append(
+                    f"{label}: vector {source} was not returned by lookup_series in this "
+                    "conversation; look it up before using it"
+                )
             filled[parsed.into] = source
         else:
-            missing = [slot for slot in spec.reads if slot not in filled]
+            reads = (parsed.slot,) if isinstance(parsed, _SingleSeriesArgs) else spec.reads
+            missing = [slot for slot in reads if slot not in filled]
             if missing:
                 problems.append(
                     f"{label}: no earlier fetch step fills {', '.join(missing)}; "
@@ -235,7 +270,7 @@ def validate_plan(draft: PlanDraft) -> QueryPlan:
                 )
                 continue
             # The analyst cites the series it was handed, never an ID the model typed.
-            tool_args["series_id"] = filled[spec.reads[0]]
+            tool_args["series_id"] = filled[reads[0]]
 
         steps.append(
             PlanStep(

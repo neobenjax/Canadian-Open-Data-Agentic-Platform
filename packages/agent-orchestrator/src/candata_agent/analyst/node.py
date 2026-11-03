@@ -63,6 +63,11 @@ def _resolve_table(
     return _convert_to_arrow_table(raw)
 
 
+def _slot(tool_args: dict[str, Any]) -> str:
+    """The scratchpad slot a single-series recipe reads (set by the Supervisor's plan)."""
+    return str(tool_args.get("slot", "series_table"))
+
+
 def _inspect_data_quality(table: pa.Table | None) -> list[str]:
     """Inspect Arrow table columns for data quality/suppression flags."""
     warnings: list[str] = []
@@ -225,7 +230,7 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
         input_citation = _resolve_citation(tool_args, state, str(raw_id) if raw_id else None)
 
         if tool_name == "annual_inflation_rate":
-            table_data = _resolve_table(tool_args, state.scratchpad)
+            table_data = _resolve_table(tool_args, state.scratchpad, fallback_key=_slot(tool_args))
             warnings.extend(_inspect_data_quality(table_data))
             source_series_id = _extract_series_id(tool_args, table_data, input_citation)
             expected = int(tool_args.get("expected_periods", 12))
@@ -240,7 +245,7 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             metadata["derived_from_monthly"] = True
 
         elif tool_name == "yoy_point_to_point":
-            table_data = _resolve_table(tool_args, state.scratchpad)
+            table_data = _resolve_table(tool_args, state.scratchpad, fallback_key=_slot(tool_args))
             warnings.extend(_inspect_data_quality(table_data))
             source_series_id = _extract_series_id(tool_args, table_data, input_citation)
             int_years = tool_args.get("interval_years")
@@ -313,7 +318,7 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             )
 
         elif tool_name == "calendar_year_aggregation":
-            table_data = _resolve_table(tool_args, state.scratchpad)
+            table_data = _resolve_table(tool_args, state.scratchpad, fallback_key=_slot(tool_args))
             warnings.extend(_inspect_data_quality(table_data))
             source_series_id = _extract_series_id(tool_args, table_data, input_citation)
             expected = int(tool_args.get("expected_periods", 12))
@@ -328,7 +333,7 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             )
 
         elif tool_name == "discrete_regime_change_counter":
-            table_data = _resolve_table(tool_args, state.scratchpad)
+            table_data = _resolve_table(tool_args, state.scratchpad, fallback_key=_slot(tool_args))
             warnings.extend(_inspect_data_quality(table_data))
             source_series_id = _extract_series_id(tool_args, table_data, input_citation)
             regime_res, executed_sql = recipes.discrete_regime_change_counter(

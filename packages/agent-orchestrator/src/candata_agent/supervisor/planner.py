@@ -70,7 +70,9 @@ Rules:
 - Bank of Canada series need no lookup when you know the Valet series name (V39079 is the
   target for the overnight rate).
 - Fetch steps load one series into a data slot ("into"). Calculation steps read slots that an
-  earlier fetch step filled. Each slot holds one series.
+  earlier fetch step filled. Each slot holds one series. Single-series calculations read
+  "slot" (default series_table); to compare two series, load them into two slots (for example
+  table_a and table_b) and run the calculation once per slot.
 - Prefer a table that publishes the figure directly (an annual table for an annual figure) over
   computing it from a finer series.
 - If official data cannot answer the question (the series is not published for that geography,
@@ -107,6 +109,7 @@ class ClaudePlanner:
     async def plan(self, question: str) -> PlannerResult:
         messages: list[BetaMessageParam] = [{"role": "user", "content": question}]
         input_tokens = output_tokens = 0
+        confirmed: set[str] = set()  # vector IDs lookup_series returned in this conversation
         for _ in range(self._max_turns):
             response = await self._client.beta.messages.create(
                 model=self._model,
@@ -141,7 +144,9 @@ class ClaudePlanner:
                     return PlannerResult(None, reason, input_tokens, output_tokens)
                 if call.name == "submit_plan":
                     try:
-                        plan = validate_plan(PlanDraft.model_validate(call.input))
+                        plan = validate_plan(
+                            PlanDraft.model_validate(call.input), confirmed_vectors=confirmed
+                        )
                     except PlanValidationError as error:
                         results.append(_tool_result(call.id, "\n".join(error.problems), True))
                         continue
@@ -151,6 +156,8 @@ class ClaudePlanner:
                     return PlannerResult(plan, None, input_tokens, output_tokens)
                 try:
                     payload = await self._discover(call.name, call.input)
+                    if call.name == "lookup_series":
+                        confirmed.add(str(payload["vector_id"]))
                     results.append(_tool_result(call.id, json.dumps(payload), False))
                 except Exception as error:  # discovery failures go back to the model
                     results.append(_tool_result(call.id, f"{type(error).__name__}: {error}", True))
@@ -230,7 +237,7 @@ def _tool_catalog() -> str:
     for spec in TOOLS.values():
         schema = spec.args.model_json_schema()
         props = ", ".join(sorted(schema.get("properties", {})))
-        reads = f" Reads: {', '.join(spec.reads)}." if spec.reads else ""
+        reads = f" Reads: {', '.join(spec.reads)}." if spec.reads else " Reads: its slot."
         lines.append(f"- {spec.name}({props}): {spec.description}{reads}")
     return "\n".join(lines)
 

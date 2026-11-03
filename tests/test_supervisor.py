@@ -2,7 +2,8 @@
 
 The graph tests run the real StateGraph with the real checkpointer, Data Analyst and Citation
 Verifier. Only the data sources and the planner are fakes, and the data is the real WDS and
-Valet series for GT-05 (Toronto housing starts) and GT-13 (policy rate changes in 2025).
+Valet series for GT-05 (Toronto housing starts), GT-12 (Toronto shelter vs all-items CPI) and
+GT-13 (policy rate changes in 2025).
 """
 
 import json
@@ -45,6 +46,10 @@ GT05_QUESTION = (
     "and how does that compare with 2024?"
 )
 GT13_QUESTION = "How many times did the Bank of Canada change its policy rate in 2025?"
+GT12_QUESTION = (
+    "In August 2026, how did shelter prices in Toronto change year over year, compared with "
+    "overall consumer prices?"
+)
 
 # v42127475 (34-10-0154-01), Toronto CMA housing starts, total units, Jan 2024 to Dec 2025, as
 # published by WDS on 2026-11-02. Sums: 37,718 (2024) and 26,087 (2025).
@@ -62,6 +67,40 @@ POLICY_RATE = (
     ("2025-10-30", 2.25),
     ("2025-12-31", 2.25),
 )
+
+
+# 18-10-0004-01, Toronto CPI (2002=100), Aug 2025 to Aug 2026, as published by WDS on 2026-11-03.
+# Shelter v41692889: 191.4 -> 190.5 (-0.47%). All-items v41692888: 168.1 -> 171.7 (+2.14%).
+SHELTER = (
+    191.4, 191.3, 192.0, 191.7, 191.6, 190.8, 190.2, 190.7, 190.4, 190.0, 190.0, 189.3, 190.5,
+)  # fmt: skip
+ALL_ITEMS = (
+    168.1, 168.1, 168.4, 168.6, 168.4, 167.7, 168.4, 169.7, 170.0, 171.7, 170.9, 171.4, 171.7,
+)  # fmt: skip
+CPI_RELEASES = (
+    "2025-09-16", "2025-10-21", "2025-11-17", "2025-12-15", "2026-01-19", "2026-02-17",
+    "2026-03-16", "2026-04-20", "2026-05-19", "2026-06-22", "2026-07-20", "2026-08-17",
+    "2026-09-14",
+)  # fmt: skip
+
+
+def cpi_series(vector_id: int, coordinate: str, values: tuple[float, ...]) -> StatCanSeriesResult:
+    months = [f"{2025 + (7 + i) // 12}-{(7 + i) % 12 + 1:02d}-01" for i in range(len(values))]
+    observations = tuple(
+        Observation(ref, v, 1, f"{released}T08:30", 0, 6, 0, 0)
+        for ref, v, released in zip(months, values, CPI_RELEASES, strict=True)
+    )
+    return StatCanSeriesResult(
+        product_id=18100004,
+        coordinate=coordinate,
+        vector_id=vector_id,
+        title_en="Consumer Price Index, monthly, not seasonally adjusted",
+        title_fr=None,
+        frequency_code=6,
+        unit="2002=100",
+        observations=observations,
+        fetched_at="2026-11-03T00:00:00+00:00",
+    )
 
 
 def starts_series() -> StatCanSeriesResult:
@@ -84,21 +123,23 @@ def starts_series() -> StatCanSeriesResult:
 
 
 class FakeStatCan:
-    """Serves one series by reference-period range, the way WDS does."""
+    """Serves series by reference-period range, the way WDS does."""
 
-    def __init__(self, series: StatCanSeriesResult | None = None) -> None:
-        self.series = series or starts_series()
+    def __init__(self, *series: StatCanSeriesResult) -> None:
+        self.by_vector = {s.vector_id: s for s in (series or (starts_series(),))}
+        self.series = next(iter(self.by_vector.values()))
         self.calls: list[tuple[str, str, str | None]] = []
 
     async def get_data_by_reference_period(
         self, vector_id: int | str, start: str, end: str | None = None
     ) -> StatCanSeriesResult:
         self.calls.append((str(vector_id), start, end))
-        if str(vector_id).lstrip("v") != str(self.series.vector_id):
+        series = self.by_vector.get(int(str(vector_id).lstrip("v")))
+        if series is None:
             raise LookupError(f"vector {vector_id} not found")
         last = end or start
-        kept = tuple(o for o in self.series.observations if start <= o.ref_per <= last)
-        return StatCanSeriesResult(**{**_fields(self.series), "observations": kept})
+        kept = tuple(o for o in series.observations if start <= o.ref_per <= last)
+        return StatCanSeriesResult(**{**_fields(series), "observations": kept})
 
     async def search_cubes(self, query: str, *, limit: int = 10) -> CubeSearchResult:
         cube = CubeSummary(
@@ -212,6 +253,7 @@ def test_valid_plan_becomes_executable_steps() -> None:
     assert aggregate.tool_args == {
         "agg_func": "SUM",
         "expected_periods": 12,
+        "slot": "series_table",
         "series_id": "v42127475",
     }
     assert plan.active_step_id == 1
@@ -270,6 +312,62 @@ def test_a_slot_holds_one_series() -> None:
                 ("fetch_statcan_vector", {"vector_id": "v2", "start": "2024", "end": "2025"}),
             )
         )
+
+
+GT12_DRAFT = draft(
+    ("fetch_statcan_vector", {"vector_id": "v41692889", "start": "2025-08", "end": "2026-08",
+                              "into": "table_a"}),
+    ("fetch_statcan_vector", {"vector_id": "v41692888", "start": "2025-08", "end": "2026-08",
+                              "into": "table_b"}),
+    ("yoy_point_to_point", {"slot": "table_a"}),
+    ("yoy_point_to_point", {"slot": "table_b"}),
+    objective="Toronto shelter vs all-items CPI, Aug 2026 year over year",
+)  # fmt: skip
+
+
+def test_single_series_recipes_can_read_any_filled_slot() -> None:
+    """GT-10/11/12: one recipe per series, each citing the series in the slot it reads."""
+    plan = validate_plan(GT12_DRAFT)
+    shelter, all_items = plan.steps[2], plan.steps[3]
+    assert (shelter.tool_args["slot"], shelter.tool_args["series_id"]) == ("table_a", "v41692889")
+    assert (all_items.tool_args["slot"], all_items.tool_args["series_id"]) == (
+        "table_b",
+        "v41692888",
+    )
+    with pytest.raises(PlanValidationError, match="no earlier fetch step fills table_b"):
+        validate_plan(
+            draft(
+                ("fetch_statcan_vector", {"vector_id": "v1", "start": "2024", "end": "2025"}),
+                ("yoy_point_to_point", {"slot": "table_b"}),
+            )
+        )
+
+
+def test_impossible_dates_are_rejected_before_anything_runs() -> None:
+    def fetch(start: str, end: str) -> PlanDraft:
+        return draft(("fetch_statcan_vector", {"vector_id": "v1", "start": start, "end": end}))
+
+    for bad in ("2025-02-29", "2025-02-30", "2025-04-31"):
+        with pytest.raises(PlanValidationError, match=f"{bad} is not a calendar date"):
+            validate_plan(fetch("2025-01-01", bad))
+    assert (
+        validate_plan(fetch("2024-02-29", "2024-02-29")).steps[0].tool_args["end"] == "2024-02-29"
+    )
+
+
+def test_vectors_must_come_from_discovery_when_the_planner_says_so() -> None:
+    confirmed = {"v41692889"}
+    with pytest.raises(PlanValidationError) as raised:
+        validate_plan(GT12_DRAFT, confirmed_vectors=confirmed)
+    problems = "\n".join(raised.value.problems)
+    assert "step 2 (fetch_statcan_vector): vector v41692888 was not returned by lookup_series" in (
+        problems
+    )
+    assert "v41692889" not in problems
+    # Valet series names are not looked up, so the check does not apply to them.
+    assert validate_plan(GT13_DRAFT, confirmed_vectors=set()).steps[0].tool_args["series_id"] == (
+        "V39079"
+    )
 
 
 def test_recipes_that_need_typed_numbers_or_sql_are_not_offered() -> None:
@@ -372,6 +470,21 @@ async def test_planner_discovers_then_fixes_an_invalid_plan() -> None:
     assert all(tool["strict"] for tool in first["tools"])
 
 
+async def test_planner_rejects_a_vector_it_did_not_look_up() -> None:
+    planner, client = planner_with(
+        message(tool_use("t1", "submit_plan", submit(GT05_DRAFT))),
+        message(
+            tool_use("t2", "lookup_series", {"table_id": "34-10-0154-01", "coordinate": "23.1.1"})
+        ),  # fmt: skip
+        message(tool_use("t3", "submit_plan", submit(GT05_DRAFT))),
+    )
+    result = await planner.plan(GT05_QUESTION)
+    assert result.plan is not None
+    feedback = client.messages.requests[1]["messages"][-1]["content"][0]
+    assert feedback["is_error"]
+    assert "vector v42127475 was not returned by lookup_series" in feedback["content"]
+
+
 async def test_planner_declines_when_official_data_does_not_exist() -> None:
     planner, _ = planner_with(
         message(tool_use("t1", "decline", {"reason": "No Toronto mortgage interest cost index"})),
@@ -451,6 +564,55 @@ async def test_failed_fetch_ends_the_run_without_verification(saver: AsyncSqlite
     assert plan.steps[0].status is StepStatus.FAILED
     assert "vector v999 not found" in (plan.steps[0].result_summary or "")
     assert out.get("verification") is None  # the first question's report is not carried over
+
+
+async def test_graph_compares_two_series_and_verifies_both(saver: AsyncSqliteSaver) -> None:
+    statcan = FakeStatCan(
+        cpi_series(41692889, "16.79.0.0.0.0.0.0.0.0", SHELTER),
+        cpi_series(41692888, "16.2.0.0.0.0.0.0.0.0", ALL_ITEMS),
+    )
+    planner = ScriptedPlanner(planned(GT12_DRAFT), planned(GT12_DRAFT))
+    app = build_agent_graph(planner=planner, statcan=statcan, valet=FakeValet(), checkpointer=saver)
+    config = {"configurable": {"thread_id": "gt12"}}
+
+    for turn in (1, 2):  # the second turn re-asks the same question on the same thread
+        out = await app.ainvoke(
+            {"session_id": "s", "thread_id": "gt12", "messages": (user(GT12_QUESTION),)}, config
+        )
+        shelter, all_items = out["sql_artifacts"][-2:]
+        assert _august_2026_change(shelter.rows) == pytest.approx(-0.47, abs=0.01)
+        assert _august_2026_change(all_items.rows) == pytest.approx(2.14, abs=0.01)
+        assert (shelter.source_series_id, all_items.source_series_id) == ("v41692889", "v41692888")
+        verified = [
+            v["claim"]["citation"]["core"]["vector_id"] for v in out["verification"]["verdicts"]
+        ]
+        assert sorted(verified) == ["v41692888", "v41692889"]
+        assert out["verification"]["passed"] is True
+        assert len(planner.questions) == turn
+
+
+def _august_2026_change(rows: tuple[dict[str, Any], ...]) -> float:
+    (row,) = [r for r in rows if str(r["obs_date"]).startswith("2026-08")]
+    return float(row["change_pct"])
+
+
+async def test_retrying_a_failed_question_plans_it_again(saver: AsyncSqliteSaver) -> None:
+    unknown = draft(("fetch_statcan_vector", {"vector_id": "v999", "start": "2024", "end": "2025"}))
+    planner = ScriptedPlanner(planned(unknown), planned(GT05_DRAFT))
+    app = build_agent_graph(
+        planner=planner, statcan=FakeStatCan(), valet=FakeValet(), checkpointer=saver
+    )
+    config = {"configurable": {"thread_id": "retry"}}
+    first = await app.ainvoke(
+        {"session_id": "s", "thread_id": "retry", "messages": (user(GT05_QUESTION),)}, config
+    )
+    assert first["plan"].steps[0].status is StepStatus.FAILED
+
+    second = await app.ainvoke({"messages": (user(GT05_QUESTION),)}, config)
+    assert planner.questions == [GT05_QUESTION, GT05_QUESTION]
+    totals = {r["cal_year"]: r["aggregated_total"] for r in second["sql_artifacts"][-1].rows}
+    assert totals == {"2025": 26087.0, "2024": 37718.0}
+    assert second["verification"]["passed"] is True
 
 
 async def test_decline_and_planner_errors_end_the_run_with_a_message(
