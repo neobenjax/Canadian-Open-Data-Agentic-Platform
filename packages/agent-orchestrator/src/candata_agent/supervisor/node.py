@@ -249,7 +249,7 @@ def _planned_for(state: AgentState, question: str) -> bool:
 
 
 def _unique(citations: tuple[CitationEnvelope, ...]) -> list[CitationEnvelope]:
-    seen: dict[tuple[str, str, str], CitationEnvelope] = {}
+    seen: dict[tuple[str, str, str | None], CitationEnvelope] = {}
     for c in citations:
         seen[(c.core.table_id, c.core.vector_id, c.core.reference_period)] = c
     return list(seen.values())
