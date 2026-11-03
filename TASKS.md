@@ -98,7 +98,7 @@
 
 ### Feature 3.1: Documentation & Developer Playground
 - [ ] **CAN-31:** Scaffold Next.js 15 App Router + Fumadocs / Tailwind CSS v4 in `/apps/docs-portal`. *(Owner: Benjamin · 3h)*
-- [ ] **CAN-32:** Build modern Streamlit UI with `astream_events` v2 real-time streaming and dynamic Plotly charts. *(Owner: Samir / Yassir · 2.5h)*
+- [x] **CAN-32:** Build modern Streamlit UI with `astream_events` v2 real-time streaming and dynamic Plotly charts. *(Owner: Samir / Yassir · 2.5h)*
 - [ ] **CAN-33:** Implement LangGraph `interrupt()` breakpoint when data ambiguities arise (e.g. municipal vs CMA boundaries). *(Owner: Samir / Benjamin · 2h)*
 
 ### Feature 3.2: Federal CKAN Integration & User Testing
