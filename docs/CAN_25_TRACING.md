@@ -85,7 +85,11 @@ Set in `.env` (see `.env.example`). With none set, `setup_tracing()` returns `No
   - A real LangGraph `StateGraph` with a `MemorySaver` checkpointer: two questions on one thread give two traces, each with a `graph.run` root and the three node spans as its children. A parallel step and a node returning `None` both run without error.
   - The same kind of graph exporting to a local Phoenix server: Phoenix accepted the export, listed the spans under the configured project, and showed the token, cost and latency attributes.
 - LangSmith's endpoint and header names were checked against its OpenTelemetry documentation.
-- **Not verified: export to the live LangSmith service.** It needs an API key. See the follow-up issue linked in the PR.
+- **Live LangSmith export (checked 2026-11-03).** One question ran through the CAN-22 graph with `traced_run`, using a scripted plan (GT-13: Bank of Canada policy-rate changes in 2025, live Valet data) and `LANGSMITH_API_KEY` and `LANGSMITH_PROJECT=candata` from `.env`, on the default US endpoint. `setup_tracing()` returned a provider and `force_flush` returned `True`. Reading the project back through the LangSmith API:
+  - **Spans arrive as one trace.** Seven runs, all `success`: `graph.run`, three `agent.supervisor`, `agent.data_fetcher`, `agent.data_analyst` and `agent.citation_verifier`.
+  - **Custom attributes arrive.** They sit under the run's `extra.metadata` as `otel.span.candata.agent`, `candata.latency_ms`, `candata.run_id`, `candata.session_id`, `candata.thread_id` and `candata.tokens_remaining`; the resource carries `openinference.project.name` and `service.name`.
+  - **LangSmith re-keys the trace.** Its trace and run IDs are built from the 8-byte span ID (`00000000-0000-0000-<span id>`), so the 16-byte OpenTelemetry trace ID in `traceparent` does not match it. The original IDs are kept in `extra.OTEL_TRACE_ID` and `OTEL_SPAN_ID`; use the span ID to find a run.
+  - **Token counts are not checked with real values.** `gen_ai.usage.*` is read into LangSmith's own `prompt_tokens`, `completion_tokens` and `total_tokens` fields, and the scripted plan makes no model call, so all three were 0. Non-zero tokens and cost need a run with the Claude planner (`ANTHROPIC_API_KEY`), which is the live planner check in BEN-65.
 
 ## Not in scope
 
