@@ -45,6 +45,7 @@
       "area:fastmcp-engine": ["duckdb", "arrow", "fastmcp", "slicing", "engine"],
       "area:orchestration": ["langgraph", "supervisor", "analyst", "verifier", "orchestrat", "state"],
       "area:evals-benchmarks": ["benchmark", "eval", "deepeval", "ground_truth"],
+      "area:ui": ["streamlit", "plotly", "chart", "dashboard", "frontend", "-ui"],
       "area:governance": ["governance", "risk", "checklist", "guardrail", "workflow", "linear", "hook", "ci"]
     },
     "default_area": "area:governance"
