@@ -79,7 +79,7 @@
 
 ### Feature 2.1: LangGraph Agent Graph & State
 - [x] **CAN-21:** Define typed `AgentState` with Pydantic v2 schemas and `AsyncSqliteSaver` checkpointer for time-travel debugging. *(Owner: Samir / Benjamin · 2.5h)*
-- [ ] **CAN-22:** Implement Supervisor agent node that decomposes complex queries into deterministic tool calls. *(Owner: Samir · 2.5h)*
+- [x] **CAN-22:** Implement Supervisor agent node that decomposes complex queries into deterministic tool calls. *(Owner: Samir · 2.5h)*
 - [x] **CAN-23:** Implement Data Analyst node executing exact DuckDB SQL math (no mental math). *(Owner: Benjamin · 2.5h)*
 - [x] **CAN-24:** Implement Citation Verifier node validating statistics against official StatCan/BoC Core Verification Tuples (table_id, vector_id, reference_period) and cross-examining release/revision timestamps before answering. *(Owner: Samir · 2h)*
 

@@ -214,6 +214,9 @@ class AgentState(BaseModel):
     # Active HITL breakpoint
     active_interrupt: HITLInterrupt | None = None
 
+    # Citation Verifier report for the latest question (VerificationReport.to_dict())
+    verification: dict[str, Any] | None = None
+
     # Observability & token tracking
     trace_context: TraceContext = Field(default_factory=TraceContext)
     token_budget: TokenBudget = Field(default_factory=TokenBudget)
