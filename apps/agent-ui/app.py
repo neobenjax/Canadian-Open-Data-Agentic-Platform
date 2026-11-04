@@ -73,13 +73,15 @@ def _sidebar(demo: bool) -> str | None:
     return None
 
 
-async def _ask(question: str, progress: Any) -> RunResult:
+async def _ask(question: str, progress: Any, resume: object = None) -> RunResult:
+    extra: dict[str, object] = {} if resume is None else {"resume": resume}
     async with open_agent(db_path=ROOT / DEFAULT_DB) as (app, _):
         async for event in stream_question(
             app,
             question,
             thread_id=st.session_state.thread_id,
             session_id=st.session_state.session_id,
+            **extra,  # type: ignore[arg-type]
         ):
             if isinstance(event, NodeStarted):
                 progress.update(label=f"{NODE_LABELS[event.node]} working…")
@@ -92,7 +94,25 @@ async def _ask(question: str, progress: Any) -> RunResult:
     raise RuntimeError("the graph stream ended without a result")
 
 
-def _render(result: RunResult) -> None:
+def _render(result: RunResult, index: int) -> None:
+    pending = result.clarification
+    if pending is not None:  # CAN-33: the run is paused until the user picks a member
+        st.info(pending.question, icon="❓")
+        if pending.error:
+            st.warning(pending.error)
+        if index == len(st.session_state.turns):  # only the latest turn can be answered
+            labels = {
+                f"{name} (member {member_id})": member_id for member_id, name in pending.options
+            }
+            picked = st.radio("Which one do you mean?", list(labels), key=f"pick_{index}")
+            left, right = st.columns(2)
+            if left.button("Continue", key=f"go_{index}", type="primary"):
+                st.session_state.resume = labels[picked]
+                st.rerun()
+            if right.button("Cancel", key=f"cancel_{index}"):
+                st.session_state.resume = "cancel"
+                st.rerun()
+        return
     if result.failed_step:
         st.error(result.failed_step)
     declined = [
@@ -158,11 +178,20 @@ def main() -> None:
         "against the publisher before it is shown."
     )
 
-    for turn in state.turns:
+    for index, turn in enumerate(state.turns, start=1):
         with st.chat_message("user"):
             st.markdown(turn.question)
         with st.chat_message("assistant"):
-            _render(turn)
+            _render(turn, index)
+
+    resume = state.pop("resume", None)
+    if resume is not None and state.turns:
+        question = state.turns[-1].question
+        with st.chat_message("assistant"), st.status("Continuing…", expanded=True) as progress:
+            result = asyncio.run(_ask(question, progress, resume))
+            progress.update(label="Done", state="complete", expanded=False)
+        state.turns.append(result)
+        st.rerun()
 
     question = st.chat_input("Ask about StatCan or Bank of Canada data") or clicked
     if not question:
@@ -178,8 +207,10 @@ def main() -> None:
                 st.error(f"{type(error).__name__}: {error}")
                 return
             progress.update(label="Done", state="complete", expanded=False)
-        _render(result)
+        _render(result, len(state.turns) + 1)
     state.turns.append(result)
+    if result.clarification is not None:
+        st.rerun()  # show the options as the latest, answerable turn
 
 
 main()

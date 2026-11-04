@@ -7,6 +7,7 @@
 from candata_agent.ui.stream import (
     NODE_LABELS,
     AnalysisResult,
+    ClarificationNeeded,
     FetchedSeries,
     NodeFinished,
     NodeStarted,
@@ -19,6 +20,7 @@ from candata_agent.ui.stream import (
 __all__ = [
     "NODE_LABELS",
     "AnalysisResult",
+    "ClarificationNeeded",
     "FetchedSeries",
     "NodeFinished",
     "NodeStarted",
