@@ -24,13 +24,21 @@ jobs:
           python-version: "3.12"
 
       - name: Run Deterministic PR Triage
+        # PR title, body and branch are attacker-controlled: pass them through env and quote
+        # the variables, never expand Actions expressions inside the script (script injection).
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          REPO: ${{ github.repository }}
         run: |
           python scripts/pr_triage.py \
-            --pr-number ${{ github.event.pull_request.number }} \
-            --branch "${{ github.head_ref }}" \
-            --author "${{ github.event.pull_request.user.login }}" \
-            --title "${{ github.event.pull_request.title }}" \
-            --body "${{ github.event.pull_request.body }}" \
-            --repo "${{ github.repository }}"
+            --pr-number "$PR_NUMBER" \
+            --branch "$PR_BRANCH" \
+            --author "$PR_AUTHOR" \
+            --title="$PR_TITLE" \
+            --body="$PR_BODY" \
+            --repo "$REPO"
