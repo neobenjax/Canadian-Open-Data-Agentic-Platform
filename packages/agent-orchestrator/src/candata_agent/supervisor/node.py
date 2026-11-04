@@ -151,7 +151,7 @@ def make_data_fetcher_node(statcan: StatCanSource, valet: ValetSource) -> Node:
                     }
                     for o in result.observations
                 ]
-                into, source = args.into, args.vector_id
+                into, source, unit_name = args.into, args.vector_id, result.unit
                 citation = result.citation() if rows else None
                 unit = f" ({result.unit})" if result.unit else ""
                 summary = f"{len(rows)} observations of {source}{unit}"
@@ -162,7 +162,7 @@ def make_data_fetcher_node(statcan: StatCanSource, valet: ValetSource) -> Node:
                     vargs.series_id, start_date=first, end_date=last
                 )
                 rows = [{"date": o.date, "value": o.value} for o in found.observations]
-                into, source = vargs.into, vargs.series_id
+                into, source, unit_name = vargs.into, vargs.series_id, found.series.unit
                 citation = found.citation() if rows else None
                 summary = f"{len(rows)} observations of {source}"
             else:
@@ -182,6 +182,7 @@ def make_data_fetcher_node(statcan: StatCanSource, valet: ValetSource) -> Node:
                 **state.scratchpad,
                 into: rows,
                 f"{into}_source": source,
+                f"{into}_unit": unit_name,
                 RUN_CITATIONS: [*state.scratchpad.get(RUN_CITATIONS, []), _label(citation)],
             },
             "citations": (citation,),
