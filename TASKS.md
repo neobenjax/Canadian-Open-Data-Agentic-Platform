@@ -116,7 +116,7 @@
 - [ ] **CAN-42:** Configure GitHub Actions CI pipeline running Ruff, Pyright, and DeepEval scoring (including revision freshness and citation validation) on every PR. *(Owner: Benjamin · 2.5h)*
 
 ### Feature 4.2: AI Security Guardrails & Containerization
-- [ ] **CAN-43:** Implement Pydantic v2 output validators and prompt injection defense; audit LLM tool calls. *(Owner: Samir · 2.5h)*
+- [x] **CAN-43:** Implement Pydantic v2 output validators and prompt injection defense; audit LLM tool calls. *(Owner: Samir · 2.5h)*
 - [ ] **CAN-44:** Token cost optimization with prompt caching and compressed serialization. *(Owner: Yassir / Benjamin · 2h)*
 - [ ] **CAN-45:** Containerize FastMCP server and LangGraph service; publish images to GHCR with Docker hardening. *(Owner: Benjamin · 2h)*
 

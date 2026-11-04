@@ -23,6 +23,7 @@ from typing import Annotated, Any, Final, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from candata_agent.state import PlanStep, QueryPlan
+from candata_agent.supervisor.guardrails import Objective, StepDescription
 
 DATA_FETCHER: Final = "data_fetcher"
 DATA_ANALYST: Final = "data_analyst"
@@ -179,19 +180,23 @@ TOOLS: Final[Mapping[str, ToolSpec]] = {
 
 
 class DraftStep(BaseModel):
-    """One step as the planner proposes it: a tool name and its arguments as JSON."""
+    """One step as the planner proposes it: a tool name and its arguments as JSON.
+
+    ``description`` is shown to users, so it passes the CAN-43 output validator: no figures,
+    links, markup or hidden characters.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     tool: str
     args_json: str
-    description: str
+    description: StepDescription
 
 
 class PlanDraft(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    objective: str
+    objective: Objective
     steps: tuple[DraftStep, ...]
 
 

@@ -7,8 +7,11 @@ Flow for one question:
               --plan complete--> citation_verifier --> END
 
 The Supervisor plans once per user message (keyed on the message ID, so asking the same text
-again plans again) and otherwise only routes. Every executor marks its step COMPLETED or FAILED
-and moves ``active_step_id`` on; a FAILED step ends the run with the failure in the messages.
+again plans again) and otherwise only routes. Before planning it screens the question for text
+addressed to the agent (CAN-43) and declines without a model call when it finds any; the
+planner's tool-call audit trail for the question is kept under ``PLANNER_AUDIT``. Every executor
+marks its step COMPLETED or FAILED and moves ``active_step_id`` on; a FAILED step ends the run
+with the failure in the messages.
 """
 
 from __future__ import annotations
@@ -27,6 +30,8 @@ from candata_agent.state import (
     StepStatus,
     TokenBudget,
 )
+from candata_agent.supervisor.audit import ToolCallRecord, record
+from candata_agent.supervisor.guardrails import screen_question
 from candata_agent.supervisor.registry import (
     DATA_ANALYST,
     DATA_FETCHER,
@@ -41,6 +46,7 @@ SUPERVISOR: Final = "supervisor"
 CITATION_VERIFIER: Final = "citation_verifier"
 RUN_CITATIONS: Final = "run_citations"
 PLANNED_MESSAGE: Final = "planned_message_id"
+PLANNER_AUDIT: Final = "planner_audit"
 
 Node = Callable[[AgentState], Awaitable[dict[str, Any]]]
 
@@ -75,17 +81,32 @@ def make_supervisor_node(planner: Planner) -> Node:
         if state.scratchpad.get(PLANNED_MESSAGE) == asked.id:
             return {}  # this message was already planned; only route
         question = asked.content.strip()
+        fresh: dict[str, Any] = {**state.scratchpad, PLANNED_MESSAGE: asked.id, RUN_CITATIONS: []}
+
+        screening = screen_question(question)
+        if not screening.allowed:
+            blocked = record(
+                0, "question_screen", question, "blocked", ", ".join(screening.reasons)
+            )
+            return {
+                "plan": None,
+                "verification": None,
+                "scratchpad": {**fresh, PLANNER_AUDIT: [blocked.to_json()]},
+                "messages": (_say(f"Declined: {screening.message}"),),
+            }
 
         try:
             outcome = await planner.plan(question)
         except Exception as error:  # planner errors end the run with a visible message
+            trail: tuple[ToolCallRecord, ...] = getattr(error, "audit", ())
             return {
                 "plan": None,
                 "verification": None,
-                "scratchpad": {**state.scratchpad, PLANNED_MESSAGE: asked.id, RUN_CITATIONS: []},
+                "scratchpad": {**fresh, PLANNER_AUDIT: [r.to_json() for r in trail]},
                 "messages": (_say(f"Planning failed: {type(error).__name__}: {error}"),),
             }
 
+        audit: tuple[ToolCallRecord, ...] = getattr(outcome, "audit", ())
         budget = state.token_budget
         update: dict[str, Any] = {
             "token_budget": TokenBudget(
@@ -94,7 +115,7 @@ def make_supervisor_node(planner: Planner) -> Node:
                 completion_tokens_used=budget.completion_tokens_used + outcome.output_tokens,
             ),
             # A new question starts a new set of citations to verify, and drops the last report.
-            "scratchpad": {**state.scratchpad, PLANNED_MESSAGE: asked.id, RUN_CITATIONS: []},
+            "scratchpad": {**fresh, PLANNER_AUDIT: [r.to_json() for r in audit]},
             "verification": None,
         }
 
