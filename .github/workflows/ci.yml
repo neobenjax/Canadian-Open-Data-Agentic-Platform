@@ -48,4 +48,6 @@ jobs:
 
       - name: Verify Bundled Task Checkbox (Guardrail 25)
         if: github.event_name == 'pull_request'
-        run: uv run python scripts/verify_pr_ready.py --branch "${{ github.head_ref }}"
+        env:
+          PR_BRANCH: ${{ github.head_ref }}  # branch names are untrusted; never inline them
+        run: uv run python scripts/verify_pr_ready.py --branch "$PR_BRANCH"
