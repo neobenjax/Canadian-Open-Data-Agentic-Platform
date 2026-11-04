@@ -182,3 +182,15 @@ def test_load_governance_config_file_io():
     # Fail loud if file is missing
     with pytest.raises(FileNotFoundError, match="Governance configuration file not found"):
         load_governance_config(filepath="non_existent_governance.json")
+
+
+def test_ui_prs_get_the_ui_area_not_the_governance_default():
+    """UI work matches area:ui; a bare "ui" substring (build, guide, guardrail) does not."""
+    cfg = load_governance_config(reload=True)
+    branch_and_title = (
+        "feat/can-32-streamlit-ui [can-32] feat: streamlit ui streaming the agent graph "
+        "with unit-aware plotly charts"
+    )
+    assert get_area_label(branch_and_title, cfg) == "area:ui"
+    assert get_area_label("feat/can-40-agent-ui add a results page", cfg) == "area:ui"
+    assert get_area_label("chore/ci-build fix the build guide", cfg) == "area:governance"
