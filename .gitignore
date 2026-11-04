@@ -119,3 +119,6 @@ scratch/
 *.mov
 *.avi
 *.mkv
+
+# DeepEval local run cache
+.deepeval/

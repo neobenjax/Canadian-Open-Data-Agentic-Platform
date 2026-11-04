@@ -1,0 +1,99 @@
+{
+  "benchmark": "GTA housing ground truth",
+  "version": "1",
+  "questions_in_benchmark": 15,
+  "graded": 3,
+  "tier1_passed": 3,
+  "tier1_by_type": {
+    "numeric": {
+      "passed": 2,
+      "total": 2
+    },
+    "comparison": {
+      "passed": 1,
+      "total": 1
+    }
+  },
+  "mean_enrichment": 1.0,
+  "mean_freshness": 1.0,
+  "results": [
+    {
+      "question_id": "GT-05",
+      "eval_type": "numeric",
+      "planner": "demo (fixed plans, CAN-32)",
+      "verified_by_agent": true,
+      "metrics": {
+        "Tier 1 · Core citations": {
+          "score": 1.0,
+          "passed": true,
+          "reason": "all 1 core tuples cited, nothing extra",
+          "applicable": true
+        },
+        "Tier 2 · Metadata enrichment": {
+          "score": 1.0,
+          "passed": true,
+          "reason": "all 5 enrichment fields match",
+          "applicable": true
+        },
+        "Tier 2 · Revision freshness": {
+          "score": 1.0,
+          "passed": true,
+          "reason": "all 1 release dates are current",
+          "applicable": true
+        }
+      }
+    },
+    {
+      "question_id": "GT-12",
+      "eval_type": "comparison",
+      "planner": "demo (fixed plans, CAN-32)",
+      "verified_by_agent": true,
+      "metrics": {
+        "Tier 1 · Core citations": {
+          "score": 1.0,
+          "passed": true,
+          "reason": "all 4 core tuples cited, nothing extra",
+          "applicable": true
+        },
+        "Tier 2 · Metadata enrichment": {
+          "score": 1.0,
+          "passed": true,
+          "reason": "all 20 enrichment fields match",
+          "applicable": true
+        },
+        "Tier 2 · Revision freshness": {
+          "score": 1.0,
+          "passed": true,
+          "reason": "all 4 release dates are current",
+          "applicable": true
+        }
+      }
+    },
+    {
+      "question_id": "GT-13",
+      "eval_type": "numeric",
+      "planner": "demo (fixed plans, CAN-32)",
+      "verified_by_agent": true,
+      "metrics": {
+        "Tier 1 · Core citations": {
+          "score": 1.0,
+          "passed": true,
+          "reason": "all 1 core tuples cited, nothing extra",
+          "applicable": true
+        },
+        "Tier 2 · Metadata enrichment": {
+          "score": 1.0,
+          "passed": true,
+          "reason": "all 4 enrichment fields match",
+          "applicable": true
+        },
+        "Tier 2 · Revision freshness": {
+          "score": 1.0,
+          "passed": true,
+          "reason": "the publisher gives no release dates here",
+          "applicable": false
+        }
+      }
+    }
+  ]
+}

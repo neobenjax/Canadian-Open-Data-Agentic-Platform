@@ -112,7 +112,7 @@
 **Goal:** Automated regression testing in GitHub Actions with DeepEval and NIST/Inspect AI standards, plus Pydantic guardrails.
 
 ### Feature 4.1: Automated Evaluation Pipeline
-- [ ] **CAN-41:** Implement DeepEval automated test harness running against 30 ground-truth questions with 2-tier scoring (strict pass/fail on Core Verification Tuple; separate score on metadata enrichment and revision freshness). *(Owner: Samir · 2.5h)*
+- [x] **CAN-41:** Implement DeepEval automated test harness running against 30 ground-truth questions with 2-tier scoring (strict pass/fail on Core Verification Tuple; separate score on metadata enrichment and revision freshness). *(Owner: Samir · 2.5h)*
 - [ ] **CAN-42:** Configure GitHub Actions CI pipeline running Ruff, Pyright, and DeepEval scoring (including revision freshness and citation validation) on every PR. *(Owner: Benjamin · 2.5h)*
 
 ### Feature 4.2: AI Security Guardrails & Containerization
