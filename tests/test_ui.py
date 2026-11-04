@@ -23,7 +23,7 @@ from candata_agent.ui import (
     RunResult,
     stream_question,
 )
-from candata_agent.ui.charts import flag_text, result_figure, series_figure
+from candata_agent.ui.charts import CUT_NOTE, flag_text, result_figure, series_figure
 from candata_agent.ui.session import DEMO_QUESTIONS, DemoPlanner
 from tests.test_supervisor import (
     ALL_ITEMS,
@@ -251,3 +251,46 @@ def test_run_result_defaults_are_independent() -> None:
     first, second = RunResult("a"), RunResult("b")
     first.series.append(series("v1", None))
     assert second.series == [] and not second.verified
+
+
+def test_planner_written_names_are_shown_as_text_not_evaluated_or_rendered() -> None:
+    hostile = 'Shelter %{y:$.2f} <a href="https://evil.example">click</a> & co'
+    named = FetchedSeries("table_a", "v1", "<b>%</b>", (row("2025-01", 1.0, symbol=5),), hostile)
+    fig = series_figure([named])
+    assert fig is not None
+    line, flagged = fig.data
+    escaped = 'Shelter %{y:$.2f} &lt;a href="https://evil.example"&gt;click&lt;/a&gt; &amp; co (v1)'
+    assert line.name == escaped and flagged.name == f"{escaped}: flagged"
+    assert line.meta is None  # with meta set, Plotly would evaluate templates in the name
+    assert set(line.customdata) == {"&lt;b&gt;%&lt;/b&gt;"}
+    assert fig.layout.yaxis.title.text == "&lt;b&gt;%&lt;/b&gt;"
+    for trace in fig.data:  # names reach the hover box as data, never inside the template
+        assert "evil" not in trace.hovertemplate and "Shelter" not in trace.hovertemplate
+    assert "%{fullData.name}" in line.hovertemplate and "%{customdata}" in line.hovertemplate
+
+    yoy = artifact("v1", {"obs_date": "x", "change_pct": 1})
+    result = AnalysisResult("yoy_point_to_point", yoy, hostile)
+    bars = result_figure([result])
+    assert bars is not None
+    assert bars.data[0].name.startswith("Shelter %{y:$.2f} &lt;a")
+    assert "evil" not in bars.data[0].hovertemplate
+
+
+def test_charts_say_when_they_leave_series_out() -> None:
+    many = [series(f"v{i}", "%", row("2025-01", float(i))) for i in range(9)]
+    fig = series_figure(many)
+    assert fig is not None and len(fig.data) == 7
+    assert [a.text for a in fig.layout.annotations if a.name == CUT_NOTE] == [
+        "Showing the first 7 of 9 series; the tables list all of them."
+    ]
+
+    analyses = [
+        AnalysisResult("yoy_point_to_point", artifact(f"v{i}", {"obs_date": "x", "change_pct": i}))
+        for i in range(8)
+    ]
+    bars = result_figure(analyses)
+    assert bars is not None and len(bars.data) == 7
+    assert "first 7 of 8 results" in bars.layout.annotations[0].text
+
+    few = series_figure(many[:7])
+    assert few is not None and not few.layout.annotations  # nothing left out, no note
