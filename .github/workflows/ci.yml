@@ -46,6 +46,9 @@ jobs:
       - name: Run Test Suite (Pytest)
         run: uv run pytest -m 'not live'
 
+      - name: DeepEval Automated Scoring & Verification (CAN-42)
+        run: uv run python collaboration/benchmarks/run_agent_evals.py grade collaboration/benchmarks/agent_evals/runs/agent_demo_live_20261104.jsonl --require-tier1
+
       - name: Verify Bundled Task Checkbox (Guardrail 25)
         if: github.event_name == 'pull_request'
         env:
