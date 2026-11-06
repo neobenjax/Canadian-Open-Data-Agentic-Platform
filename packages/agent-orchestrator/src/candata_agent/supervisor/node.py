@@ -5,28 +5,53 @@ Flow for one question:
 
     supervisor --plan--> data_fetcher / data_analyst (one step each, back to supervisor)
               --plan complete--> citation_verifier --> END
+              --ambiguous term--> human_clarification --interrupt(), resumed--> supervisor
 
 The Supervisor plans once per user message (keyed on the message ID, so asking the same text
-again plans again) and otherwise only routes. Every executor marks its step COMPLETED or FAILED
-and moves ``active_step_id`` on; a FAILED step ends the run with the failure in the messages.
+again plans again) and otherwise only routes. Before planning it screens the question for text
+addressed to the agent (CAN-43) and declines without a model call when it finds any; the
+planner's tool-call audit trail for the question is kept under ``PLANNER_AUDIT``.
+
+When the planner asks which member a term means (CAN-33), the Supervisor stores the request as
+``active_interrupt`` and routes to ``human_clarification``. That node calls LangGraph's
+``interrupt()``, so the run pauses until the caller resumes the thread with
+``Command(resume=<member ID or name>)``. The Supervisor then plans again with the user's
+choice. Planning happens in the Supervisor and the pause in its own node, so resuming never
+repeats the model call. A new question asked instead of answering replaces the pending one.
+
+Every executor
+marks its step COMPLETED or FAILED and moves ``active_step_id`` on; a FAILED step ends the run
+with the failure in the messages.
 """
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-from typing import Any, Final, Protocol
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from datetime import UTC, datetime
+from typing import Any, Final, Protocol, cast
 
 from langgraph.graph import END
+from langgraph.types import interrupt
 
 from candata_agent.state import (
     AgentMessage,
     AgentState,
+    HITLInterrupt,
+    InterruptType,
     MessageRole,
     PlanStep,
     QueryPlan,
     StepStatus,
     TokenBudget,
 )
+from candata_agent.supervisor.audit import ToolCallRecord, record
+from candata_agent.supervisor.clarification import (
+    MAX_CLARIFICATIONS,
+    Clarification,
+    Resolution,
+    resolutions_from_json,
+)
+from candata_agent.supervisor.guardrails import screen_question
 from candata_agent.supervisor.registry import (
     DATA_ANALYST,
     DATA_FETCHER,
@@ -41,12 +66,18 @@ SUPERVISOR: Final = "supervisor"
 CITATION_VERIFIER: Final = "citation_verifier"
 RUN_CITATIONS: Final = "run_citations"
 PLANNED_MESSAGE: Final = "planned_message_id"
+PLANNER_AUDIT: Final = "planner_audit"
+HUMAN_CLARIFICATION: Final = "human_clarification"
+CLARIFICATIONS: Final = "clarifications"  # the user's choices for the current question
+CANCEL_WORDS: Final = frozenset({"cancel", "stop", "none of these"})
 
 Node = Callable[[AgentState], Awaitable[dict[str, Any]]]
 
 
 class Planner(Protocol):
-    async def plan(self, question: str) -> PlannerOutcome: ...
+    async def plan(
+        self, question: str, *, resolved: Sequence[Resolution] = ()
+    ) -> PlannerOutcome: ...
 
 
 class PlannerOutcome(Protocol):
@@ -72,20 +103,70 @@ def make_supervisor_node(planner: Planner) -> Node:
         asked = _latest_user_message(state)
         if asked is None:
             return {"messages": (_say("No question to plan: the thread has no user message."),)}
-        if state.scratchpad.get(PLANNED_MESSAGE) == asked.id:
+        pending = state.active_interrupt
+        same_question = state.scratchpad.get(PLANNED_MESSAGE) == asked.id
+        if pending is not None and not pending.resolved and same_question:
+            return {}  # still waiting for the user; the router sends this to the pause node
+        resuming = pending is not None and pending.resolved and same_question
+        if same_question and not resuming:
             return {}  # this message was already planned; only route
         question = asked.content.strip()
 
+        earlier_audit: list[dict[str, Any]] = []
+        if resuming:
+            assert pending is not None
+            raw = cast(Sequence[Mapping[str, Any]], state.scratchpad.get(CLARIFICATIONS, []))
+            resolutions = resolutions_from_json(raw)
+            earlier_audit = list(state.scratchpad.get(PLANNER_AUDIT, []))
+            fresh: dict[str, Any] = {**state.scratchpad, RUN_CITATIONS: []}
+            if pending.resolution is None:  # the user cancelled
+                return {
+                    "active_interrupt": None,
+                    "plan": None,
+                    "scratchpad": fresh,
+                    "messages": (_say("Declined: the clarification was cancelled."),),
+                }
+        else:  # a new question, which also replaces a clarification left unanswered
+            resolutions = ()
+            fresh = {
+                **state.scratchpad,
+                PLANNED_MESSAGE: asked.id,
+                RUN_CITATIONS: [],
+                CLARIFICATIONS: [],
+            }
+            screening = screen_question(question)
+            if not screening.allowed:
+                blocked = record(
+                    0, "question_screen", question, "blocked", ", ".join(screening.reasons)
+                )
+                return {
+                    "plan": None,
+                    "verification": None,
+                    "active_interrupt": None,
+                    "scratchpad": {**fresh, PLANNER_AUDIT: [blocked.to_json()]},
+                    "messages": (_say(f"Declined: {screening.message}"),),
+                }
+
         try:
-            outcome = await planner.plan(question)
+            outcome = await (
+                planner.plan(question, resolved=resolutions)
+                if resolutions
+                else planner.plan(question)
+            )
         except Exception as error:  # planner errors end the run with a visible message
+            trail: tuple[ToolCallRecord, ...] = getattr(error, "audit", ())
             return {
                 "plan": None,
                 "verification": None,
-                "scratchpad": {**state.scratchpad, PLANNED_MESSAGE: asked.id, RUN_CITATIONS: []},
+                "active_interrupt": None,
+                "scratchpad": {
+                    **fresh,
+                    PLANNER_AUDIT: earlier_audit + [r.to_json() for r in trail],
+                },
                 "messages": (_say(f"Planning failed: {type(error).__name__}: {error}"),),
             }
 
+        audit: tuple[ToolCallRecord, ...] = getattr(outcome, "audit", ())
         budget = state.token_budget
         update: dict[str, Any] = {
             "token_budget": TokenBudget(
@@ -94,9 +175,35 @@ def make_supervisor_node(planner: Planner) -> Node:
                 completion_tokens_used=budget.completion_tokens_used + outcome.output_tokens,
             ),
             # A new question starts a new set of citations to verify, and drops the last report.
-            "scratchpad": {**state.scratchpad, PLANNED_MESSAGE: asked.id, RUN_CITATIONS: []},
+            "scratchpad": {**fresh, PLANNER_AUDIT: earlier_audit + [r.to_json() for r in audit]},
             "verification": None,
+            "active_interrupt": None,
         }
+
+        clarification: Clarification | None = getattr(outcome, "clarification", None)
+        if clarification is not None:
+            update["plan"] = None
+            if len(resolutions) >= MAX_CLARIFICATIONS:
+                update["messages"] = (
+                    _say(
+                        f"Declined: the question is still ambiguous after {MAX_CLARIFICATIONS} "
+                        "clarifications. Ask it again, naming the place or series exactly."
+                    ),
+                )
+                return update
+            update["active_interrupt"] = HITLInterrupt(
+                interrupt_type=InterruptType.AMBIGUOUS_MEMBER,
+                reason=clarification.question,
+                details=clarification.to_json(),
+                suggested_options=tuple(
+                    f"{c.member_id}: {c.name}" for c in clarification.candidates
+                ),
+            )
+            options = "\n".join(f"- {c.member_id}: {c.name}" for c in clarification.candidates)
+            update["messages"] = (
+                _say(f"Needs clarification: {clarification.question}\n{options}"),
+            )
+            return update
 
         if outcome.plan is None:
             reason = outcome.declined_reason or "no plan"
@@ -113,8 +220,86 @@ def make_supervisor_node(planner: Planner) -> Node:
     return supervisor
 
 
+def make_clarification_node() -> Node:
+    """Pause the run with ``interrupt()`` until the user picks one of the offered members.
+
+    The resume value may be a member ID (int or text), a member's exact name, a mapping with
+    ``member_id`` or ``name``, or "cancel". Anything else asks again, saying why.
+    """
+
+    async def human_clarification(state: AgentState) -> dict[str, Any]:
+        pending = state.active_interrupt
+        if pending is None or pending.resolved:
+            return {}
+        clarification = Clarification.from_json(pending.details)
+        payload: dict[str, Any] = {
+            "interrupt_id": pending.interrupt_id,
+            "type": pending.interrupt_type.value,
+            "question": clarification.question,
+            "term": clarification.term,
+            "table_id": clarification.table_id,
+            "dimension": clarification.dimension,
+            "options": [
+                {"member_id": c.member_id, "name": c.name} for c in clarification.candidates
+            ],
+        }
+        answer: object = interrupt(payload)
+        while True:
+            if isinstance(answer, str) and answer.strip().casefold() in CANCEL_WORDS:
+                choice = None
+                break
+            choice = clarification.choose(answer)
+            if choice is not None:
+                break
+            answer = interrupt(
+                {
+                    **payload,
+                    "error": "That is not one of the options. Answer with a member ID or name "
+                    "from the list, or 'cancel'.",
+                }
+            )
+
+        resolved_at = datetime.now(UTC)
+        if choice is None:
+            return {
+                "active_interrupt": pending.model_copy(
+                    update={"resolved": True, "resolution": None, "resolved_at": resolved_at}
+                ),
+                "messages": (_say("Clarification cancelled."),),
+            }
+        resolution = Resolution(
+            term=clarification.term,
+            table_id=clarification.table_id,
+            dimension_position=clarification.dimension_position,
+            member_id=choice.member_id,
+            name=choice.name,
+        )
+        chosen = [*state.scratchpad.get(CLARIFICATIONS, []), resolution.to_json()]
+        return {
+            "active_interrupt": pending.model_copy(
+                update={
+                    "resolved": True,
+                    "resolution": str(choice.member_id),
+                    "resolved_at": resolved_at,
+                }
+            ),
+            "scratchpad": {**state.scratchpad, CLARIFICATIONS: chosen},
+            "messages": (
+                _say(
+                    f'Clarified: "{clarification.term}" means {choice.name} '
+                    f"(member {choice.member_id})."
+                ),
+            ),
+        }
+
+    return human_clarification
+
+
 def route_from_supervisor(state: AgentState) -> str:
     """Pick the node for the active step, the verifier once the plan is done, or END."""
+    pending = state.active_interrupt
+    if pending is not None and not pending.resolved:
+        return HUMAN_CLARIFICATION
     plan = state.plan
     if plan is None or _failed(plan):
         return END

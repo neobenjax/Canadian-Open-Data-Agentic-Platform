@@ -18,8 +18,10 @@ from candata_agent.analyst import data_analyst_node
 from candata_agent.state import AgentState
 from candata_agent.supervisor.node import (
     CITATION_VERIFIER,
+    HUMAN_CLARIFICATION,
     SUPERVISOR,
     Planner,
+    make_clarification_node,
     make_data_fetcher_node,
     make_input_verifier_node,
     make_supervisor_node,
@@ -46,10 +48,17 @@ def build_agent_graph(
         CITATION_VERIFIER,
         traced_node(CITATION_VERIFIER)(make_input_verifier_node(CitationVerifier(statcan, valet))),
     )
+    # CAN-33: pauses with interrupt() until the user picks a member; needs a checkpointer.
+    builder.add_node(
+        HUMAN_CLARIFICATION, traced_node(HUMAN_CLARIFICATION)(make_clarification_node())
+    )
     builder.add_edge(START, SUPERVISOR)
     builder.add_conditional_edges(
-        SUPERVISOR, route_from_supervisor, [DATA_FETCHER, DATA_ANALYST, CITATION_VERIFIER, END]
+        SUPERVISOR,
+        route_from_supervisor,
+        [DATA_FETCHER, DATA_ANALYST, CITATION_VERIFIER, HUMAN_CLARIFICATION, END],
     )
+    builder.add_edge(HUMAN_CLARIFICATION, SUPERVISOR)
     builder.add_edge(DATA_FETCHER, SUPERVISOR)
     builder.add_edge(DATA_ANALYST, SUPERVISOR)
     builder.add_edge(CITATION_VERIFIER, END)

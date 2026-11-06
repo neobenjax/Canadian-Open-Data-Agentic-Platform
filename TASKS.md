@@ -99,7 +99,7 @@
 ### Feature 3.1: Documentation & Developer Playground
 - [ ] **CAN-31:** Scaffold Next.js 15 App Router + Fumadocs / Tailwind CSS v4 in `/apps/docs-portal`. *(Owner: Benjamin · 3h)*
 - [x] **CAN-32:** Build modern Streamlit UI with `astream_events` v2 real-time streaming and dynamic Plotly charts. *(Owner: Samir / Yassir · 2.5h)*
-- [ ] **CAN-33:** Implement LangGraph `interrupt()` breakpoint when data ambiguities arise (e.g. municipal vs CMA boundaries). *(Owner: Samir / Benjamin · 2h)*
+- [x] **CAN-33:** Implement LangGraph `interrupt()` breakpoint when data ambiguities arise (e.g. municipal vs CMA boundaries). *(Owner: Samir / Benjamin · 2h)*
 
 ### Feature 3.2: Federal CKAN Integration & User Testing
 - [x] **CAN-34:** Add connector for Open Government Canada CKAN federal datasets. *(Owner: Yassir / Benjamin · 2h)*
@@ -116,7 +116,7 @@
 - [x] **CAN-42:** Configure GitHub Actions CI pipeline running Ruff, Pyright, and DeepEval scoring (including revision freshness and citation validation) on every PR. *(Owner: Benjamin · 2.5h)*
 
 ### Feature 4.2: AI Security Guardrails & Containerization
-- [ ] **CAN-43:** Implement Pydantic v2 output validators and prompt injection defense; audit LLM tool calls. *(Owner: Samir · 2.5h)*
+- [x] **CAN-43:** Implement Pydantic v2 output validators and prompt injection defense; audit LLM tool calls. *(Owner: Samir · 2.5h)*
 - [ ] **CAN-44:** Token cost optimization with prompt caching and compressed serialization. *(Owner: Yassir / Benjamin · 2h)*
 - [ ] **CAN-45:** Containerize FastMCP server and LangGraph service; publish images to GHCR with Docker hardening. *(Owner: Benjamin · 2h)*
 

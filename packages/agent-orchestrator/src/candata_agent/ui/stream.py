@@ -9,6 +9,10 @@ events into a small, typed sequence the UI can render as it arrives:
 
 Everything shown for a run comes from that run's node outputs, never from the thread's final
 state, so a second question on the same thread doesn't show the first question's series.
+
+When the planner needs the user to pick between members with the same or similar names
+(CAN-33), the run pauses: the stream yields ``ClarificationNeeded`` before ``RunFinished``, and
+the caller continues it with ``stream_question(..., resume=<member ID or name>)``.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from typing import Any, Final, cast
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import Command
 from pydantic import ValidationError
 
 from candata_agent.state import (
@@ -29,7 +34,7 @@ from candata_agent.state import (
     SQLArtifact,
     StepStatus,
 )
-from candata_agent.supervisor.node import CITATION_VERIFIER, SUPERVISOR
+from candata_agent.supervisor.node import CITATION_VERIFIER, HUMAN_CLARIFICATION, SUPERVISOR
 from candata_agent.supervisor.registry import (
     DATA_ANALYST,
     DATA_FETCHER,
@@ -38,9 +43,10 @@ from candata_agent.supervisor.registry import (
 )
 from candata_mcp.citation import CitationEnvelope
 
-NODES: Final = (SUPERVISOR, DATA_FETCHER, DATA_ANALYST, CITATION_VERIFIER)
+NODES: Final = (SUPERVISOR, DATA_FETCHER, DATA_ANALYST, CITATION_VERIFIER, HUMAN_CLARIFICATION)
 NODE_LABELS: Final = {
     SUPERVISOR: "Supervisor",
+    HUMAN_CLARIFICATION: "Clarification",
     DATA_FETCHER: "Data Fetcher",
     DATA_ANALYST: "Data Analyst",
     CITATION_VERIFIER: "Citation Verifier",
@@ -90,6 +96,7 @@ class RunResult:
     analyses: list[AnalysisResult] = field(default_factory=list[AnalysisResult])
     citations: list[CitationEnvelope] = field(default_factory=list[CitationEnvelope])
     verification: dict[str, Any] | None = None
+    clarification: ClarificationNeeded | None = None
 
     @property
     def failed_step(self) -> str | None:
@@ -117,11 +124,21 @@ class NodeFinished:
 
 
 @dataclass(frozen=True, slots=True)
+class ClarificationNeeded:
+    """The run is paused until the user picks one of ``options`` (member ID, name)."""
+
+    question: str
+    options: tuple[tuple[int, str], ...]
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RunFinished:
     result: RunResult
 
 
-RunEvent = NodeStarted | NodeFinished | RunFinished
+RunEvent = NodeStarted | NodeFinished | ClarificationNeeded | RunFinished
+_NO_RESUME: Final = object()
 
 
 async def stream_question(
@@ -130,13 +147,25 @@ async def stream_question(
     *,
     thread_id: str,
     session_id: str,
+    resume: object = _NO_RESUME,
 ) -> AsyncIterator[RunEvent]:
-    """Ask ``question`` on ``thread_id`` and yield progress events, ending with ``RunFinished``."""
-    asked = AgentMessage(role=MessageRole.USER, content=question)
-    graph_input = {"session_id": session_id, "thread_id": thread_id, "messages": (asked,)}
+    """Ask ``question`` on ``thread_id`` and yield progress events, ending with ``RunFinished``.
+
+    With ``resume``, continue a paused run with the user's answer instead of asking anew;
+    ``question`` is then only the label the result carries.
+    """
     config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+    before = await app.aget_state(config)
+    earlier = cast(Sequence[AgentMessage], (before.values or {}).get("messages", ()))
+    seen: set[str] = {m.id for m in earlier}  # only this run's messages are shown
+    graph_input: object
+    if resume is _NO_RESUME:
+        asked = AgentMessage(role=MessageRole.USER, content=question)
+        graph_input = {"session_id": session_id, "thread_id": thread_id, "messages": (asked,)}
+        seen.add(asked.id)
+    else:
+        graph_input = Command(resume=resume)
     result = RunResult(question=question)
-    seen: set[str] = {asked.id}
     done_steps: set[int] = set()
 
     async for raw in app.astream_events(graph_input, config, version="v2"):
@@ -157,7 +186,21 @@ async def stream_question(
             _collect(node, update, result, done_steps)
             yield NodeFinished(node, tuple(new), result.plan)
 
+    after = await app.aget_state(config)
+    paused = [i.value for task in after.tasks for i in task.interrupts]
+    if paused:
+        result.clarification = _clarification(cast(dict[str, Any], paused[0]))
+        yield result.clarification
     yield RunFinished(result)
+
+
+def _clarification(payload: dict[str, Any]) -> ClarificationNeeded:
+    options = cast(list[dict[str, Any]], payload.get("options", []))
+    return ClarificationNeeded(
+        question=str(payload.get("question", "Which one do you mean?")),
+        options=tuple((int(o["member_id"]), str(o["name"])) for o in options),
+        error=cast(str | None, payload.get("error")),
+    )
 
 
 def _new_messages(messages: Sequence[AgentMessage], seen: set[str]) -> list[AgentMessage]:
