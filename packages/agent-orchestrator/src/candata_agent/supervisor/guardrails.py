@@ -213,6 +213,16 @@ class LookupSeriesArgs(_DiscoveryArgs):
     coordinate: Annotated[str, Field(pattern=r"^\d{1,6}(\.\d{1,6}){0,9}$")]
 
 
+class ClarifyArgs(_DiscoveryArgs):
+    """``request_clarification``: the term, where it is ambiguous, and the members to offer."""
+
+    term: Annotated[str, _text(60)]
+    table_id: TableId
+    dimension_position: Annotated[int, Field(ge=1, le=10)]
+    member_ids: Annotated[list[int], Field(min_length=2, max_length=10)]
+    question: Annotated[str, _text(200)]
+
+
 DISCOVERY_ARGS: Final[Mapping[str, type[_DiscoveryArgs]]] = {
     "search_statcan_tables": SearchTablesArgs,
     "find_members": FindMembersArgs,

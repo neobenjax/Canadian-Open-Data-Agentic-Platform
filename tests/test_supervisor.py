@@ -8,7 +8,7 @@ GT-13 (policy rate changes in 2025).
 
 import json
 import tempfile
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from pathlib import Path
 from typing import Any, cast
 
@@ -28,6 +28,7 @@ from candata_agent.supervisor import (
     period_bounds,
     validate_plan,
 )
+from candata_agent.supervisor.clarification import Resolution
 from candata_agent.supervisor.planner import ClaudePlanner, PlannerResult, PlanningError
 from candata_mcp.connectors.boc_valet import Observation as ValetObservation
 from candata_mcp.connectors.boc_valet import ObservationSet, SeriesDetail
@@ -209,9 +210,11 @@ class ScriptedPlanner:
     def __init__(self, *outcomes: PlannerResult | Exception) -> None:
         self.outcomes = list(outcomes)
         self.questions: list[str] = []
+        self.resolved: list[tuple[Resolution, ...]] = []
 
-    async def plan(self, question: str) -> PlannerResult:
+    async def plan(self, question: str, *, resolved: Sequence[Resolution] = ()) -> PlannerResult:
         self.questions.append(question)
+        self.resolved.append(tuple(resolved))
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
