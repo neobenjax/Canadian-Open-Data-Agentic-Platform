@@ -1,0 +1,146 @@
+---
+title: MCP Tools Reference
+description: Complete tool definitions, parameter schemas, and return formats for all 11 official FastMCP tools
+---
+
+# MCP Tools Reference
+
+CanData-MCP exposes 11 official FastMCP tools connecting LLMs to authoritative Canadian data sources (Statistics Canada, Bank of Canada Valet, and Open Government Canada CKAN).
+
+---
+
+## Statistics Canada Connectors
+
+### `search_statcan_cubes`
+Finds official Statistics Canada data tables using keyword matching against titles and descriptions.
+
+- **Parameters:**
+  - `query` *(string, required)*: Keyword search query (e.g. `"Consumer price index monthly"`).
+  - `limit` *(integer, optional, default: `10`)*: Maximum tables to return.
+  - `offset` *(integer, optional, default: `0`)*: Results offset for pagination.
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+### `get_cube_dimensions`
+Retrieves dimensions, coordinate mappings, and available member series for a StatCan data cube.
+
+- **Parameters:**
+  - `product_id` *(string, required)*: The 8-digit or 10-digit StatCan product ID (e.g. `"18100004"` or `18100004`).
+  - `member_query` *(string, optional)*: Case-insensitive search filter for dimension members (e.g. `"Shelter"`).
+  - `dimension_name` *(string, optional)*: Filter by exact dimension name (e.g. `"Geography"`).
+  - `offset` *(integer, optional, default: `0`)*: Member offset for pagination.
+  - `limit` *(integer, optional, default: `25`)*: Maximum members to return per dimension.
+  - `max_members_per_dim` *(integer, optional, default: `20`)*: Truncation threshold per dimension.
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+### `query_statcan_vector`
+Fetches verified observations for a specific StatCan time-series vector ID.
+
+- **Parameters:**
+  - `vector_id` *(string, required)*: StatCan vector identifier (e.g. `"v41690973"` or `"41690973"`).
+  - `start_date` *(string, optional)*: Inclusive start date boundary (`YYYY-MM-DD` or `YYYY-MM`).
+  - `end_date` *(string, optional)*: Inclusive end date boundary (`YYYY-MM-DD` or `YYYY-MM`).
+  - `limit` *(integer, optional, default: `12`)*: Maximum observations to return.
+  - `lang` *(string, optional, default: `"en"`)*: Bilingual response language (`"en"` or `"fr"`).
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+### `query_statcan_coordinate`
+Fetches verified observations using a table product ID and hierarchical dotted dimension coordinate.
+
+- **Parameters:**
+  - `table_id` *(string, required)*: The StatCan table ID (e.g. `"18100004"`).
+  - `coordinate` *(string, required)*: Dotted dimension coordinate (e.g. `"1.1.0.0.0.0.0.0.0.0"`).
+  - `start_date` *(string, optional)*: Inclusive start date boundary (`YYYY-MM-DD` or `YYYY-MM`).
+  - `end_date` *(string, optional)*: Inclusive end date boundary (`YYYY-MM-DD` or `YYYY-MM`).
+  - `limit` *(integer, optional, default: `12`)*: Maximum observations to return.
+  - `lang` *(string, optional, default: `"en"`)*: Bilingual response language (`"en"` or `"fr"`).
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+---
+
+## Bank of Canada (Valet API) Connectors
+
+### `query_valet_series`
+Retrieves Bank of Canada economic series observations and revision metadata.
+
+- **Parameters:**
+  - `series_name` *(string, required)*: Valet series key (e.g. `"FXUSDCAD"`, `"POLICY_RATE"`).
+  - `start_date` *(string, optional)*: Inclusive start date (`YYYY-MM-DD`).
+  - `end_date` *(string, optional)*: Inclusive end date (`YYYY-MM-DD`).
+  - `limit` *(integer, optional, default: `12`)*: Maximum observations to return.
+  - `lang` *(string, optional, default: `"en"`)*: Bilingual response language (`"en"` or `"fr"`).
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+### `query_valet_policy_rate`
+Retrieves Bank of Canada Policy Interest Rate (Target for the Overnight Rate, `FX_RPA_RATE`).
+
+- **Parameters:**
+  - `start_date` *(string, optional)*: Inclusive start date (`YYYY-MM-DD`).
+  - `end_date` *(string, optional)*: Inclusive end date (`YYYY-MM-DD`).
+  - `limit` *(integer, optional, default: `10`)*: Maximum observations to return.
+  - `lang` *(string, optional, default: `"en"`)*: Bilingual response language (`"en"` or `"fr"`).
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+### `query_valet_cpi`
+Retrieves official Bank of Canada preferred measures of core inflation (Total CPI, CPI-Common, CPI-Median, CPI-Trim).
+
+- **Parameters:**
+  - `measure` *(string, optional, default: `"total"`)*: Core inflation measure (`"total"`, `"common"`, `"median"`, or `"trim"`).
+  - `start_date` *(string, optional)*: Inclusive start date (`YYYY-MM-DD` or `YYYY-MM`).
+  - `end_date` *(string, optional)*: Inclusive end date (`YYYY-MM-DD` or `YYYY-MM`).
+  - `limit` *(integer, optional, default: `12`)*: Maximum observations to return.
+  - `lang` *(string, optional, default: `"en"`)*: Bilingual response language (`"en"` or `"fr"`).
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+---
+
+## Open Government Canada (CKAN) Connectors
+
+### `search_open_canada_datasets`
+Searches federal open datasets across Government of Canada departments.
+
+- **Parameters:**
+  - `query` *(string, required)*: Search keywords (e.g. `"housing"`, `"infrastructure"`).
+  - `organization` *(string, optional)*: Federal department or agency filter (e.g. `"statcan"`, `"cmhc-schl"`).
+  - `datastore_only` *(boolean, optional, default: `false`)*: Filter packages that contain tabular DataStore resources.
+  - `limit` *(integer, optional, default: `10`)*: Results per page.
+  - `offset` *(integer, optional, default: `0`)*: Results offset for pagination.
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+### `get_open_canada_dataset`
+Retrieves full metadata, resource URLs, and coverage details for an Open Canada dataset package.
+
+- **Parameters:**
+  - `package_id` *(string, required)*: Open Canada dataset package UUID or slug.
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+### `query_open_canada_datastore`
+Queries tabular CKAN DataStore resources with filtering, projection, and pagination.
+
+- **Parameters:**
+  - `resource_id` *(string, required)*: CKAN DataStore resource UUID.
+  - `package_id` *(string, optional)*: Dataset package ID for citation enrichment.
+  - `q` *(string, optional)*: Full-text search string within tabular records.
+  - `filters` *(object or string, optional)*: Field-value exact match filter dictionary.
+  - `fields` *(array of strings or string, optional)*: Column names to project.
+  - `sort` *(string, optional)*: Sort order expression (e.g. `"_id asc"`).
+  - `limit` *(integer, optional, default: `100`)*: Maximum rows to return.
+  - `offset` *(integer, optional, default: `0`)*: Row offset for pagination.
+  - `lang` *(string, optional, default: `"en"`)*: Language (`"en"` or `"fr"`).
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+---
+
+## Analytics & Slicing Engine
+
+### `execute_sql_analytics`
+Executes sandboxed DuckDB SQL queries over sliced observation vectors in memory. The targeted series is mounted into a local in-memory table named `series`.
+
+- **Parameters:**
+  - `source` *(string, required)*: Data provider source (`"statcan"`, `"valet"`, or `"open_canada"`).
+  - `series_id` *(string, required)*: Series identifier (`vector_id` for StatCan, `series_name` for Valet, `resource_id` for Open Canada).
+  - `sql_query` *(string, required)*: Valid SQL `SELECT` statement operating on the `series` table.
+- **Security Guardrails:**
+  - `enable_external_access: false`
+  - `lock_configuration: true`
+  - DDL, DML, and file access table functions are strictly prohibited.
+- **Annotations:** `readOnly: true`, `idempotent: true`
