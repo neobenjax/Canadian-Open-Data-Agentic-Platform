@@ -4,41 +4,12 @@
 # ==============================================================================
 
 services:
-  # FastMCP 2.0 In-Memory DuckDB Slicing Engine
-  candata-mcp:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.fastmcp
-    image: ghcr.io/neobenjax/candata-mcp:latest
-    container_name: candata-fastmcp-server
-    restart: unless-stopped
-    user: "10001:10001"
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=64m
-    environment:
-      - PYTHONUNBUFFERED=1
-    deploy:
-      resources:
-        limits:
-          cpus: "2.0"
-          memory: 2048M
-        reservations:
-          cpus: "0.5"
-          memory: 512M
-    networks:
-      - candata-net
-
   # LangGraph Multi-Agent Orchestration & Streamlit Interactive UI
   candata-orchestrator:
     build:
       context: .
       dockerfile: docker/Dockerfile.orchestrator
-    image: ghcr.io/neobenjax/candata-orchestrator:latest
+    image: ghcr.io/neobenjax/canadian-open-data-agentic-platform/candata-orchestrator:latest
     container_name: candata-agent-orchestrator
     restart: unless-stopped
     user: "10001:10001"
@@ -66,8 +37,6 @@ services:
         reservations:
           cpus: "0.5"
           memory: 512M
-    depends_on:
-      - candata-mcp
     networks:
       - candata-net
 

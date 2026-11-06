@@ -33,13 +33,18 @@ def test_fastmcp_dockerfile_security():
     assert "AS builder" in content
     assert "AS runtime" in content
 
+    # Builder venv environment check
+    assert "UV_PROJECT_ENVIRONMENT=/app/.venv" in content
+
     # Non-root UID/GID 10001 check
     assert "10001" in content
     assert re.search(r"USER\s+10001:10001", content) is not None
 
-    # Hardening flags
+    # Hardening flags & module entrypoint
     assert "PYTHONUNBUFFERED=1" in content
     assert "PYTHONDONTWRITEBYTECODE=1" in content
+    assert "PYTHONPATH=" in content
+    assert 'ENTRYPOINT ["python", "-m", "candata_mcp"]' in content
 
     # Healthcheck check
     assert "HEALTHCHECK" in content
@@ -56,6 +61,9 @@ def test_orchestrator_dockerfile_security():
     # Multi-stage check
     assert "AS builder" in content
     assert "AS runtime" in content
+
+    # Builder venv environment check
+    assert "UV_PROJECT_ENVIRONMENT=/app/.venv" in content
 
     # Non-root user check
     assert re.search(r"USER\s+10001:10001", content) is not None
@@ -75,16 +83,18 @@ def test_docker_compose_security_hardening():
     with open(compose_path, encoding="utf-8") as f:
         content = f.read()
 
-    # Both services must be defined
-    assert "candata-mcp:" in content
+    # Orchestrator service must be defined
     assert "candata-orchestrator:" in content
+    expected_image = (
+        "ghcr.io/neobenjax/canadian-open-data-agentic-platform/candata-orchestrator:latest"
+    )
+    assert expected_image in content
 
     # Security options
     assert 'user: "10001:10001"' in content
     assert "no-new-privileges:true" in content
     assert "ALL" in content  # cap_drop
     assert "/tmp:rw,noexec,nosuid" in content
-    assert "read_only: true" in content
 
     # Resource constraints
     assert "cpus:" in content
@@ -92,12 +102,13 @@ def test_docker_compose_security_hardening():
 
 
 def test_ghcr_workflow_configuration():
-    """Verify .github/workflows/docker-publish.yml exists and targets GHCR."""
+    """Verify .github/workflows/docker-publish.yml exists and targets GHCR with PR trigger."""
     wf_path = os.path.join(ROOT_DIR, ".github", "workflows", "docker-publish.yml")
     assert os.path.exists(wf_path), "docker-publish.yml workflow must exist"
     with open(wf_path, encoding="utf-8") as f:
         content = f.read()
 
+    assert "pull_request:" in content
     assert "ghcr.io" in content
     assert "candata-mcp" in content
     assert "candata-orchestrator" in content

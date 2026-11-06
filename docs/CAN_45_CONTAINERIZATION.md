@@ -11,7 +11,7 @@ The platform provides two hardened, minimal multi-stage OCI images built on `pyt
 
 | Image | Dockerfile | Target Package | Entrypoint |
 |---|---|---|---|
-| `ghcr.io/neobenjax/canadian-open-data-agentic-platform/candata-mcp` | `docker/Dockerfile.fastmcp` | `candata_mcp` | FastMCP stdio server (`candata-mcp`) |
+| `ghcr.io/neobenjax/canadian-open-data-agentic-platform/candata-mcp` | `docker/Dockerfile.fastmcp` | `candata_mcp` | FastMCP stdio server (`python -m candata_mcp`) |
 | `ghcr.io/neobenjax/canadian-open-data-agentic-platform/candata-orchestrator` | `docker/Dockerfile.orchestrator` | `candata_agent` & `apps/agent-ui` | Streamlit interactive UI (`streamlit run apps/agent-ui/app.py`) |
 
 ---
@@ -37,12 +37,14 @@ Both containers enforce defense-in-depth principles:
 
 ---
 
-## 3. Running with Docker Compose
+## 3. Running Containerized Services
 
-Run the entire platform locally with zero host Python dependencies:
+### A. Streamlit Multi-Agent Orchestrator (Docker Compose)
+
+Run the full web UI locally with zero host Python dependencies:
 
 ```bash
-# Build and run the multi-agent suite in background
+# Build and run the multi-agent UI service in background
 docker compose up -d --build
 
 # View container logs
@@ -58,11 +60,49 @@ docker compose ps
 docker compose down
 ```
 
+### B. FastMCP 2.0 Server over stdio (Claude Desktop / Cursor / CLI)
+
+Because FastMCP speaks stdio (`mcp.run(transport="stdio")`), MCP clients launch the server with interactive stdin attached:
+
+```bash
+docker run -i --rm \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  --user 10001:10001 \
+  --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  ghcr.io/neobenjax/canadian-open-data-agentic-platform/candata-mcp:latest
+```
+
+**Claude Desktop Configuration (`claude_desktop_config.json`):**
+
+```json
+{
+  "mcpServers": {
+    "candata": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--read-only",
+        "--cap-drop", "ALL",
+        "--security-opt", "no-new-privileges:true",
+        "--user", "10001:10001",
+        "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+        "ghcr.io/neobenjax/canadian-open-data-agentic-platform/candata-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
 ---
 
 ## 4. Automated GHCR Publishing Pipeline
 
 The GitHub Actions workflow `.github/workflows/docker-publish.yml` automatically builds, tags, and publishes OCI-compliant multi-arch images (`linux/amd64`, `linux/arm64`) to the GitHub Container Registry (`ghcr.io`):
-- Pushes to `main` tag images with `latest` and short commit SHAs (`sha-<short>`).
+- Pull requests build and validate images on `linux/amd64` without pushing to the registry.
+- Pushes to `main` publish multi-arch images tagged with `latest` and short commit SHAs (`sha-<short>`).
 - Version tags (e.g. `v1.0.0`) publish tagged semver releases.
 - Build caching is accelerated via GitHub Actions cache backend (`type=gha`).

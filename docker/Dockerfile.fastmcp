@@ -11,10 +11,11 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
 WORKDIR /build
 
-# Configure uv for clean, cacheable container installs
+# Configure uv for clean, cacheable container installs into /app/.venv
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    UV_PYTHON_DOWNLOADS=never
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/app/.venv
 
 # Copy dependency manifests first for layer caching
 COPY pyproject.toml uv.lock ./
@@ -39,13 +40,13 @@ FROM python:3.12-slim-bookworm AS runtime
 LABEL org.opencontainers.image.title="CanData-MCP Server" \
       org.opencontainers.image.description="FastMCP 2.0 in-memory DuckDB slicing server for official Canadian civic data" \
       org.opencontainers.image.vendor="Canadian Open Data Agentic Platform" \
-      org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.source="https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform"
 
 # Set runtime security and Python environment flags
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app/packages/candata-mcp/src" \
     HOME="/home/candata"
 
 # Create unprivileged system group and user with fixed UID/GID 10001
@@ -68,5 +69,5 @@ USER 10001:10001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD python -c "import candata_mcp.server; import duckdb; con = duckdb.connect(':memory:'); assert con.execute('SELECT 1').fetchone()[0] == 1" || exit 1
 
-# Standard MCP I/O entrypoint
-ENTRYPOINT ["candata-mcp"]
+# Standard MCP I/O entrypoint via module execution
+ENTRYPOINT ["python", "-m", "candata_mcp"]
