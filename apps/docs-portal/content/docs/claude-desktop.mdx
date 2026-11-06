@@ -15,15 +15,16 @@ Add the server to your `claude_desktop_config.json`:
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
+### Recommended (Standalone Distribution via `uvx`)
+
 ```json
 {
   "mcpServers": {
     "candata": {
-      "command": "uv",
+      "command": "uvx",
       "args": [
-        "run",
-        "--directory",
-        "/absolute/path/to/Canadian-Open-Data-Agentic-Platform",
+        "--from",
+        "git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git",
         "candata-mcp"
       ],
       "env": {
@@ -34,7 +35,34 @@ Add the server to your `claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop. You will see a hammer icon 🔨 indicating that `candata` tools (`search_statcan_cubes`, `get_cube_dimensions`, `get_series`, `execute_sql_analytics`) are active.
+### Monorepo Local Development
+
+If you are developing inside a clone of the monorepo:
+
+```json
+{
+  "mcpServers": {
+    "candata": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/absolute/path/to/Canadian-Open-Data-Agentic-Platform",
+        "--package",
+        "candata-mcp",
+        "python",
+        "-m",
+        "candata_mcp"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop. You will see a hammer icon 🔨 indicating that all 11 `candata` tools (`search_statcan_cubes`, `query_statcan_vector`, `query_valet_series`, `execute_sql_analytics`, etc.) are active.
 
 ---
 
@@ -45,5 +73,5 @@ Restart Claude Desktop. You will see a hammer icon 🔨 indicating that `candata
 3. Fill in the details:
    - **Name:** `candata`
    - **Type:** `stdio`
-   - **Command:** `uv run --directory /absolute/path/to/Canadian-Open-Data-Agentic-Platform candata-mcp`
-4. Test the connection. Cursor Composer can now query official Statistics Canada cubes and Bank of Canada Valet rates directly from chat.
+   - **Command:** `uvx --from git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git candata-mcp`
+4. Test the connection. Cursor Composer can now query official Statistics Canada cubes, Bank of Canada Valet rates, and Open Government datasets directly from chat.

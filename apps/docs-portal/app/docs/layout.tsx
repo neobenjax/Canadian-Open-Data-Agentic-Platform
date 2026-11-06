@@ -71,7 +71,7 @@ export default function DocsLayout({
               <Sparkles className="w-3.5 h-3.5 text-red-600" /> FastMCP Standard
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-              Tested against Anthropic Claude 3.5 Sonnet, Claude Desktop, and LangGraph 0.2+.
+              Compliant with Model Context Protocol (MCP) standard and sandboxed DuckDB query execution.
             </p>
           </div>
         </aside>

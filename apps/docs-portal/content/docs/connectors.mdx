@@ -10,21 +10,24 @@ CanData-MCP features three production-grade, hardened REST connectors adhering t
 ## 1. Statistics Canada WDS API
 - **Endpoint:** `https://www.statcan.gc.ca/wds/rest`
 - **Capabilities:**
-  - Full-text discovery over all Canadian statistical tables (`search_statcan_cubes`)
+  - Keyword discovery over all Canadian statistical tables (`search_statcan_cubes`)
   - Dimensional coordinate lookups (`get_cube_dimensions`)
-  - Vector extraction by ID with revision timestamps (`get_data_from_vectors`)
+  - Vector extraction by ID with revision timestamps (`query_statcan_vector`)
+  - Coordinate extraction by table ID and dotted coordinate (`query_statcan_coordinate`)
   - Built-in HTTP caching, rate-limit backoff, and SDMX dimension resolution
 
 ## 2. Bank of Canada Valet API
 - **Endpoint:** `https://www.bankofcanada.ca/valet`
 - **Capabilities:**
-  - Key monetary indicators: Overnight Target Rate (`FX_RPA_RATE`), Prime Business Rate
-  - Daily, monthly, and quarterly exchange rates and yield curves
+  - Key monetary indicators: Overnight Target Rate (`query_valet_policy_rate`)
+  - Preferred core inflation measures: Total, Common, Median, Trim (`query_valet_cpi`)
+  - Daily, monthly, and quarterly exchange rates and yield curves (`query_valet_series`)
   - Exact series metadata, descriptions, and publisher revision timestamps
 
 ## 3. Open Government Canada CKAN
 - **Endpoint:** `https://open.canada.ca/data/api/3`
 - **Capabilities:**
-  - Federal open dataset search across federal departments
-  - Integrated CKAN DataStore streaming into DuckDB
+  - Federal open dataset search across departments (`search_open_canada_datasets`)
+  - Package metadata and resource schema retrieval (`get_open_canada_dataset`)
+  - Integrated CKAN DataStore streaming into DuckDB (`query_open_canada_datastore`)
   - Automated citation extraction from federal metadata coverage bounds

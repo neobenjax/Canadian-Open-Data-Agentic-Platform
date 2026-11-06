@@ -6,14 +6,6 @@ const withMDX = createMDX();
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
-  async rewrites() {
-    return [
-      {
-        source: '/docs/:path*',
-        destination: '/docs/:path*',
-      },
-    ];
-  },
 };
 
 export default withMDX(nextConfig);
