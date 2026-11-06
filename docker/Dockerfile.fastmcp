@@ -1,0 +1,72 @@
+# syntax=docker/dockerfile:1.7
+# ==============================================================================
+# CanData-MCP FastMCP 2.0 Server — Production Hardened Container Image
+# Multi-stage build with Astral uv, non-root user (UID 10001), and read-only rootfs
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Stage 1: Builder
+# ------------------------------------------------------------------------------
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+
+WORKDIR /build
+
+# Configure uv for clean, cacheable container installs
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+# Copy dependency manifests first for layer caching
+COPY pyproject.toml uv.lock ./
+
+# Install base dependencies into /app/.venv
+RUN uv sync --frozen --no-install-project --no-dev
+
+# Copy source trees
+COPY packages/candata-mcp ./packages/candata-mcp
+COPY packages/agent-orchestrator ./packages/agent-orchestrator
+COPY scripts ./scripts
+COPY governance.json ./
+
+# Install project into virtualenv
+RUN uv sync --frozen --no-dev
+
+# ------------------------------------------------------------------------------
+# Stage 2: Hardened Runtime
+# ------------------------------------------------------------------------------
+FROM python:3.12-slim-bookworm AS runtime
+
+LABEL org.opencontainers.image.title="CanData-MCP Server" \
+      org.opencontainers.image.description="FastMCP 2.0 in-memory DuckDB slicing server for official Canadian civic data" \
+      org.opencontainers.image.vendor="Canadian Open Data Agentic Platform" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.source="https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform"
+
+# Set runtime security and Python environment flags
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH" \
+    HOME="/home/candata"
+
+# Create unprivileged system group and user with fixed UID/GID 10001
+RUN groupadd --gid 10001 --system candata && \
+    useradd --uid 10001 --system --gid candata --create-home --home-dir /home/candata candata && \
+    mkdir -p /app /app/tmp && \
+    chown -R candata:candata /app /home/candata
+
+WORKDIR /app
+
+# Copy compiled virtualenv and application code from builder
+COPY --from=builder --chown=candata:candata /app/.venv /app/.venv
+COPY --from=builder --chown=candata:candata /build/packages/candata-mcp /app/packages/candata-mcp
+COPY --from=builder --chown=candata:candata /build/governance.json /app/governance.json
+
+# Drop all default root capabilities & switch to unprivileged user
+USER 10001:10001
+
+# Healthcheck testing server module import and DuckDB engine sanity
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD python -c "import candata_mcp.server; import duckdb; con = duckdb.connect(':memory:'); assert con.execute('SELECT 1').fetchone()[0] == 1" || exit 1
+
+# Standard MCP I/O entrypoint
+ENTRYPOINT ["candata-mcp"]

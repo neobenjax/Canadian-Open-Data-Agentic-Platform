@@ -1,0 +1,78 @@
+# syntax=docker/dockerfile:1.7
+# ==============================================================================
+# CanData LangGraph Multi-Agent Orchestration & UI Service
+# Multi-stage build with Astral uv, non-root user (UID 10001), and SQLite volume
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Stage 1: Builder
+# ------------------------------------------------------------------------------
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+
+WORKDIR /build
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+COPY pyproject.toml uv.lock ./
+
+# Install agent, UI and tracing optional dependencies into /app/.venv
+RUN uv sync --frozen --no-install-project --no-dev --extra agent --extra ui --extra tracing
+
+# Copy source trees
+COPY packages/candata-mcp ./packages/candata-mcp
+COPY packages/agent-orchestrator ./packages/agent-orchestrator
+COPY apps/agent-ui ./apps/agent-ui
+COPY scripts ./scripts
+COPY governance.json ./
+
+# Finalize project install
+RUN uv sync --frozen --no-dev --extra agent --extra ui --extra tracing
+
+# ------------------------------------------------------------------------------
+# Stage 2: Hardened Runtime
+# ------------------------------------------------------------------------------
+FROM python:3.12-slim-bookworm AS runtime
+
+LABEL org.opencontainers.image.title="CanData Multi-Agent Orchestrator" \
+      org.opencontainers.image.description="LangGraph multi-agent orchestration service with Streamlit interactive UI" \
+      org.opencontainers.image.vendor="Canadian Open Data Agentic Platform" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.source="https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform"
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH" \
+    HOME="/home/candata" \
+    STREAMLIT_SERVER_PORT=8501 \
+    STREAMLIT_SERVER_ADDRESS="0.0.0.0" \
+    STREAMLIT_SERVER_HEADLESS="true"
+
+# Create unprivileged system group and user with fixed UID/GID 10001
+RUN groupadd --gid 10001 --system candata && \
+    useradd --uid 10001 --system --gid candata --create-home --home-dir /home/candata candata && \
+    mkdir -p /app /app/.candata /app/tmp && \
+    chown -R candata:candata /app /home/candata
+
+WORKDIR /app
+
+# Copy compiled virtualenv and application code from builder
+COPY --from=builder --chown=candata:candata /app/.venv /app/.venv
+COPY --from=builder --chown=candata:candata /build/packages/candata-mcp /app/packages/candata-mcp
+COPY --from=builder --chown=candata:candata /build/packages/agent-orchestrator /app/packages/agent-orchestrator
+COPY --from=builder --chown=candata:candata /build/apps/agent-ui /app/apps/agent-ui
+COPY --from=builder --chown=candata:candata /build/governance.json /app/governance.json
+
+# Declare checkpoint database directory as a persistent volume
+VOLUME ["/app/.candata"]
+
+EXPOSE 8501
+
+USER 10001:10001
+
+# Healthcheck testing HTTP endpoint of Streamlit server
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')" || exit 1
+
+ENTRYPOINT ["streamlit", "run", "apps/agent-ui/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]

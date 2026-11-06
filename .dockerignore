@@ -1,0 +1,41 @@
+# Git & IDE
+.git
+.github
+.cursorrules
+.vscode
+.idea
+
+# Python caches and virtualenvs
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# Tests & benchmarks (not needed in production image)
+tests/
+collaboration/
+presentation/
+apps/portfolio-site/
+apps/docs-portal/
+
+# SQLite & checkpoints
+.candata/
+*.db
+*.sqlite
+*.sqlite3
+
+# Node / JS
+node_modules/
+.next/
+out/
+
+# Environment files
+.env
+.env.*
+!.env.example
