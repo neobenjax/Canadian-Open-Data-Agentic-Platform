@@ -1,0 +1,25 @@
+---
+title: Introduction
+description: Overview of the Canadian Open Data Agentic Platform (CanData-MCP)
+---
+
+# Canadian Open Data Agentic Platform
+
+The **Canadian Open Data Agentic Platform (`CanData-MCP`)** provides an auditable, sub-second civic data intelligence layer bridging frontier AI reasoning with official Canadian public data sources.
+
+## Core Problem
+Frontier LLMs without grounded data access hallucinate official figures, misquote statistical time periods, or fail on municipal vs census metropolitan area (CMA) boundaries. Furthermore, existing REST APIs deliver monolithic 200MB payloads that easily exhaust LLM context windows.
+
+```
+       Monolithic 200MB SDMX/CSV ──► Context Exhaustion & Hallucinations
+                                              ▲
+                                              │
+[LLM Question] ──► [CanData-MCP Engine] ──► [Auditable <3KB Slice + Tuple]
+                      (DuckDB Arrow)          (table_id, vector_id, ref_period)
+```
+
+## Solution Highlights
+- **In-Memory DuckDB Slicing:** Uses Apache Arrow and in-memory DuckDB 1.2+ to reduce 200MB data cubes into clean, typed `<3KB` observation payloads.
+- **Citation Envelope Verification:** Every factual claim is cryptographically bound to an official **Core Verification Tuple** `(table_id, vector_id, reference_period)` paired with Enrichment Metadata `(release_date, coordinate, bilingual_title, deep_link)`.
+- **Zero Mental Math:** LLMs never compute sums, averages, or percentage point changes mentally; deterministic SQL recipes execute directly within DuckDB sandbox boundaries.
+- **FastMCP 2.0 Native:** Fully compatible with Claude Desktop, Cursor, and stateful LangGraph multi-agent teams.

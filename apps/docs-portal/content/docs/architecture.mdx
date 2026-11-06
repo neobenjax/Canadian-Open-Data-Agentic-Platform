@@ -1,0 +1,41 @@
+---
+title: System Architecture
+description: Slicing engine, multi-agent orchestration, and citation envelopes
+---
+
+# Platform Architecture
+
+The platform combines high-throughput data slicing with stateful agentic orchestration.
+
+## 1. FastMCP 2.0 In-Memory DuckDB Slicing Engine
+Large statistical data cubes frequently contain millions of cells across decades. Downloading full CSV dumps creates severe latency and context bloat. CanData-MCP leverages DuckDB 1.2+ and PyArrow:
+
+1. **Selective Streaming:** Extracts raw payload partitions directly into Arrow tables.
+2. **Deterministic SQL Math:** Runs exact aggregation (Year-over-Year, CAGR, basis point spreads) in C++ without passing unaggregated rows to the LLM.
+3. **Payload Clamping:** Clamps all tool responses to strict `<3KB` envelopes, preventing context pollution.
+
+## 2. The Citation Envelope & Core Verification Tuple
+To prevent temporal drift on official series revisions, every statistical fact is validated against the **Citation Envelope**:
+
+```typescript
+interface CitationEnvelope {
+  // Core Verification Tuple (strict pass/fail)
+  table_id: string;        // e.g. "18-10-0004-01"
+  vector_id: string;       // e.g. "v41690973"
+  reference_period: string;// e.g. "2024-01/2024-12"
+
+  // Enrichment Metadata (scored tier 2)
+  release_or_revision_date: string;
+  coordinate: string;
+  bilingual_title: { en: string; fr: string };
+  deep_link: string;
+}
+```
+
+## 3. LangGraph Multi-Agent Team
+In the full platform orchestration suite:
+- **Supervisor Node:** Plans decomposition and routes tools.
+- **Data Fetcher Node:** Retrieves official vectors.
+- **Data Analyst Node:** Executes SQL arithmetic in DuckDB sandbox.
+- **Citation Verifier Node:** Audits numbers and release timestamps against official publishers.
+- **HITL Node:** Fires `interrupt()` when user clarification is required for spatial ambiguity.

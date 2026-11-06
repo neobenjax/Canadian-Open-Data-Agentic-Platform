@@ -1,0 +1,47 @@
+---
+title: Quickstart & Installation
+description: Install and run the CanData-MCP server locally in under 60 seconds
+---
+
+# Quickstart & Installation
+
+CanData-MCP is packaged with zero unnecessary runtime dependencies and runs anywhere with Python 3.12+.
+
+## 1. Installation via `uv`
+
+We recommend [Astral `uv`](https://github.com/astral-sh/uv) for blazing fast, deterministic Python environment setup:
+
+```bash
+# Clone the repository
+git clone https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform.git
+cd Canadian-Open-Data-Agentic-Platform
+
+# Synchronize the environment
+uv sync
+
+# Run pre-flight verification
+uv run python scripts/verify.py
+```
+
+## 2. Launching the FastMCP Server
+
+Run the standalone FastMCP standard I/O server:
+
+```bash
+uv run python -m candata_mcp.server
+```
+
+Or execute directly through the package console script entrypoint:
+
+```bash
+uv run candata-mcp
+```
+
+## 3. Running with Streamlit Interactive UI
+
+If you want to explore the multi-agent execution pipeline in real-time with unit-aware Plotly charts:
+
+```bash
+uv sync --extra ui --extra agent
+uv run streamlit run apps/agent-ui/app.py
+```

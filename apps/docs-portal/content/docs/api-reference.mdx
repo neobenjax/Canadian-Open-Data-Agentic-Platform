@@ -1,0 +1,38 @@
+---
+title: MCP Tools Reference
+description: Complete tool definitions, parameter schemas, and return formats
+---
+
+# MCP Tools Reference
+
+CanData-MCP exposes the following annotated tools to connected LLMs:
+
+## `search_statcan_cubes`
+Finds official Statistics Canada data tables using semantic and keyword matching.
+- **Parameters:**
+  - `query` *(string, required)*: Search keywords (e.g. `"Consumer price index monthly"`).
+  - `limit` *(integer, optional)*: Maximum tables to return (default: `5`).
+- **Annotations:** `readOnly: true`, `idempotent: true`
+
+## `get_cube_dimensions`
+Retrieves dimensions, coordinate mappings, and available member series for a StatCan cube.
+- **Parameters:**
+  - `table_id` *(string, required)*: The 8-digit or 10-digit table ID (e.g. `"18100004"` or `"18-10-0004-01"`).
+
+## `get_data_from_vectors`
+Fetches verified observations for specific vector IDs.
+- **Parameters:**
+  - `vector_ids` *(array of strings, required)*: List of vector identifiers (e.g. `["v41690973"]`).
+  - `latest_n` *(integer, optional)*: Number of most recent periods to return (default: `12`).
+
+## `get_series` (Bank of Canada Valet)
+Retrieves Bank of Canada economic series observations and revision metadata.
+- **Parameters:**
+  - `series_name` *(string, required)*: Valet series key (e.g. `"FXUSDCAD"`, `"POLICY_RATE"`).
+  - `recent` *(integer, optional)*: Number of recent observations (default: `10`).
+
+## `execute_sql_analytics`
+Runs sandboxed DuckDB SQL queries over sliced vector observations.
+- **Parameters:**
+  - `sql` *(string, required)*: Valid SQL `SELECT` statement operating on the `series` table.
+  - `vector_id` *(string, required)*: Context vector to mount as the table.
