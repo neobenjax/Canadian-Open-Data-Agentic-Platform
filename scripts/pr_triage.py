@@ -126,9 +126,12 @@ def build_dual_closing_lines(task_key: str | None, current_body: str) -> list[st
     linear_team_prefix = get_linear_team_prefix()
     normalized_body = current_body.replace("\\r\\n", "\n").replace("\\n", "\n")
 
-    # Check if author already provided any 'Closes <LINEAR_TEAM_PREFIX>-XX' (e.g. Closes BEN-25)
     has_author_linear_key = bool(
-        re.search(rf"\bcloses\s+{re.escape(linear_team_prefix)}-\d+\b", normalized_body, re.IGNORECASE)
+        re.search(
+            rf"\bcloses\s+{re.escape(linear_team_prefix)}-\d+\b",
+            normalized_body,
+            re.IGNORECASE,
+        )
     )
 
     if not has_author_linear_key:
@@ -246,7 +249,10 @@ def run_pr_triage(
 
         if reviewer:
             try:
-                rev_url = f"https://api.github.com/repos/{effective_repo}/pulls/{pr_number}/requested_reviewers"
+                rev_url = (
+                    f"https://api.github.com/repos/{effective_repo}/pulls/"
+                    f"{pr_number}/requested_reviewers"
+                )
                 req = urllib.request.Request(
                     rev_url,
                     data=json.dumps({"reviewers": [reviewer]}).encode("utf-8"),

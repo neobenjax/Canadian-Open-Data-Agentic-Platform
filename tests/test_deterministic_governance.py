@@ -3,26 +3,7 @@
 Tests pr_triage.py, validate_commit_msg.py, and governance_config.py.
 """
 
-try:
-    import pytest
-except ImportError:
-    class _PytestShim:
-        @staticmethod
-        def raises(expected_exc, match=None):
-            class _RaisesContext:
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, exc_type, exc_val, exc_tb):
-                    if not exc_type or not issubclass(exc_type, expected_exc):
-                        raise AssertionError(f"Expected {expected_exc}, got {exc_type}")
-                    if match and match not in str(exc_val):
-                        raise AssertionError(f"Expected pattern '{match}' in '{exc_val}'")
-                    return True
-
-            return _RaisesContext()
-
-    pytest = _PytestShim()
+import pytest
 
 from scripts.governance_config import (
     get_area_label,
