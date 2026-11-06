@@ -15,6 +15,10 @@ dimension shares, ``lookup_series`` refuses such a member until the user has cho
 ``request_clarification`` tool ends planning with a ``Clarification`` for the user. Its options
 are only members ``find_members`` returned. ``plan(question, resolved=...)`` plans again with
 the user's choices.
+
+CAN-44 token optimization: Anthropic prompt caching with ephemeral breakpoints on the system
+prompt, tools catalog, and the latest conversation turn; token usage records cache creation and
+read hits.
 """
 
 from __future__ import annotations
@@ -24,10 +28,15 @@ import time
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Final, Protocol
+from typing import Any, Final, Protocol, cast
 
 from anthropic import AsyncAnthropic
-from anthropic.types.beta import BetaMessageParam, BetaToolParam, BetaToolUseBlock
+from anthropic.types.beta import (
+    BetaMessageParam,
+    BetaTextBlockParam,
+    BetaToolParam,
+    BetaToolUseBlock,
+)
 from pydantic import ValidationError
 
 from candata_agent.state import QueryPlan
@@ -58,6 +67,7 @@ from candata_mcp.connectors.statcan_wds import (
 
 DEFAULT_MODEL: Final = "claude-opus-5-5"
 FALLBACK_BETA: Final = "server-side-fallback-2026-07-01"
+PROMPT_CACHING_BETA: Final = "prompt-caching-2024-07-31"
 MAX_MEMBERS: Final = 15
 
 
@@ -81,12 +91,14 @@ class PlanningError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class PlannerResult:
-    plan: QueryPlan | None
+    plan: QueryPlan | None = None
     declined_reason: str | None = None
     input_tokens: int = 0
     output_tokens: int = 0
     audit: tuple[ToolCallRecord, ...] = ()
     clarification: Clarification | None = None
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
 
 
 DimensionKey = tuple[str, int]  # (table key, dimension position)
@@ -162,27 +174,44 @@ class ClaudePlanner:
         self._max_turns = max_turns
         self._max_tokens = max_tokens
         self._system = SYSTEM_PROMPT.format(tool_catalog=_tool_catalog())
+        self._system_blocks: list[BetaTextBlockParam] = [
+            {
+                "type": "text",
+                "text": self._system,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        self._tools: list[BetaToolParam] = [
+            cast(BetaToolParam, {**tool, "cache_control": {"type": "ephemeral"}})
+            if i == len(PLANNER_TOOLS) - 1
+            else tool
+            for i, tool in enumerate(PLANNER_TOOLS)
+        ]
 
     async def plan(self, question: str, *, resolved: Sequence[Resolution] = ()) -> PlannerResult:
         content = "\n\n".join([question, *(r.as_instruction() for r in resolved)])
         messages: list[BetaMessageParam] = [{"role": "user", "content": content}]
         input_tokens = output_tokens = 0
+        cache_creation_tokens = cache_read_tokens = 0
         session = _Session(resolved=frozenset(r.key for r in resolved))
         confirmed = session.confirmed
         audit: list[ToolCallRecord] = []
         for turn in range(1, self._max_turns + 1):
+            messages_with_cache = _with_turn_cache(messages)
             response = await self._client.beta.messages.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
-                system=self._system,
-                tools=PLANNER_TOOLS,
-                messages=messages,
+                system=self._system_blocks,
+                tools=self._tools,
+                messages=messages_with_cache,
                 output_config={"effort": self._effort},  # type: ignore[typeddict-item]
                 betas=[FALLBACK_BETA],
                 fallbacks="default",
             )
             input_tokens += response.usage.input_tokens
             output_tokens += response.usage.output_tokens
+            cache_creation_tokens += getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+            cache_read_tokens += getattr(response.usage, "cache_read_input_tokens", 0) or 0
             if response.stop_reason == "refusal":
                 raise PlanningError("the model declined to plan this request", audit)
             if response.stop_reason == "max_tokens":
@@ -208,7 +237,16 @@ class ClaudePlanner:
                         results.append(_tool_result(call.id, problem, True))
                         continue
                     audit.append(record(turn, call.name, call.input, "ok"))
-                    return PlannerResult(None, reason, input_tokens, output_tokens, tuple(audit))
+                    return PlannerResult(
+                        plan=None,
+                        declined_reason=reason,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        audit=tuple(audit),
+                        clarification=None,
+                        cache_creation_input_tokens=cache_creation_tokens,
+                        cache_read_input_tokens=cache_read_tokens,
+                    )
                 if call.name == "request_clarification":
                     try:
                         clarification = _clarification(call.input, session)
@@ -221,7 +259,14 @@ class ClaudePlanner:
                         continue
                     audit.append(record(turn, call.name, call.input, "ok"))
                     return PlannerResult(
-                        None, None, input_tokens, output_tokens, tuple(audit), clarification
+                        plan=None,
+                        declined_reason=None,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        audit=tuple(audit),
+                        clarification=clarification,
+                        cache_creation_input_tokens=cache_creation_tokens,
+                        cache_read_input_tokens=cache_read_tokens,
                     )
                 if call.name == "submit_plan":
                     try:
@@ -239,7 +284,16 @@ class ClaudePlanner:
                         results.append(_tool_result(call.id, problem, True))
                         continue
                     audit.append(record(turn, call.name, call.input, "ok"))
-                    return PlannerResult(plan, None, input_tokens, output_tokens, tuple(audit))
+                    return PlannerResult(
+                        plan=plan,
+                        declined_reason=None,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        audit=tuple(audit),
+                        clarification=None,
+                        cache_creation_input_tokens=cache_creation_tokens,
+                        cache_read_input_tokens=cache_read_tokens,
+                    )
                 results.append(await self._discovery_call(turn, call, session, audit))
             messages.append({"role": "user", "content": results})  # type: ignore[typeddict-item]
 
@@ -407,6 +461,24 @@ def _tool_result(tool_use_id: str, content: str, is_error: bool) -> dict[str, An
         "content": content,
         "is_error": is_error,
     }
+
+
+def _with_turn_cache(messages: list[BetaMessageParam]) -> list[BetaMessageParam]:
+    """Decorate the last tool result block with ephemeral cache control."""
+    if not messages:
+        return messages
+    out: list[BetaMessageParam] = list(messages)
+    last = out[-1]
+    content = last.get("content")
+    if isinstance(content, list) and content:
+        blocks: list[Any] = list(content)
+        last_block: dict[str, Any] = dict(cast(dict[str, Any], blocks[-1]))
+        last_block["cache_control"] = {"type": "ephemeral"}
+        blocks[-1] = last_block
+        updated: dict[str, Any] = dict(last)
+        updated["content"] = blocks
+        out[-1] = cast(BetaMessageParam, updated)
+    return out
 
 
 def _fold(text: str) -> str:

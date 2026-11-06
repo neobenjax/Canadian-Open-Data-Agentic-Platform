@@ -168,6 +168,8 @@ class TokenBudget(BaseModel):
     prompt_tokens_used: int = Field(default=0, ge=0)
     completion_tokens_used: int = Field(default=0, ge=0)
     total_tokens_used: int = Field(default=0, ge=0)
+    cache_creation_tokens_used: int = Field(default=0, ge=0)
+    cache_read_tokens_used: int = Field(default=0, ge=0)
 
     @model_validator(mode="after")
     def validate_or_compute_total_tokens(self) -> Self:
@@ -182,6 +184,16 @@ class TokenBudget(BaseModel):
     @property
     def remaining_tokens(self) -> int:
         return max(0, self.max_budget - self.total_tokens_used)
+
+    @property
+    def cache_savings_rate(self) -> float:
+        """Ratio of input tokens served from cache vs total candidate prompt tokens."""
+        total_input = (
+            self.prompt_tokens_used + self.cache_creation_tokens_used + self.cache_read_tokens_used
+        )
+        if total_input == 0:
+            return 0.0
+        return round(self.cache_read_tokens_used / total_input, 4)
 
 
 class AgentState(BaseModel):

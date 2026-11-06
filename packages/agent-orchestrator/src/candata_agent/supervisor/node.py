@@ -93,6 +93,12 @@ class PlannerOutcome(Protocol):
     @property
     def output_tokens(self) -> int: ...
 
+    @property
+    def cache_creation_input_tokens(self) -> int: ...
+
+    @property
+    def cache_read_input_tokens(self) -> int: ...
+
 
 def make_supervisor_node(planner: Planner) -> Node:
     """Plan the latest user question when there is no plan in progress; otherwise do nothing."""
@@ -168,11 +174,15 @@ def make_supervisor_node(planner: Planner) -> Node:
 
         audit: tuple[ToolCallRecord, ...] = getattr(outcome, "audit", ())
         budget = state.token_budget
+        cache_creation = getattr(outcome, "cache_creation_input_tokens", 0) or 0
+        cache_read = getattr(outcome, "cache_read_input_tokens", 0) or 0
         update: dict[str, Any] = {
             "token_budget": TokenBudget(
                 max_budget=budget.max_budget,
                 prompt_tokens_used=budget.prompt_tokens_used + outcome.input_tokens,
                 completion_tokens_used=budget.completion_tokens_used + outcome.output_tokens,
+                cache_creation_tokens_used=budget.cache_creation_tokens_used + cache_creation,
+                cache_read_tokens_used=budget.cache_read_tokens_used + cache_read,
             ),
             # A new question starts a new set of citations to verify, and drops the last report.
             "scratchpad": {**fresh, PLANNER_AUDIT: earlier_audit + [r.to_json() for r in audit]},
