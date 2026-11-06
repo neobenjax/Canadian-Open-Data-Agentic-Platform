@@ -1538,6 +1538,50 @@ def print_status_dashboard(parsed: Dict[str, Any], linear_issues: Optional[List[
 # 8. MAIN CLI HANDLER
 # ==============================================================================
 
+def sync_linear_keys_to_file(
+    linear_issues: List[Dict[str, Any]],
+    filepath: str = os.path.join(ROOT_DIR, "scripts", "linear_keys.json"),
+) -> None:
+    """Sync live Linear task identifiers to static linear_keys.json mapping."""
+    if not linear_issues:
+        return
+    updated: Dict[str, str] = {}
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                updated = json.load(f)
+        except Exception:
+            updated = {}
+
+    pattern = re.compile(r"^\[(CAN-\d+)\]", re.IGNORECASE)
+    changes = 0
+
+    def _ident_num(ident: str) -> int:
+        num_match = re.search(r"\d+", ident)
+        return int(num_match.group(0)) if num_match else 999999
+
+    for iss in linear_issues:
+        title = iss.get("title", "")
+        ident = iss.get("identifier", "")
+        m = pattern.match(title.strip())
+        if m and ident:
+            can_key = m.group(1).upper()
+            existing = updated.get(can_key)
+            if not existing or _ident_num(ident) < _ident_num(existing):
+                if existing != ident:
+                    updated[can_key] = ident
+                    changes += 1
+
+    if changes > 0:
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(dict(sorted(updated.items())), f, indent=2)
+                f.write("\n")
+            print(f"🔄 Updated {changes} task mapping(s) in '{os.path.basename(filepath)}'.")
+        except Exception as e:
+            print(f"Notice: Could not write {filepath}: {e}", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(description="CanData Task & Linear Synchronization CLI")
     parser.add_argument("--status", action="store_true", help="Print overall task dashboard")
@@ -1631,43 +1675,6 @@ def main():
             icon = "✅" if t["status"] == "DONE" else ("🔨" if t["status"] == "IN PROGRESS" else "⏳")
             print(f"  {icon} {t['key']:<7} [{t['status']:<11}] {t['description']}")
         return
-
-def sync_linear_keys_to_file(
-    linear_issues: List[Dict[str, Any]],
-    filepath: str = os.path.join(ROOT_DIR, "scripts", "linear_keys.json"),
-) -> None:
-    """Sync live Linear task identifiers to static linear_keys.json mapping."""
-    if not linear_issues:
-        return
-    updated: Dict[str, str] = {}
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                updated = json.load(f)
-        except Exception:
-            updated = {}
-
-    pattern = re.compile(r"^\[(CAN-\d+)\]", re.IGNORECASE)
-    changes = 0
-    for iss in linear_issues:
-        title = iss.get("title", "")
-        ident = iss.get("identifier", "")
-        m = pattern.match(title.strip())
-        if m and ident:
-            can_key = m.group(1).upper()
-            if updated.get(can_key) != ident:
-                updated[can_key] = ident
-                changes += 1
-
-    if changes > 0:
-        try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(dict(sorted(updated.items())), f, indent=2)
-                f.write("\n")
-            print(f"🔄 Updated {changes} task mapping(s) in '{os.path.basename(filepath)}'.")
-        except Exception as e:
-            print(f"Notice: Could not write {filepath}: {e}", file=sys.stderr)
-
 
     linear_issues = None
     if args.sync_linear:

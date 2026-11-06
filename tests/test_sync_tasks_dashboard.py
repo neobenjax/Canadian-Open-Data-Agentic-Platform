@@ -240,3 +240,49 @@ def test_uploaded_issue_gets_its_area_label_and_the_current_cycle(
     assert sprint3["cycleId"] == "cyc-3"
     assert "labelIds" not in sprint6  # no matching area label
     assert "cycleId" not in sprint6  # Sprint 6 is not the active cycle
+
+
+def test_sync_tasks_main_status_outputs_dashboard(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure `python scripts/sync_tasks.py --status` prints the dashboard header and progress."""
+    monkeypatch.setattr("sys.argv", ["sync_tasks.py", "--status"])
+    sync_tasks.main()
+    captured = capsys.readouterr()
+    assert "CANADIAN OPEN DATA AGENTIC PLATFORM — TASK STATUS DASHBOARD" in captured.out
+    assert "Total Tasks:" in captured.out
+    assert "Overall Progress:" in captured.out
+
+
+def test_sync_linear_keys_to_file_stably_resolves_duplicate_keys(tmp_path: Any) -> None:
+    """Ensure duplicate issue matches prefer the lowest identifier number stably."""
+    import json
+
+    key_file = tmp_path / "linear_keys.json"
+    key_file.write_text("{}", encoding="utf-8")
+
+    issues = [
+        {"title": "[CAN-16] Duplicate newer issue", "identifier": "BEN-44"},
+        {"title": "[CAN-16] Canonical original issue", "identifier": "BEN-15"},
+        {"title": "[CAN-34] CKAN federal dataset connector", "identifier": "BEN-25"},
+    ]
+
+    sync_tasks.sync_linear_keys_to_file(issues, filepath=str(key_file))
+
+    with open(key_file, encoding="utf-8") as f:
+        data = json.load(f)
+
+    assert data["CAN-16"] == "BEN-15"
+    assert data["CAN-34"] == "BEN-25"
+
+    # Even if processed in reverse order on a later run, BEN-15 remains stable
+    reverse_issues = [
+        {"title": "[CAN-16] Canonical original issue", "identifier": "BEN-15"},
+        {"title": "[CAN-16] Duplicate newer issue", "identifier": "BEN-44"},
+    ]
+    sync_tasks.sync_linear_keys_to_file(reverse_issues, filepath=str(key_file))
+
+    with open(key_file, encoding="utf-8") as f:
+        data_after = json.load(f)
+
+    assert data_after["CAN-16"] == "BEN-15"
