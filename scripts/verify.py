@@ -26,9 +26,15 @@ def run_command(cmd: list[str], cwd: str = ROOT_DIR) -> tuple[int, str, float]:
     """Execute command and return (exit_code, stdout+stderr, duration_seconds)."""
     start_time = time.time()
     try:
+        env = os.environ.copy()
+        if "NO_PROXY" in env:
+            env["NO_PROXY"] = env["NO_PROXY"].replace(",[::1]", "").replace("[::1]", "")
+        if "no_proxy" in env:
+            env["no_proxy"] = env["no_proxy"].replace(",[::1]", "").replace("[::1]", "")
         proc = subprocess.run(
             cmd,
             cwd=cwd,
+            env=env,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -108,6 +114,39 @@ def verify_all(auto_fix: bool = False, fast: bool = False, quiet: bool = False) 
         )
         if code != 0:
             has_failure = True
+
+    # 5. DeepEval Two-Tier Scoring (CAN-42, unless --fast)
+    if not fast:
+        eval_run_file = os.path.join(
+            ROOT_DIR,
+            "collaboration",
+            "benchmarks",
+            "agent_evals",
+            "runs",
+            "agent_demo_live_20261104.jsonl",
+        )
+        if os.path.exists(eval_run_file):
+            code, output, duration = run_command(
+                [
+                    "uv",
+                    "run",
+                    "python",
+                    "collaboration/benchmarks/run_agent_evals.py",
+                    "grade",
+                    eval_run_file,
+                    "--require-tier1",
+                ]
+            )
+            results.append(
+                {
+                    "name": "DeepEval Two-Tier Scoring (CAN-42)",
+                    "passed": code == 0,
+                    "duration": duration,
+                    "output": output if code != 0 else "",
+                }
+            )
+            if code != 0:
+                has_failure = True
 
     if quiet:
         return 1 if has_failure else 0
