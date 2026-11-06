@@ -13,10 +13,15 @@ import json
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Final, Protocol
+from typing import Any, Final, Protocol, cast
 
 from anthropic import AsyncAnthropic
-from anthropic.types.beta import BetaMessageParam, BetaToolParam, BetaToolUseBlock
+from anthropic.types.beta import (
+    BetaMessageParam,
+    BetaTextBlockParam,
+    BetaToolParam,
+    BetaToolUseBlock,
+)
 
 from candata_agent.state import QueryPlan
 from candata_agent.supervisor.registry import (
@@ -33,6 +38,7 @@ from candata_mcp.connectors.statcan_wds import (
 
 DEFAULT_MODEL: Final = "claude-opus-5-5"
 FALLBACK_BETA: Final = "server-side-fallback-2026-07-01"
+PROMPT_CACHING_BETA: Final = "prompt-caching-2024-07-31"
 MAX_MEMBERS: Final = 15
 
 
@@ -56,6 +62,8 @@ class PlannerResult:
     declined_reason: str | None = None
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
 
 
 SYSTEM_PROMPT: Final = """\
@@ -105,24 +113,40 @@ class ClaudePlanner:
         self._max_turns = max_turns
         self._max_tokens = max_tokens
         self._system = SYSTEM_PROMPT.format(tool_catalog=_tool_catalog())
+        self._system_blocks: list[BetaTextBlockParam] = [
+            {
+                "type": "text",
+                "text": self._system,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        self._tools: list[BetaToolParam] = [
+            cast(BetaToolParam, {**tool, "cache_control": {"type": "ephemeral"}})
+            if i == len(PLANNER_TOOLS) - 1
+            else tool
+            for i, tool in enumerate(PLANNER_TOOLS)
+        ]
 
     async def plan(self, question: str) -> PlannerResult:
         messages: list[BetaMessageParam] = [{"role": "user", "content": question}]
         input_tokens = output_tokens = 0
+        cache_creation_tokens = cache_read_tokens = 0
         confirmed: set[str] = set()  # vector IDs lookup_series returned in this conversation
         for _ in range(self._max_turns):
             response = await self._client.beta.messages.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
-                system=self._system,
-                tools=PLANNER_TOOLS,
+                system=self._system_blocks,
+                tools=self._tools,
                 messages=messages,
                 output_config={"effort": self._effort},  # type: ignore[typeddict-item]
-                betas=[FALLBACK_BETA],
+                betas=[FALLBACK_BETA, PROMPT_CACHING_BETA],
                 fallbacks="default",
             )
             input_tokens += response.usage.input_tokens
             output_tokens += response.usage.output_tokens
+            cache_creation_tokens += getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+            cache_read_tokens += getattr(response.usage, "cache_read_input_tokens", 0) or 0
             if response.stop_reason == "refusal":
                 raise PlanningError("the model declined to plan this request")
             if response.stop_reason == "max_tokens":
@@ -141,7 +165,14 @@ class ClaudePlanner:
             for call in calls:
                 if call.name == "decline":
                     reason = str(call.input.get("reason", "")).strip() or "no reason given"
-                    return PlannerResult(None, reason, input_tokens, output_tokens)
+                    return PlannerResult(
+                        None,
+                        reason,
+                        input_tokens,
+                        output_tokens,
+                        cache_creation_tokens,
+                        cache_read_tokens,
+                    )
                 if call.name == "submit_plan":
                     try:
                         plan = validate_plan(
@@ -153,7 +184,14 @@ class ClaudePlanner:
                     except ValueError as error:  # malformed draft shape
                         results.append(_tool_result(call.id, str(error), True))
                         continue
-                    return PlannerResult(plan, None, input_tokens, output_tokens)
+                    return PlannerResult(
+                        plan,
+                        None,
+                        input_tokens,
+                        output_tokens,
+                        cache_creation_tokens,
+                        cache_read_tokens,
+                    )
                 try:
                     payload = await self._discover(call.name, call.input)
                     if call.name == "lookup_series":

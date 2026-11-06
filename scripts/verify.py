@@ -25,10 +25,15 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def run_command(cmd: list[str], cwd: str = ROOT_DIR) -> tuple[int, str, float]:
     """Execute command and return (exit_code, stdout+stderr, duration_seconds)."""
     start_time = time.time()
+    env = os.environ.copy()
+    for key in ("no_proxy", "NO_PROXY"):
+        if key in env:
+            env[key] = env[key].replace(",[::1]", "").replace("[::1]", "")
     try:
         proc = subprocess.run(
             cmd,
             cwd=cwd,
+            env=env,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
