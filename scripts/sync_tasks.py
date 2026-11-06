@@ -1194,8 +1194,9 @@ def create_github_pr_for_task(
 
     title = f"[{task['key']}] feat: {task['description']}"
 
-    # Auto-resolve native Linear identifier (e.g. BEN-42) to enable Linear GitHub auto-closing
+    # Auto-resolve native Linear identifier (e.g. BEN-25) to enable Linear GitHub auto-closing
     linear_close_lines = [f"Closes {task['key']}"]
+    ben_key = None
     linear_api_key = get_or_prompt_linear_api_key(prompt_user=False)
     if linear_api_key:
         try:
@@ -1205,12 +1206,28 @@ def create_github_pr_for_task(
                 if team:
                     linear_issues = fetch_all_linear_issues(team["id"], api_key=linear_api_key)
                     for iss in linear_issues:
-                        if task['key'].upper() in iss["title"].upper() or task['key'].upper() == iss["identifier"].upper():
-                            if iss["identifier"].upper() != task['key'].upper():
-                                linear_close_lines.insert(0, f"Closes {iss['identifier']}")
+                        t_upper = iss.get("title", "").upper().strip()
+                        # Require exact task key prefix [CAN-XX] or direct identifier to prevent matching mentions in other issues
+                        if t_upper.startswith(f"[{task['key'].upper()}]") or task['key'].upper() == iss.get("identifier", "").upper():
+                            if iss.get("identifier", "").upper() != task['key'].upper():
+                                ben_key = iss["identifier"]
                             break
         except Exception:
             pass
+
+    if not ben_key:
+        # Fall back to static linear_keys.json
+        linear_keys_path = os.path.join(ROOT_DIR, "scripts", "linear_keys.json")
+        if os.path.exists(linear_keys_path):
+            try:
+                with open(linear_keys_path, encoding="utf-8") as f:
+                    static_keys = json.load(f)
+                    ben_key = static_keys.get(task['key'])
+            except Exception:
+                pass
+
+    if ben_key:
+        linear_close_lines.insert(0, f"Closes {ben_key}")
 
     body = f"## Summary\nAutomated PR creation for {task['key']}: {task['description']}.\n\n" + "\n".join(linear_close_lines)
 
@@ -1615,6 +1632,43 @@ def main():
             print(f"  {icon} {t['key']:<7} [{t['status']:<11}] {t['description']}")
         return
 
+def sync_linear_keys_to_file(
+    linear_issues: List[Dict[str, Any]],
+    filepath: str = os.path.join(ROOT_DIR, "scripts", "linear_keys.json"),
+) -> None:
+    """Sync live Linear task identifiers to static linear_keys.json mapping."""
+    if not linear_issues:
+        return
+    updated: Dict[str, str] = {}
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                updated = json.load(f)
+        except Exception:
+            updated = {}
+
+    pattern = re.compile(r"^\[(CAN-\d+)\]", re.IGNORECASE)
+    changes = 0
+    for iss in linear_issues:
+        title = iss.get("title", "")
+        ident = iss.get("identifier", "")
+        m = pattern.match(title.strip())
+        if m and ident:
+            can_key = m.group(1).upper()
+            if updated.get(can_key) != ident:
+                updated[can_key] = ident
+                changes += 1
+
+    if changes > 0:
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(dict(sorted(updated.items())), f, indent=2)
+                f.write("\n")
+            print(f"🔄 Updated {changes} task mapping(s) in '{os.path.basename(filepath)}'.")
+        except Exception as e:
+            print(f"Notice: Could not write {filepath}: {e}", file=sys.stderr)
+
+
     linear_issues = None
     if args.sync_linear:
         key = get_or_prompt_linear_api_key(api_key=args.api_key, prompt_user=False)
@@ -1624,6 +1678,7 @@ def main():
                 team, _, _ = find_team_and_states(ctx, preferred_key="CAN")
                 if team:
                     linear_issues = fetch_all_linear_issues(team["id"], api_key=key)
+                    sync_linear_keys_to_file(linear_issues)
 
     print_status_dashboard(parsed, linear_issues)
 
