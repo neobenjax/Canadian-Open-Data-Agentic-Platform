@@ -118,7 +118,7 @@
 ### Feature 4.2: AI Security Guardrails & Containerization
 - [x] **CAN-43:** Implement Pydantic v2 output validators and prompt injection defense; audit LLM tool calls. *(Owner: Samir · 2.5h)*
 - [ ] **CAN-44:** Token cost optimization with prompt caching and compressed serialization. *(Owner: Yassir / Benjamin · 2h)*
-- [ ] **CAN-45:** Containerize FastMCP server and LangGraph service; publish images to GHCR with Docker hardening. *(Owner: Benjamin · 2h)*
+- [x] **CAN-45:** Containerize FastMCP server and LangGraph service; publish images to GHCR with Docker hardening. *(Owner: Benjamin · 2h)*
 
 ---
 
