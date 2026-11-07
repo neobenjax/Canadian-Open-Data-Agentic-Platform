@@ -27,6 +27,7 @@ if ROOT_DIR not in sys.path:
 
 from scripts.governance_config import (  # noqa: E402
     get_area_label,
+    get_linear_team_prefix,
     get_milestone_index,
     get_milestone_number,
     get_repo_name,
@@ -112,18 +113,38 @@ def resolve_milestone_and_labels(
 
 
 def build_dual_closing_lines(task_key: str | None, current_body: str) -> list[str]:
-    """Generate missing closing keys (Closes BEN-XX, Closes CAN-XXX)."""
+    """Generate missing closing keys (Closes BEN-XX, Closes CAN-XXX).
+
+    Respects author-specified keys: if the author already provided any 'Closes BEN-XX',
+    triage does not append another Linear key. Similarly, if 'Closes CAN-XXX' is already
+    present, it is not duplicated.
+    """
     if not task_key:
         return []
 
     lines_to_add: list[str] = []
-    linear_keys = load_linear_keys()
-    ben_key = linear_keys.get(task_key)
+    linear_team_prefix = get_linear_team_prefix()
+    normalized_body = current_body.replace("\\r\\n", "\n").replace("\\n", "\n")
 
-    if ben_key and f"closes {ben_key.lower()}" not in current_body.lower():
-        lines_to_add.append(f"Closes {ben_key}")
+    has_author_linear_key = bool(
+        re.search(
+            rf"\bcloses\s+{re.escape(linear_team_prefix)}-\d+\b",
+            normalized_body,
+            re.IGNORECASE,
+        )
+    )
 
-    if f"closes {task_key.lower()}" not in current_body.lower():
+    if not has_author_linear_key:
+        linear_keys = load_linear_keys()
+        ben_key = linear_keys.get(task_key)
+        if ben_key:
+            lines_to_add.append(f"Closes {ben_key}")
+
+    # Check if 'Closes <TASK_KEY>' is already present
+    has_task_key = bool(
+        re.search(rf"\bcloses\s+{re.escape(task_key)}\b", normalized_body, re.IGNORECASE)
+    )
+    if not has_task_key:
         lines_to_add.append(f"Closes {task_key}")
 
     return lines_to_add
@@ -228,7 +249,10 @@ def run_pr_triage(
 
         if reviewer:
             try:
-                rev_url = f"https://api.github.com/repos/{effective_repo}/pulls/{pr_number}/requested_reviewers"
+                rev_url = (
+                    f"https://api.github.com/repos/{effective_repo}/pulls/"
+                    f"{pr_number}/requested_reviewers"
+                )
                 req = urllib.request.Request(
                     rev_url,
                     data=json.dumps({"reviewers": [reviewer]}).encode("utf-8"),

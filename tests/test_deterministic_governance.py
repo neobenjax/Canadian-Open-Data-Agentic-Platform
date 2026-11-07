@@ -104,6 +104,49 @@ def test_build_dual_closing_lines():
     assert "Closes CAN-08" in lines_c08
 
 
+def test_linear_keys_pinned_pairs():
+    """Pin critical task pairs specified in Issue #48 acceptance criteria."""
+    lines_22 = build_dual_closing_lines("CAN-22", current_body="")
+    assert "Closes BEN-17" in lines_22
+    assert "Closes CAN-22" in lines_22
+
+    lines_32 = build_dual_closing_lines("CAN-32", current_body="")
+    assert "Closes BEN-23" in lines_32
+    assert "Closes CAN-32" in lines_32
+
+    lines_34 = build_dual_closing_lines("CAN-34", current_body="")
+    assert "Closes BEN-25" in lines_34
+    assert "Closes CAN-34" in lines_34
+
+
+def test_build_dual_closing_lines_respects_author_keys():
+    """Triage must respect existing author keys and never duplicate or overwrite them."""
+    # When author already supplied CAN-34, only BEN-25 is appended
+    body_with_can = "## Summary\nAdds CKAN connector.\n\nCloses CAN-34"
+    lines = build_dual_closing_lines("CAN-34", current_body=body_with_can)
+    assert lines == ["Closes BEN-25"]
+
+    # When author already supplied BEN-25, only CAN-34 is appended
+    body_with_ben = "## Summary\nAdds CKAN connector.\n\nCloses BEN-25"
+    lines_ben = build_dual_closing_lines("CAN-34", current_body=body_with_ben)
+    assert lines_ben == ["Closes CAN-34"]
+
+    # When author already supplied both, nothing is appended
+    body_with_both = "## Summary\nCloses BEN-25\nCloses CAN-34"
+    lines_both = build_dual_closing_lines("CAN-34", current_body=body_with_both)
+    assert lines_both == []
+
+    # When author provided a custom/different Linear key (e.g. BEN-99), do not append mapped BEN-25
+    body_custom_ben = "## Summary\nCloses BEN-99"
+    lines_custom = build_dual_closing_lines("CAN-34", current_body=body_custom_ben)
+    assert "Closes BEN-25" not in lines_custom
+    assert lines_custom == ["Closes CAN-34"]
+
+    # Case insensitivity
+    body_case = "closes ben-25\ncloses can-34"
+    assert build_dual_closing_lines("CAN-34", current_body=body_case) == []
+
+
 def test_extract_task_key():
     assert extract_task_key("feat/CAN-17-fastmcp-engine") == "CAN-17"
     assert extract_task_key("feat/CAN-08-wizard") == "CAN-08"
