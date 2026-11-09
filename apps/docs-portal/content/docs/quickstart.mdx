@@ -7,17 +7,17 @@ description: Install and run the CanData-MCP server locally in under 60 seconds
 
 CanData-MCP is packaged with zero unnecessary runtime dependencies and runs anywhere with Python 3.12+.
 
-## 1. Instant Run via Astral `uvx` (Recommended)
+## 1. Standalone Distribution via `uvx` (Recommended)
 
-You can launch and connect to the official FastMCP stdio server in a single command without cloning the repository:
+You can launch and connect to the official FastMCP stdio server in a single command using Astral `uvx`:
 
 ```bash
-uvx --from git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git candata-mcp
+uvx --from "git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git#subdirectory=packages/candata-mcp" candata-mcp
 ```
 
 ## 2. Monorepo Development Installation
 
-If you are contributing to or developing on the full monorepo:
+If you are developing inside a clone of the monorepo:
 
 ```bash
 # Clone the repository
@@ -31,10 +31,22 @@ uv sync
 uv run python scripts/verify.py
 
 # Launch the FastMCP stdio server locally
-uv run --package candata-mcp python -m candata_mcp
+# Linux / macOS:
+PYTHONPATH=packages/candata-mcp/src uv run python -m candata_mcp
+
+# Windows (PowerShell):
+$env:PYTHONPATH="packages/candata-mcp/src"; uv run python -m candata_mcp
 ```
 
-## 3. Running the Multi-Agent Streamlit UI
+## 3. Running with Docker Container
+
+If you prefer running without a local Python environment:
+
+```bash
+docker run -i --rm ghcr.io/neobenjax/canadian-open-data-agentic-platform/candata-mcp:latest
+```
+
+## 4. Running the Multi-Agent Streamlit UI
 
 To explore the multi-agent execution pipeline in real-time with unit-aware Plotly charts:
 

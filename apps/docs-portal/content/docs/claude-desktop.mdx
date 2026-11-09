@@ -15,7 +15,7 @@ Add the server to your `claude_desktop_config.json`:
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
-### Recommended (Standalone Distribution via `uvx`)
+### Option A: Standalone Distribution via `uvx` (Recommended)
 
 ```json
 {
@@ -24,7 +24,7 @@ Add the server to your `claude_desktop_config.json`:
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git",
+        "git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git#subdirectory=packages/candata-mcp",
         "candata-mcp"
       ],
       "env": {
@@ -35,7 +35,7 @@ Add the server to your `claude_desktop_config.json`:
 }
 ```
 
-### Monorepo Local Development
+### Option B: Monorepo Local Development
 
 If you are developing inside a clone of the monorepo:
 
@@ -48,15 +48,34 @@ If you are developing inside a clone of the monorepo:
         "run",
         "--directory",
         "/absolute/path/to/Canadian-Open-Data-Agentic-Platform",
-        "--package",
-        "candata-mcp",
         "python",
         "-m",
         "candata_mcp"
       ],
       "env": {
+        "PYTHONPATH": "packages/candata-mcp/src",
         "PYTHONUNBUFFERED": "1"
       }
+    }
+  }
+}
+```
+
+### Option C: Hardened Docker Container
+
+If running with Docker without a local Python setup:
+
+```json
+{
+  "mcpServers": {
+    "candata": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "ghcr.io/neobenjax/canadian-open-data-agentic-platform/candata-mcp:latest"
+      ]
     }
   }
 }
@@ -73,5 +92,5 @@ Restart Claude Desktop. You will see a hammer icon 🔨 indicating that all 11 `
 3. Fill in the details:
    - **Name:** `candata`
    - **Type:** `stdio`
-   - **Command:** `uvx --from git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git candata-mcp`
+   - **Command:** `uvx --from git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git#subdirectory=packages/candata-mcp candata-mcp`
 4. Test the connection. Cursor Composer can now query official Statistics Canada cubes, Bank of Canada Valet rates, and Open Government datasets directly from chat.
