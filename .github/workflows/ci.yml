@@ -56,7 +56,7 @@ jobs:
       - name: Verify Docs Portal Production Build (Vercel Simulation)
         working-directory: apps/docs-portal
         run: |
-          npm ci
+          npm ci --legacy-peer-deps
           npm run build
 
       - name: Verify Streamlit Headless Configuration
