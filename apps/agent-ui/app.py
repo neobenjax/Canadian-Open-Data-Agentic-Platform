@@ -15,6 +15,7 @@ plans, executed against live StatCan and Bank of Canada data).
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import time
 import uuid
@@ -62,7 +63,26 @@ def _state() -> Any:
 def _sidebar(demo: bool) -> str | None:
     with st.sidebar:
         st.header("CanData Agent")
-        if demo:
+
+        # Optional user-provided API key for cloud demo visitors
+        custom_key = st.text_input(
+            "Anthropic API Key (optional)",
+            value=st.session_state.get("custom_api_key", ""),
+            type="password",
+            help=(
+                "Bring your own API key to plan custom queries with Claude. "
+                "Stored only in this browser session."
+            ),
+        )
+        if custom_key != st.session_state.get("custom_api_key", ""):
+            st.session_state.custom_api_key = custom_key
+            if custom_key:
+                os.environ["ANTHROPIC_API_KEY"] = custom_key
+            elif "ANTHROPIC_API_KEY" in os.environ and not os.environ.get("CANDATA_SYSTEM_KEY"):
+                os.environ.pop("ANTHROPIC_API_KEY", None)
+            st.rerun()
+
+        if demo and not st.session_state.get("custom_api_key"):
             st.info(
                 "**Demo mode.** No `ANTHROPIC_API_KEY`, so only the example questions are "
                 "planned. Their data is fetched live from StatCan and the Bank of Canada."

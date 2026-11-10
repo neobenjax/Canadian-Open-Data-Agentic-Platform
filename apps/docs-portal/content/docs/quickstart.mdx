@@ -7,20 +7,34 @@ description: Install and run the CanData-MCP server locally in under 60 seconds
 
 CanData-MCP is packaged with zero unnecessary runtime dependencies and runs anywhere with Python 3.12+.
 
-## 1. Standalone Distribution via `uvx` (Recommended)
+## 1. Standalone MCP Server Execution (Recommended)
 
-You can launch and connect to the official FastMCP stdio server in a single command using Astral `uvx`:
+### Option A: Direct Execution via Astral `uvx` (Zero Install)
+Launch and connect to the official FastMCP stdio server in a single command directly from the distribution repository:
 
 ```bash
 uvx --from "git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git#subdirectory=packages/candata-mcp" candata-mcp
 ```
 
-## 2. Monorepo Development Installation
-
-If you are developing inside a clone of the monorepo:
+### Option B: Clone the Standalone MCP Distribution Repository
+For local inspection or manual testing of the MCP server:
 
 ```bash
-# Clone the repository
+# Clone the standalone MCP distribution repository
+git clone https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git
+cd Canadian-Open-Data-Agentic-Platform-MCP-Server
+
+# Synchronize dependencies and launch
+uv sync
+uv run candata-mcp
+```
+
+## 2. Monorepo Platform Development
+
+If you are developing the complete platform (LangGraph supervisor orchestrator, DuckDB streaming engine, DeepEval CI suites, or this documentation portal), work inside the monorepo:
+
+```bash
+# Clone the collaboration monorepo (Source of Truth)
 git clone https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform.git
 cd Canadian-Open-Data-Agentic-Platform
 

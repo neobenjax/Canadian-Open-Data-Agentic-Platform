@@ -14,6 +14,8 @@ Large statistical data cubes frequently contain millions of cells across decades
 2. **Deterministic SQL Math:** Runs exact aggregation (Year-over-Year, CAGR, basis point spreads) in C++ without passing unaggregated rows to the LLM.
 3. **Payload Clamping:** Clamps all tool responses to strict `<3KB` envelopes, preventing context pollution.
 
+<ArchitectureFlowDiagram />
+
 ## 2. The Citation Envelope & Core Verification Tuple
 To prevent temporal drift on official series revisions, every statistical fact is validated against the **Citation Envelope**:
 

@@ -1,22 +1,67 @@
 @import "tailwindcss";
+@source "../node_modules/fumadocs-ui/dist/**/*.js";
+
+/* -----------------------------------------------------------------------------
+ * Canadian Open Data Agentic Platform — Design System & Fumadocs Tokens
+ * Primary Brand: Canadian Maple Red (#D80621) / Crimson Focus (#A82424)
+ * Surface: Warm Light Paper (#FDFCFB / #F9F6F6) & Deep Tech Noir (#0B0F19)
+ * ----------------------------------------------------------------------------- */
+
+html,
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+/* Ensure single logo in DocsLayout: suppress any duplicate top navbar strip in desktop docs */
+@media (min-width: 768px) {
+  #nd-docs-layout > header,
+  nav.h-\(--fd-nav-height\) {
+    display: none !important;
+  }
+}
 
 :root {
-  --color-primary: #A82424;
-  --color-primary-focus: #8B1B1B;
-  --color-primary-bg: #F9F6F6;
-  --color-secondary-bg: #F1EAEA;
+  /* Canadian Open Data Brand Tokens */
+  --color-primary: #D80621;
+  --color-primary-focus: #A82424;
+  --color-primary-bg: #FDFCFB;
+  --color-secondary-bg: #F5F3EF;
   --color-surface: #FFFFFF;
   --color-surface-card: #FFFFFF;
   --color-body: #0F172A;
   --color-text-primary: #0F172A;
-  --color-text-secondary: #633636;
-  --color-text-muted: #8A5C5C;
-  --color-accent: #A82424;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748B;
+  --color-accent: #D80621;
   --border-subtle: rgba(0, 0, 0, 0.08);
-  --border-accent: rgba(168, 36, 36, 0.25);
+  --border-accent: rgba(216, 6, 33, 0.25);
+
+  /* Native Fumadocs UI Theme Variables (Light Mode) */
+  --fd-primary: #D80621;
+  --fd-primary-foreground: #FFFFFF;
+  --fd-background: #FDFCFB;
+  --fd-foreground: #0F172A;
+  --fd-card: #FFFFFF;
+  --fd-card-foreground: #0F172A;
+  --fd-popover: #FFFFFF;
+  --fd-popover-foreground: #0F172A;
+  --fd-muted: #F3F1EF;
+  --fd-muted-foreground: #64748B;
+  --fd-accent: #FDF2F2;
+  --fd-accent-foreground: #D80621;
+  --fd-border: #E8E5E1;
+  --fd-ring: #D80621;
 }
 
 .dark {
+  /* Canadian Open Data Dark Tokens */
   --color-primary: #E05252;
   --color-primary-focus: #C53B3B;
   --color-primary-bg: #0B0F19;
@@ -30,6 +75,22 @@
   --color-accent: #E05252;
   --border-subtle: rgba(255, 255, 255, 0.1);
   --border-accent: rgba(224, 82, 82, 0.3);
+
+  /* Native Fumadocs UI Theme Variables (Dark Mode) */
+  --fd-primary: #E05252;
+  --fd-primary-foreground: #FFFFFF;
+  --fd-background: #0B0F19;
+  --fd-foreground: #F8FAFC;
+  --fd-card: #111827;
+  --fd-card-foreground: #F8FAFC;
+  --fd-popover: #111827;
+  --fd-popover-foreground: #F8FAFC;
+  --fd-muted: #1E293B;
+  --fd-muted-foreground: #94A3B8;
+  --fd-accent: #2A1518;
+  --fd-accent-foreground: #FCA5A5;
+  --fd-border: #262E40;
+  --fd-ring: #E05252;
 }
 
 body {
@@ -37,4 +98,33 @@ body {
   color: var(--color-text-primary);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
+}
+
+/* Animations inspired by fumadocs.dev */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.05);
+  }
+}
+
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 6s ease-in-out infinite;
 }

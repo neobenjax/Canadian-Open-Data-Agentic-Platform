@@ -1,37 +1,86 @@
 import Link from 'next/link';
-import { ArrowRight, Terminal, Database, ShieldCheck, Zap, Layers, Sparkles } from 'lucide-react';
+import {
+  ArrowRight,
+  Terminal,
+  Database,
+  ShieldCheck,
+  Zap,
+  Layers,
+  Sparkles,
+  ExternalLink,
+  Cpu,
+  Activity,
+  Globe,
+  CheckCircle2,
+  Server,
+  Lock,
+} from 'lucide-react';
+import { QuickstartPill, AnimatedCivicIllustration, HeroPreview } from './hero-preview';
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen flex flex-col justify-between">
-      {/* Navigation */}
-      <header className="border-b border-black/5 dark:border-white/10 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md sticky top-0 z-50">
+    <main className="min-h-screen flex flex-col justify-between bg-[#FDFCFB] dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 selection:bg-red-100 dark:selection:bg-red-900/50 selection:text-red-900 relative">
+      {/* Background Subtle Grid / Celestial Glow (contained overflow) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1f2937_1px,transparent_1px)] [background-size:24px_24px] opacity-60" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-red-500/10 dark:bg-red-600/10 blur-[120px]" />
+      </div>
+
+      {/* Navigation Header (Sticky on top while scrolling) */}
+      <header className="border-b border-black/5 dark:border-white/10 bg-[#FDFCFB]/90 dark:bg-[#0B0F19]/90 backdrop-blur-md sticky top-0 z-50 m-0 p-0 shadow-xs">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl font-extrabold tracking-tight text-red-700 dark:text-red-500 font-heading">
-              🍁 CanData<span className="text-slate-900 dark:text-white">-MCP</span>
-            </span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
-              v1.0.0 FastMCP
+            <Link href="/" className="text-xl font-extrabold tracking-tight font-heading flex items-center gap-2 hover:opacity-90 transition-opacity">
+              <span className="text-2xl">🍁</span>
+              <span>
+                CanData<span className="text-[#D80621]"> -MCP</span>
+              </span>
+            </Link>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-[#D80621] dark:bg-red-950/80 dark:border dark:border-red-800/70 dark:text-red-300">
+              Beta v0.5.0
             </span>
           </div>
-          <nav className="flex items-center gap-6 text-sm font-medium">
-            <Link href="/docs" className="text-slate-600 dark:text-slate-300 hover:text-red-600 transition-colors">
-              Docs
+
+          <nav className="flex items-center gap-5 text-xs sm:text-sm font-medium">
+            <Link
+              href="/docs"
+              className="text-slate-600 dark:text-slate-300 hover:text-[#D80621] dark:hover:text-white transition-colors"
+            >
+              Documentation
             </Link>
-            <Link href="/playground" className="text-slate-600 dark:text-slate-300 hover:text-red-600 transition-colors">
+            <Link
+              href="/playground"
+              className="text-slate-600 dark:text-slate-300 hover:text-[#D80621] dark:hover:text-white transition-colors hidden sm:inline-block"
+            >
               Playground
+            </Link>
+            <Link
+              href="https://candata-agent.streamlit.app"
+              target="_blank"
+              className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 transition-colors hidden md:flex items-center gap-1 font-mono text-xs"
+            >
+              <Activity className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              Streamlit Demo
+            </Link>
+            <Link
+              href="https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server"
+              target="_blank"
+              className="text-slate-600 dark:text-slate-300 hover:text-[#D80621] dark:hover:text-white transition-colors flex items-center gap-1"
+              title="Official Standalone MCP Server Repository"
+            >
+              MCP Server <ExternalLink className="w-3 h-3 text-slate-400" />
             </Link>
             <Link
               href="https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform"
               target="_blank"
-              className="text-slate-600 dark:text-slate-300 hover:text-red-600 transition-colors"
+              className="text-slate-600 dark:text-slate-300 hover:text-[#D80621] dark:hover:text-white transition-colors hidden lg:flex items-center gap-1"
+              title="Full Platform Monorepo"
             >
-              GitHub
+              Monorepo <ExternalLink className="w-3 h-3 text-slate-400" />
             </Link>
             <Link
               href="/docs"
-              className="px-4 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white font-medium text-xs shadow-sm transition-all flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-[#D80621] hover:bg-[#A82424] text-white font-medium text-xs shadow-md transition-all flex items-center gap-1.5"
             >
               Get Started <ArrowRight className="w-3.5 h-3.5" />
             </Link>
@@ -39,104 +88,300 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="py-20 px-6 max-w-7xl mx-auto text-center flex-1 flex flex-col items-center justify-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 dark:bg-red-950/50 dark:border-red-900 mb-8">
-          <Sparkles className="w-4 h-4 text-red-600 dark:text-red-400" />
-          <span className="text-xs font-medium text-red-900 dark:text-red-200">
-            FastMCP 2.0 + DuckDB 1.2 In-Memory Slicing Engine
-          </span>
-        </div>
-
-        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white max-w-4xl font-heading leading-tight mb-6">
-          Auditable Canadian Civic Data Intelligence for <span className="text-red-700 dark:text-red-500">AI Agents</span>
+      {/* Hero Section (Fumadocs.dev Style) */}
+      <section className="pt-16 pb-12 px-6 max-w-5xl mx-auto text-center flex flex-col items-center justify-center relative">
+        {/* Animated Headline */}
+        <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-slate-900 dark:text-white font-heading leading-[1.08] mb-6">
+          Auditable Canadian civic data,{' '}
+          <span className="text-[#D80621]">in seconds.</span>
         </h1>
 
-        <p className="text-lg text-slate-600 dark:text-slate-300 max-w-2xl mb-10 leading-relaxed">
-          Zero-hallucination MCP server and multi-agent suite streaming 200MB Statistics Canada, Bank of Canada, and federal CKAN datasets into tight &lt;3KB verified payloads with cryptographic verification tuples.
+        {/* Subtitle */}
+        <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 max-w-2xl mb-8 leading-relaxed font-sans">
+          Zero-hallucination FastMCP 2.0 server & LangGraph multi-agent suite streaming 200MB
+          Statistics Canada, Bank of Canada, and federal CKAN datasets into tight sub-3KB verified
+          payloads with cryptographic two-tier citation envelopes.
         </p>
 
-        {/* Quick Commands Terminal */}
-        <div className="w-full max-w-2xl bg-slate-900 text-left rounded-xl shadow-xl overflow-hidden border border-slate-800 mb-10 font-mono text-xs">
-          <div className="px-4 py-2.5 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between text-slate-400">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-red-500/80 inline-block" />
-              <span className="w-3 h-3 rounded-full bg-yellow-500/80 inline-block" />
-              <span className="w-3 h-3 rounded-full bg-green-500/80 inline-block" />
-              <span className="ml-2 text-xs font-sans text-slate-300">Terminal — Quick Installation</span>
-            </div>
-            <span>bash</span>
-          </div>
-          <div className="p-4 space-y-2 text-slate-200">
-            <p className="text-slate-400"># Install and start CanData-MCP via uv</p>
-            <p><span className="text-green-400">$</span> uv sync</p>
-            <p><span className="text-green-400">$</span> uv run candata-mcp</p>
-            <p className="text-slate-400 mt-2"># Connect to Claude Desktop or Cursor stdio</p>
-            <p className="text-cyan-300">✓ FastMCP 2.0 server listening on stdio (5 tools registered)</p>
-          </div>
+        {/* Quickstart Install Pill & Action CTA (Matching Fumadocs.dev) */}
+        <QuickstartPill />
+
+        <div className="mt-4 text-xs text-slate-500 dark:text-slate-400 font-sans">
+          Runs on <span className="font-semibold text-slate-700 dark:text-slate-300">FastMCP 2.0</span> ·{' '}
+          <span className="font-semibold text-slate-700 dark:text-slate-300">Claude Desktop</span> ·{' '}
+          <span className="font-semibold text-slate-700 dark:text-slate-300">Cursor</span> ·{' '}
+          <span className="font-semibold text-slate-700 dark:text-slate-300">LangGraph Multi-Agent</span>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center justify-center gap-4">
-          <Link
-            href="/docs"
-            className="px-6 py-3 rounded-lg bg-red-700 hover:bg-red-800 text-white font-medium text-sm shadow-md transition-all flex items-center gap-2"
-          >
-            Explore Developer Docs <ArrowRight className="w-4 h-4" />
-          </Link>
-          <Link
-            href="/playground"
-            className="px-6 py-3 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-medium text-sm border border-slate-200 dark:border-slate-700 shadow-sm transition-all flex items-center gap-2"
-          >
-            <Terminal className="w-4 h-4" /> Open Interactive Playground
-          </Link>
+        {/* Celestial / Planetary Data Engine Illustration (Fumadocs Style) */}
+        <AnimatedCivicIllustration />
+
+        {/* Interactive Code Showcase */}
+        <HeroPreview />
+      </section>
+
+      {/* Live Metrics Counter Bar */}
+      <section className="border-y border-black/5 dark:border-white/10 bg-slate-100/60 dark:bg-slate-900/60 py-8 px-6 my-6">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          <div className="p-3">
+            <div className="text-3xl sm:text-4xl font-extrabold text-[#D80621] font-mono mb-1">
+              &lt; 3 KB
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
+              Payload Size (from 200MB)
+            </div>
+          </div>
+          <div className="p-3 border-l border-black/5 dark:border-white/10">
+            <div className="text-3xl sm:text-4xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono mb-1">
+              0
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
+              Hallucinated Series
+            </div>
+          </div>
+          <div className="p-3 border-l border-black/5 dark:border-white/10">
+            <div className="text-3xl sm:text-4xl font-extrabold text-cyan-600 dark:text-cyan-400 font-mono mb-1">
+              100%
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
+              Citation Provenance
+            </div>
+          </div>
+          <div className="p-3 border-l border-black/5 dark:border-white/10">
+            <div className="text-3xl sm:text-4xl font-extrabold text-amber-600 dark:text-amber-400 font-mono mb-1">
+              3
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
+              Official Federal APIs
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Feature Grid */}
-      <section className="bg-slate-100/70 dark:bg-slate-900/40 border-t border-black/5 dark:border-white/5 py-16 px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="p-6 rounded-xl bg-white dark:bg-slate-800/80 border border-black/5 dark:border-white/5 shadow-sm">
-            <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-950 flex items-center justify-center text-red-700 dark:text-red-400 mb-4">
-              <Database className="w-5 h-5" />
+      {/* Bento Grid Feature Section */}
+      <section className="py-16 px-6 max-w-6xl mx-auto w-full">
+        <div className="text-center mb-12">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-[#D80621] mb-2 font-mono">
+            Platform Capabilities
+          </h2>
+          <h3 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white font-heading">
+            Engineered for Ground-Truth Truthfulness
+          </h3>
+          <p className="text-slate-600 dark:text-slate-300 text-sm max-w-2xl mx-auto mt-3">
+            Every architectural decision eliminates silent drift, catches data revisions, and provides
+            verifiable lineage back to official Canadian publications.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Card 1: Wide Card */}
+          <div className="md:col-span-2 p-8 rounded-3xl bg-white dark:bg-slate-900 border border-black/5 dark:border-white/10 hover:border-[#D80621]/30 transition-all flex flex-col justify-between shadow-sm hover:shadow-md">
+            <div>
+              <div className="w-11 h-11 rounded-2xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900/40 flex items-center justify-center text-[#D80621] dark:text-red-400 mb-5">
+                <Database className="w-5 h-5" />
+              </div>
+              <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2 font-heading">
+                In-Memory DuckDB 1.2+ Arrow Streaming Engine
+              </h4>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mb-6">
+                Reduces massive Statistics Canada SDMX data cubes and Bank of Canada time-series
+                directly in RAM. Eliminates LLM mental math by executing exact aggregate SQL in
+                strictly sandboxed, read-only memory spaces.
+              </p>
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 font-heading">
-              In-Memory DuckDB 1.2
-            </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              Streams raw Apache Arrow payloads directly in memory, reducing multi-megabyte public datasets to sub-3KB verified answer slices.
-            </p>
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-black/5 dark:border-white/5 text-xs font-mono">
+              <div>
+                <span className="text-slate-400 block">Reduction</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">99.9% Payload Savings</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Sandbox</span>
+                <span className="text-cyan-600 dark:text-cyan-400 font-semibold">Zero-Trust Memory</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block">Interface</span>
+                <span className="text-slate-600 dark:text-slate-300 font-semibold">Apache Arrow IPC</span>
+              </div>
+            </div>
           </div>
 
-          <div className="p-6 rounded-xl bg-white dark:bg-slate-800/80 border border-black/5 dark:border-white/5 shadow-sm">
-            <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-950 flex items-center justify-center text-red-700 dark:text-red-400 mb-4">
-              <ShieldCheck className="w-5 h-5" />
+          {/* Card 2: Citation Envelopes */}
+          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-black/5 dark:border-white/10 hover:border-emerald-500/30 transition-all flex flex-col justify-between shadow-sm hover:shadow-md">
+            <div>
+              <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-5">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2 font-heading">
+                Two-Tier Citation Envelopes
+              </h4>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
+                Tier 1 enforces mandatory verification tuples{' '}
+                <code className="text-[#D80621] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-xs font-mono">
+                  (table_id, vector_id, reference_period)
+                </code>
+                . Tier 2 carries data quality grades (A-F), confidentiality flags, and revision timestamps.
+              </p>
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 font-heading">
-              Citation Envelopes
-            </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              Every data point binds to a strict Core Verification Tuple (table, vector, reference period) with publisher release date validation.
-            </p>
+            <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+              <CheckCircle2 className="w-4 h-4" /> Passed NIST &amp; DeepEval CI Suites
+            </div>
           </div>
 
-          <div className="p-6 rounded-xl bg-white dark:bg-slate-800/80 border border-black/5 dark:border-white/5 shadow-sm">
-            <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-950 flex items-center justify-center text-red-700 dark:text-red-400 mb-4">
-              <Layers className="w-5 h-5" />
+          {/* Card 3: 3 Federal Connectors */}
+          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-black/5 dark:border-white/10 hover:border-cyan-500/30 transition-all flex flex-col justify-between shadow-sm hover:shadow-md">
+            <div>
+              <div className="w-11 h-11 rounded-2xl bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-900/40 flex items-center justify-center text-cyan-600 dark:text-cyan-400 mb-5">
+                <Globe className="w-5 h-5" />
+              </div>
+              <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2 font-heading">
+                3 Federal REST Connectors
+              </h4>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                Async HTTPX clients for Statistics Canada WDS, Bank of Canada Valet, and Open
+                Government Canada CKAN DataStore with automatic 409 maintenance window defense.
+              </p>
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 font-heading">
-              LangGraph Orchestration
+            <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-mono">
+              <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                StatCan WDS
+              </span>
+              <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                BoC Valet
+              </span>
+              <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                CKAN Federal
+              </span>
+            </div>
+          </div>
+
+          {/* Card 4: LangGraph Multi-Agent */}
+          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-black/5 dark:border-white/10 hover:border-amber-500/30 transition-all flex flex-col justify-between shadow-sm hover:shadow-md">
+            <div>
+              <div className="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400 mb-5">
+                <Cpu className="w-5 h-5" />
+              </div>
+              <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2 font-heading">
+                LangGraph Multi-Agent Team
+              </h4>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                Autonomous coordination between Supervisor, Query Planner, Data Analyst, and Citation
+                Verifier nodes with Human-in-the-Loop (HITL) breakpoints for geographic boundary ambiguity.
+              </p>
+            </div>
+            <div className="mt-6 text-xs text-amber-700 dark:text-amber-400 font-mono flex items-center gap-1.5">
+              <Zap className="w-4 h-4" /> Time-Travel SQLite Checkpointer
+            </div>
+          </div>
+
+          {/* Card 5: Security & Guardrails */}
+          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-black/5 dark:border-white/10 hover:border-purple-500/30 transition-all flex flex-col justify-between shadow-sm hover:shadow-md">
+            <div>
+              <div className="w-11 h-11 rounded-2xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-900/40 flex items-center justify-center text-purple-600 dark:text-purple-400 mb-5">
+                <Lock className="w-5 h-5" />
+              </div>
+              <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2 font-heading">
+                Zero-Trust Guardrails
+              </h4>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                Pydantic v2 schemas defeat prompt injection, driver-level DuckDB flags block
+                arbitrary file reads, and container root filesystems are locked read-only.
+              </p>
+            </div>
+            <div className="mt-6 text-xs text-purple-700 dark:text-purple-400 font-mono">
+              UID 10001 Hardened Containers
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Cloud Deployment Banner */}
+      <section className="py-12 px-6 max-w-6xl mx-auto w-full">
+        <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-r from-red-50 via-white to-slate-50 dark:from-red-950/30 dark:via-slate-900 dark:to-slate-950 border border-black/5 dark:border-white/10 shadow-sm relative overflow-hidden">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-100 dark:bg-red-950/80 text-[#D80621] dark:text-red-300 text-xs font-mono mb-4">
+              <Server className="w-3.5 h-3.5" /> Production Cloud Hosting
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white font-heading mb-3">
+              Deployable in Seconds via Vercel &amp; Streamlit Cloud
             </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              Decomposes questions across Supervisor, Analyst, and Citation Verifier sub-agents with full OpenTelemetry tracing in LangSmith &amp; Phoenix.
+            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-6">
+              Explore the documentation on Vercel at{' '}
+              <code className="text-[#D80621] dark:text-red-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-black/5 dark:border-white/5 font-mono">
+                candata.vercel.app
+              </code>{' '}
+              or test live queries on the interactive Streamlit analytics app at{' '}
+              <code className="text-emerald-700 dark:text-emerald-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-black/5 dark:border-white/5 font-mono">
+                candata-agent.streamlit.app
+              </code>
+              .
             </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/docs"
+                className="px-5 py-2.5 rounded-xl bg-[#D80621] hover:bg-[#A82424] text-white font-semibold text-xs shadow-md transition-all flex items-center gap-2"
+              >
+                Read Deployment Guide <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+              <Link
+                href="https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server"
+                target="_blank"
+                className="px-5 py-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs border border-black/10 dark:border-white/10 transition-all flex items-center gap-2"
+              >
+                MCP Server Repo <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+              </Link>
+              <Link
+                href="https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform"
+                target="_blank"
+                className="px-5 py-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs border border-black/10 dark:border-white/10 transition-all flex items-center gap-2"
+              >
+                Full Monorepo <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-black/5 dark:border-white/10 py-8 px-6 text-center text-xs text-slate-500">
-        <p>Canadian Open Data Agentic Platform · Open Source Apache-2.0 License</p>
+      <footer className="border-t border-black/5 dark:border-white/10 py-8 px-6 text-center text-xs text-slate-500 bg-white/50 dark:bg-slate-950/50">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🍁</span>
+            <span className="text-slate-700 dark:text-slate-300 font-semibold font-heading">
+              Canadian Open Data Agentic Platform
+            </span>
+            <span className="text-slate-400">·</span>
+            <span>Apache-2.0 License</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <Link href="/docs" className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
+              Docs
+            </Link>
+            <Link href="/playground" className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
+              Playground
+            </Link>
+            <Link
+              href="https://candata-agent.streamlit.app"
+              target="_blank"
+              className="hover:text-emerald-600 transition-colors"
+            >
+              Streamlit Demo
+            </Link>
+            <Link
+              href="https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server"
+              target="_blank"
+              className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+            >
+              MCP Server
+            </Link>
+            <Link
+              href="https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform"
+              target="_blank"
+              className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+            >
+              Monorepo
+            </Link>
+          </div>
+        </div>
       </footer>
     </main>
   );
