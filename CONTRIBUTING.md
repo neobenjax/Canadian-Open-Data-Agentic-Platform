@@ -86,6 +86,7 @@ flowchart LR
 
 7. **Address Feedback, Approve & Merge:**
    - Once your teammate approves the PR, merge it into `main`.
+   - Issues follow the same discipline: close them through the resolving PR (`Closes #NN`), after a teammate's approval, and mirror the close in Linear. See rule 27 in [`AGENTS.md`](AGENTS.md).
 
 8. **Purge the Merged Feature Branch:**
    ```bash
