@@ -20,6 +20,7 @@ from langgraph.graph.state import CompiledStateGraph
 from candata_agent.checkpoint import AsyncSqliteSaver
 from candata_agent.supervisor import DraftStep, PlanDraft, build_agent_graph, validate_plan
 from candata_agent.supervisor.clarification import Resolution
+from candata_agent.supervisor.context import PlanContext
 from candata_agent.supervisor.node import Planner
 from candata_agent.supervisor.planner import PlannerResult
 from candata_mcp.connectors.boc_valet import ValetClient
@@ -87,7 +88,13 @@ class DemoPlanner:
     def __init__(self, questions: tuple[DemoQuestion, ...] = DEMO_QUESTIONS) -> None:
         self._plans = {_normal(q.question): q.draft for q in questions}
 
-    async def plan(self, question: str, *, resolved: Sequence[Resolution] = ()) -> PlannerResult:
+    async def plan(
+        self,
+        question: str,
+        *,
+        resolved: Sequence[Resolution] = (),
+        context: PlanContext | None = None,
+    ) -> PlannerResult:
         found = self._plans.get(_normal(question))
         if found is None:
             return PlannerResult(

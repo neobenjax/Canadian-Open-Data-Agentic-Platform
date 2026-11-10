@@ -51,6 +51,7 @@ from candata_agent.supervisor.clarification import (
     Resolution,
     resolutions_from_json,
 )
+from candata_agent.supervisor.context import PlanContext, build_context
 from candata_agent.supervisor.guardrails import screen_question
 from candata_agent.supervisor.registry import (
     DATA_ANALYST,
@@ -69,6 +70,7 @@ PLANNED_MESSAGE: Final = "planned_message_id"
 PLANNER_AUDIT: Final = "planner_audit"
 HUMAN_CLARIFICATION: Final = "human_clarification"
 CLARIFICATIONS: Final = "clarifications"  # the user's choices for the current question
+PLAN_CONTEXT: Final = "plan_context"  # the previous question's plan, for a follow-up (BEN-62)
 CANCEL_WORDS: Final = frozenset({"cancel", "stop", "none of these"})
 
 Node = Callable[[AgentState], Awaitable[dict[str, Any]]]
@@ -76,7 +78,11 @@ Node = Callable[[AgentState], Awaitable[dict[str, Any]]]
 
 class Planner(Protocol):
     async def plan(
-        self, question: str, *, resolved: Sequence[Resolution] = ()
+        self,
+        question: str,
+        *,
+        resolved: Sequence[Resolution] = (),
+        context: PlanContext | None = None,
     ) -> PlannerOutcome: ...
 
 
@@ -125,6 +131,8 @@ def make_supervisor_node(planner: Planner) -> Node:
             resolutions = resolutions_from_json(raw)
             earlier_audit = list(state.scratchpad.get(PLANNER_AUDIT, []))
             fresh: dict[str, Any] = {**state.scratchpad, RUN_CITATIONS: []}
+            kept = state.scratchpad.get(PLAN_CONTEXT)  # planned with this context the first time
+            context = PlanContext.from_json(kept) if kept else None
             if pending.resolution is None:  # the user cancelled
                 return {
                     "active_interrupt": None,
@@ -134,11 +142,15 @@ def make_supervisor_node(planner: Planner) -> Node:
                 }
         else:  # a new question, which also replaces a clarification left unanswered
             resolutions = ()
+            # The plan still in the state is the previous question's: a completed one makes this
+            # question a possible follow-up. A declined or failed turn left none.
+            context = build_context(state.plan, _previous_question(state, asked))
             fresh = {
                 **state.scratchpad,
                 PLANNED_MESSAGE: asked.id,
                 RUN_CITATIONS: [],
                 CLARIFICATIONS: [],
+                PLAN_CONTEXT: context.to_json() if context else None,
             }
             screening = screen_question(question)
             if not screening.allowed:
@@ -153,12 +165,13 @@ def make_supervisor_node(planner: Planner) -> Node:
                     "messages": (_say(f"Declined: {screening.message}"),),
                 }
 
+        extra: dict[str, Any] = {}  # only what is set, so planners that predate it still fit
+        if resolutions:
+            extra["resolved"] = resolutions
+        if context is not None:
+            extra["context"] = context
         try:
-            outcome = await (
-                planner.plan(question, resolved=resolutions)
-                if resolutions
-                else planner.plan(question)
-            )
+            outcome = await planner.plan(question, **extra)
         except Exception as error:  # planner errors end the run with a visible message
             trail: tuple[ToolCallRecord, ...] = getattr(error, "audit", ())
             return {
@@ -434,6 +447,15 @@ def _active_step(plan: QueryPlan) -> PlanStep | None:
 
 def _failed(plan: QueryPlan) -> bool:
     return any(s.status is StepStatus.FAILED for s in plan.steps)
+
+
+def _previous_question(state: AgentState, asked: AgentMessage) -> str | None:
+    """The user message before ``asked``, if there is one."""
+    earlier = [m for m in state.messages if m.role is MessageRole.USER and m.content.strip()]
+    ids = [m.id for m in earlier]
+    if asked.id not in ids or ids.index(asked.id) == 0:
+        return None
+    return earlier[ids.index(asked.id) - 1].content.strip()
 
 
 def _latest_user_message(state: AgentState) -> AgentMessage | None:
