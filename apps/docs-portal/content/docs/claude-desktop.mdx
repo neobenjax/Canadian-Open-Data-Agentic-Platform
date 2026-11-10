@@ -1,0 +1,96 @@
+---
+title: Claude Desktop & Cursor Integration
+description: Configure Anthropic Claude Desktop and Cursor to use CanData-MCP
+---
+
+# Client Configuration
+
+CanData-MCP connects to any Model Context Protocol (MCP) compatible host application via standard input/output (`stdio`).
+
+## Claude Desktop Configuration
+
+Add the server to your `claude_desktop_config.json`:
+
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux:** `~/.config/Claude/claude_desktop_config.json`
+
+### Option A: Standalone Distribution via `uvx` (Recommended)
+
+```json
+{
+  "mcpServers": {
+    "candata": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git#subdirectory=packages/candata-mcp",
+        "candata-mcp"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
+```
+
+### Option B: Monorepo Local Development
+
+If you are developing inside a clone of the monorepo:
+
+```json
+{
+  "mcpServers": {
+    "candata": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/absolute/path/to/Canadian-Open-Data-Agentic-Platform",
+        "python",
+        "-m",
+        "candata_mcp"
+      ],
+      "env": {
+        "PYTHONPATH": "packages/candata-mcp/src",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
+```
+
+### Option C: Hardened Docker Container
+
+If running with Docker without a local Python setup:
+
+```json
+{
+  "mcpServers": {
+    "candata": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "ghcr.io/neobenjax/canadian-open-data-agentic-platform/candata-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+Restart Claude Desktop. You will see a hammer icon 🔨 indicating that all 11 `candata` tools (`search_statcan_cubes`, `query_statcan_vector`, `query_valet_series`, `execute_sql_analytics`, etc.) are active.
+
+---
+
+## Cursor IDE Configuration
+
+1. Open Cursor Settings $\rightarrow$ **Features** $\rightarrow$ **MCP Servers**.
+2. Click **Add New MCP Server**.
+3. Fill in the details:
+   - **Name:** `candata`
+   - **Type:** `stdio`
+   - **Command:** `uvx --from git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git#subdirectory=packages/candata-mcp candata-mcp`
+4. Test the connection. Cursor Composer can now query official Statistics Canada cubes, Bank of Canada Valet rates, and Open Government datasets directly from chat.

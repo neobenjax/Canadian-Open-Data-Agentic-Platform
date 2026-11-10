@@ -1,0 +1,11 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "quickstart",
+    "claude-desktop",
+    "connectors",
+    "architecture",
+    "api-reference"
+  ]
+}
