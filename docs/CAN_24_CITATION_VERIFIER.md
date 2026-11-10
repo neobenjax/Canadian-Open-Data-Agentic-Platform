@@ -64,6 +64,33 @@ The node accepts a dict state or an attribute-style state. That lets it be wired
   - the new client call
 - **Live:** `uv run pytest -m live tests/test_citation_verifier.py` verifies all 37 citations in `gta_ground_truth_v1.json` against WDS and Valet, plus the GT-01 values. It passed on Oct 28, 2026, with no stale release dates.
 
+## Hardening follow-ups (BEN-46, BEN-47, BEN-48)
+
+Three fixes from the #36 review (GitHub #37, #38, #39):
+
+- **Release dates are parsed, not compared as text (BEN-46, AGENTS.md §8).**
+  - `release_or_revision_date` and the WDS `releaseTime` are both parsed as Eastern Time before step 6. An offset such as `+00:00` is converted.
+  - `2025-12-17T08:30:00` and `2025-12-17T13:30:00+00:00` now match a `2025-12-17T08:30` release. As text, they were a `release_mismatch`.
+  - A date-only citation (`2025-12-17`) matches any release that day. As text it sorted before `2025-12-17T08:30`, so a same-day citation came out `stale_release`.
+  - The latest release among several observations is picked by time, not by string order.
+  - A cited date that isn't ISO 8601 is `malformed_citation` at step 1, so the source is never called. An official release time that can't be parsed never matches.
+- **Unknown vectors come from the exception type (BEN-47).**
+  - The WDS client raises `StatCanFailedStatusError`, a subclass of `StatCanResponseError`, when WDS answers 200 with `status: FAILED`. The verifier maps that to `not_found`.
+  - Every other `StatCanResponseError` is `source_unavailable`, even if its message says "WDS call failed".
+- **Valet precision comes from the raw payload (BEN-48).**
+  - The Valet `Observation` now carries `decimals`, counted from the published string: `"3.00"` is 2, `"4"` is 0.
+  - The tolerance is half the last published decimal, so `3.04` no longer passes against a published `3.00`. Reading precision from `repr(3.0)` had widened it tenfold.
+  - When Valet sends a JSON number or an exponent form, `decimals` is `None`, and the verifier falls back to the float's own digits.
+- **No bare `assert`s.** The four in the verifier are now explicit checks that return a failing verdict, so running Python with `-O` can't skip them.
+
+Tests:
+- `tests/test_citation_verifier.py`: 8 new tests.
+  - Release dates: three equivalent formats, an earlier date-only citation, a later release in another format, an unparseable date, and picking the latest release by time.
+  - Unknown vectors: the type is what counts, not the message text, plus a mocked WDS `FAILED` response through the real client.
+  - Valet: the tolerance from published decimals.
+  - 7 of them fail against the previous verifier.
+- `tests/connectors/test_boc_valet.py`: precision read from five raw values.
+
 ## Not in scope
 
 - Extracting claims from model text. The Data Analyst or Supervisor hands over structured claims.

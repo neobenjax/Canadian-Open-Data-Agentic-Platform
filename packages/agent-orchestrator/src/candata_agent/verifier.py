@@ -22,17 +22,19 @@ import math
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from enum import StrEnum
 from typing import Any, Protocol, cast
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from candata_mcp.citation import CitationEnvelope
 from candata_mcp.connectors.boc_valet import TABLE_ID as VALET_TABLE_ID
 from candata_mcp.connectors.boc_valet import ObservationSet, ValetError, ValetNotFoundError
 from candata_mcp.connectors.statcan_wds import (
+    Observation,
     StatCanError,
+    StatCanFailedStatusError,
     StatCanNotFoundError,
-    StatCanResponseError,
     StatCanSeriesResult,
     format_table_id,
 )
@@ -143,19 +145,16 @@ class CitationVerifier:
     async def _verify_statcan(self, claim: Claim) -> ClaimVerdict:
         core, enrichment = claim.citation.core, claim.citation.enrichment
         period = core.reference_period
-        assert period is not None
+        if period is None:  # _format_problem rejects this; kept explicit because -O strips asserts
+            return ClaimVerdict(claim, VerdictCode.MALFORMED_CITATION, "no reference_period")
         start, end = _period_bounds(period)
         try:
             series = await self._statcan.get_data_by_reference_period(
                 core.vector_id, _wds_date(start), _wds_date(end)
             )
-        except StatCanNotFoundError as exc:
-            return ClaimVerdict(claim, VerdictCode.NOT_FOUND, f"{core.vector_id}: {exc}")
-        except StatCanResponseError as exc:
+        except (StatCanNotFoundError, StatCanFailedStatusError) as exc:
             # WDS answers an unknown vector with status FAILED inside a 200 response.
-            if "WDS call failed" in str(exc):
-                return ClaimVerdict(claim, VerdictCode.NOT_FOUND, f"{core.vector_id}: {exc}")
-            return _unavailable(claim, exc)
+            return ClaimVerdict(claim, VerdictCode.NOT_FOUND, f"{core.vector_id}: {exc}")
         except StatCanError as exc:
             return _unavailable(claim, exc)
 
@@ -183,7 +182,7 @@ class CitationVerifier:
                 f"no observation for {core.vector_id} in {core.reference_period}",
             )
 
-        latest = max(series.observations, key=lambda o: o.release_time or "")
+        latest = max(series.observations, key=_release_key)
         flags = {"status_code": latest.status_code, "symbol_code": latest.symbol_code}
         missing = [o.ref_per for o in series.observations if o.value is None]
         if missing:
@@ -207,7 +206,8 @@ class CitationVerifier:
                 )
             point = series.observations[0]
             official_value = point.value
-            assert official_value is not None
+            if official_value is None:  # unreachable after the SUPPRESSED check; -O safe
+                return ClaimVerdict(claim, VerdictCode.SUPPRESSED, "no published value")
             tolerance = 0.5 * 10 ** -(point.decimals if point.decimals is not None else 0)
             if not math.isclose(claim.value, official_value, abs_tol=tolerance + 1e-9):
                 return ClaimVerdict(
@@ -222,8 +222,8 @@ class CitationVerifier:
 
         release = latest.release_time
         cited = enrichment.release_or_revision_date
-        if release and cited != release:
-            stale = cited is not None and cited < release
+        same, stale = _compare_release(cited, release)
+        if not same:
             return ClaimVerdict(
                 claim,
                 VerdictCode.STALE_RELEASE if stale else VerdictCode.RELEASE_MISMATCH,
@@ -246,7 +246,8 @@ class CitationVerifier:
     async def _verify_valet(self, claim: Claim) -> ClaimVerdict:
         core = claim.citation.core
         period = core.reference_period
-        assert period is not None
+        if period is None:  # _format_problem rejects this; kept explicit because -O strips asserts
+            return ClaimVerdict(claim, VerdictCode.MALFORMED_CITATION, "no reference_period")
         start, end = _period_bounds(period)
         try:
             obs = await self._valet.get_observations(
@@ -280,9 +281,14 @@ class CitationVerifier:
                     "a value claim needs a single observation date; cite the inputs of a "
                     "computed figure instead",
                 )
-            official_value = obs.observations[0].value
-            assert official_value is not None
-            tolerance = 0.5 * 10 ** -_decimals(official_value)
+            point = obs.observations[0]
+            official_value = point.value
+            if official_value is None:  # unreachable after the SUPPRESSED check; -O safe
+                return ClaimVerdict(claim, VerdictCode.SUPPRESSED, "no published value")
+            # Precision comes from the raw payload ("3.00" is two decimals); repr(float) would
+            # read 3.0 and loosen the tolerance tenfold. Fall back only when it is unknown.
+            places = point.decimals if point.decimals is not None else _decimals(official_value)
+            tolerance = 0.5 * 10**-places
             if not math.isclose(claim.value, official_value, abs_tol=tolerance + 1e-9):
                 return ClaimVerdict(
                     claim,
@@ -337,9 +343,58 @@ def _format_problem(claim: Claim) -> str | None:
         return f"table_id {core.table_id!r} is not in NN-NN-NNNN-NN form"
     if not _STATCAN_VECTOR.match(core.vector_id):
         return f"vector_id {core.vector_id!r} is not in vNNN form"
-    if not claim.citation.enrichment.release_or_revision_date:
+    cited_release = claim.citation.enrichment.release_or_revision_date
+    if not cited_release:
         return "Statistics Canada citations need release_or_revision_date"
+    if _release_instant(cited_release) is None:
+        return f"release_or_revision_date {cited_release!r} is not an ISO date or date-time"
     return None
+
+
+def _release_instant(text: str) -> datetime | None:
+    """Parse a release time as a naive Eastern Time datetime (AGENTS.md §6 and §8).
+
+    WDS publishes ``releaseTime`` as naive ET (``2025-12-17T08:30``); a cited date may add
+    seconds, drop the time, or carry an offset. Comparing the raw strings would order
+    ``2025-12-17`` before ``2025-12-17T08:30`` and call ``...T08:30:00`` a different release.
+    Returns None when the text is not ISO 8601, or carries an offset and the time zone data
+    is missing, so the caller fails the claim instead of guessing.
+    """
+    try:
+        moment = datetime.fromisoformat(text.strip())
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        return moment
+    try:
+        eastern = ZoneInfo("America/Toronto")
+    except ZoneInfoNotFoundError:
+        return None
+    return moment.astimezone(eastern).replace(tzinfo=None)
+
+
+def _compare_release(cited: str | None, official: str | None) -> tuple[bool, bool]:
+    """Return ``(same, stale)`` for a cited release against the official one.
+
+    A cited date without a time matches any official release on that day. An official
+    release time that cannot be parsed never matches, so the claim cannot pass on it.
+    """
+    if not official:
+        return True, False
+    official_at = _release_instant(official)
+    cited_at = _release_instant(cited) if cited else None
+    if official_at is None or cited_at is None:
+        return False, False
+    if cited is not None and "T" not in cited.strip():
+        same_day = cited_at.date() == official_at.date()
+        return same_day, (not same_day) and cited_at.date() < official_at.date()
+    return cited_at == official_at, cited_at < official_at
+
+
+def _release_key(observation: Observation) -> datetime:
+    """Order observations by release time, parsed, with unknown times first."""
+    parsed = _release_instant(observation.release_time) if observation.release_time else None
+    return parsed or datetime.min
 
 
 def _period_bounds(reference_period: str) -> tuple[str, str]:
