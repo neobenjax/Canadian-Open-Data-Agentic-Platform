@@ -13,8 +13,9 @@ Streamlit UI. It does not count as the 3 sessions with external researchers.
 
 ## Setup
 
-- Local UI in live mode: `uv run streamlit run apps/agent-ui/app.py` with `ANTHROPIC_API_KEY`
-  set in `.env` (a personal key, not a team key).
+- Local UI in live mode: export `ANTHROPIC_API_KEY` (a personal key, not a team key) in the
+  shell, then run `uv run streamlit run apps/agent-ui/app.py`. A key saved only in `.env` is not
+  read, and the page stays in demo mode.
 - One new conversation per persona.
 - Statistics Canada's service is unavailable 00:00-08:30 ET; run outside that window.
 

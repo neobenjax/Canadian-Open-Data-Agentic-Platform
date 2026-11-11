@@ -103,7 +103,7 @@
 
 ### Feature 3.2: Federal CKAN Integration & User Testing
 - [x] **CAN-34:** Add connector for Open Government Canada CKAN federal datasets. *(Owner: Yassir / Benjamin · 2h)*
-- [x] **CAN-35:** User testing session with 3 external Canadian policy/data researchers; log feedback. *(Owner: Yassir · 2h)*
+- [ ] **CAN-35:** User testing session with 3 external Canadian policy/data researchers; log feedback. *(Owner: Yassir · 2h)*
 
 ---
 
