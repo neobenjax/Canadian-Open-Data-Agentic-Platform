@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest_asyncio
+from streamlit.testing.v1 import AppTest
 
 from candata_agent.checkpoint import AsyncSqliteSaver
 from candata_agent.state import SQLArtifact
@@ -294,3 +295,58 @@ def test_charts_say_when_they_leave_series_out() -> None:
 
     few = series_figure(many[:7])
     assert few is not None and not few.layout.annotations  # nothing left out, no note
+
+
+# ---------------------------------------------------------------------------------------------
+# The two-pane page (apps/agent-ui/app.py)
+# ---------------------------------------------------------------------------------------------
+
+APP = Path(__file__).resolve().parents[1] / "apps" / "agent-ui" / "app.py"
+
+
+def verdict(vector: str, passed: bool, code: str = "verified") -> dict[str, Any]:
+    core = {"table_id": "18-10-0004-01", "vector_id": vector, "reference_period": "2026-08"}
+    return {"claim": {"citation": {"core": core}}, "code": code, "passed": passed}
+
+
+def page_with(turn: RunResult, took: dict[str, float] | None = None) -> AppTest:
+    at = AppTest.from_file(str(APP), default_timeout=60)
+    at.session_state["thread_id"] = "ui_test"
+    at.session_state["session_id"] = "session_test"
+    at.session_state["turns"] = [turn]
+    at.session_state["timings"] = [took or {}]
+    return at.run()
+
+
+def test_empty_page_has_one_question_box_and_no_evidence_tabs() -> None:
+    at = AppTest.from_file(str(APP), default_timeout=60).run()
+    assert not at.exception
+    assert [s.value for s in at.subheader][:2] == ["Conversation", "Evidence"]
+    assert len(at.tabs) == 0
+    assert at.chat_input[0].placeholder == "Ask about StatCan or Bank of Canada data"
+
+
+def test_page_shows_evidence_tabs_a_badge_per_result_and_the_flag_count() -> None:
+    turn = RunResult("How did shelter prices change?")
+    turn.series.append(series("v1", "%", row("2026-07", 1.0), row("2026-08", 2.0, symbol=5)))
+    turn.analyses.append(AnalysisResult("yoy_point_to_point", artifact("v1"), "Shelter"))
+    turn.analyses.append(AnalysisResult("yoy_point_to_point", artifact("v2"), "All items"))
+    turn.analyses.append(AnalysisResult("yoy_point_to_point", artifact("v3"), "Unchecked"))
+    turn.verification = {
+        "passed": False,
+        "verdicts": [verdict("v1", True), verdict("v2", False, "value_mismatch")],
+    }
+    at = page_with(turn, {"supervisor": 0.4, "data_fetcher": 1.8})
+
+    assert not at.exception
+    assert [t.label for t in at.tabs] == [
+        "Result", "Official series", "SQL", "Sources", "Quality flags (1)",
+    ]  # fmt: skip
+    text = " ".join(m.value for m in at.markdown)
+    assert "Shelter (v1)**: `yoy_point_to_point` · ✅ verified" in text
+    assert "⚠️ not verified (value_mismatch)" in text
+    assert "⚪ not checked" in text
+    assert "Supervisor** · 0.4 s" in text and "Data Fetcher** · 1.8 s" in text
+    assert "StatCan symbol code 5" in text
+    assert any("1 of 2" in e.value for e in at.error)  # banner counts the verdicts that passed
+    assert at.chat_input[0].placeholder == "Ask a follow-up…"
