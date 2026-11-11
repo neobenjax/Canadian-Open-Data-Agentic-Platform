@@ -37,6 +37,7 @@ from candata_mcp.connectors.statcan_wds import (
     STATCAN_WDS_BASE_URL,
     Observation,
     StatCanClient,
+    StatCanFailedStatusError,
     StatCanResponseError,
     StatCanSeriesResult,
 )
@@ -240,7 +241,7 @@ async def test_malformed_citations_never_reach_the_source(
 
 
 async def test_unknown_vector_is_not_found_but_an_outage_is_unavailable() -> None:
-    missing = StatCanResponseError("WDS call failed for vector v1: Vector does not exist")
+    missing = StatCanFailedStatusError("WDS call failed for vector v1: Vector does not exist")
     outage = StatCanResponseError("response from https://… is not valid JSON")
     v_missing = await verifier(missing).verify_claim(Claim(statcan_citation(), 2045.0))
     v_outage = await verifier(outage).verify_claim(Claim(statcan_citation(), 2045.0))
@@ -249,9 +250,89 @@ async def test_unknown_vector_is_not_found_but_an_outage_is_unavailable() -> Non
     assert not v_outage.passed
 
 
+async def test_not_found_comes_from_the_exception_type_not_its_message() -> None:
+    # BEN-47: a broken payload whose text happens to say "WDS call failed" is an outage.
+    lookalike = StatCanResponseError("WDS call failed: upstream returned garbage")
+    v = await verifier(lookalike).verify_claim(Claim(statcan_citation(), 2045.0))
+    assert v.code is VerdictCode.SOURCE_UNAVAILABLE
+
+
+@respx.mock
+async def test_client_raises_typed_error_for_failed_status_and_verifier_says_not_found() -> None:
+    # BEN-47: WDS answers an unknown vector with 200 and status FAILED.
+    body = [{"status": "FAILED", "object": "Vector does not exist"}]
+    respx.get(f"{STATCAN_WDS_BASE_URL}/getDataFromVectorByReferencePeriodRange").mock(
+        return_value=httpx.Response(200, json=body)
+    )
+    async with StatCanClient(backoff=0) as client:
+        with pytest.raises(StatCanFailedStatusError):
+            await client.get_data_by_reference_period(1, "2025-01-01", "2025-01-01")
+        v = await CitationVerifier(client, FakeValet(policy_rate())).verify_claim(
+            Claim(statcan_citation(vector_id="v1"), 2045.0)
+        )
+    assert v.code is VerdictCode.NOT_FOUND
+
+
+@pytest.mark.parametrize(
+    "cited",
+    [
+        "2025-12-17T08:30:00",  # seconds added
+        "2025-12-17",  # date only, same day
+        "2025-12-17T13:30:00+00:00",  # UTC; 08:30 Eastern in December
+    ],
+)
+async def test_equivalent_release_forms_are_verified(cited: str) -> None:
+    # BEN-46: as raw strings each of these differs from "2025-12-17T08:30", and
+    # "2025-12-17" sorts before it, which made a same-day citation look stale.
+    v = await verifier().verify_claim(Claim(statcan_citation(release=cited), 2045.0))
+    assert v.code is VerdictCode.VERIFIED, v.message
+
+
+async def test_date_only_release_from_an_earlier_day_is_stale() -> None:
+    v = await verifier().verify_claim(Claim(statcan_citation(release="2025-02-04"), 2045.0))
+    assert v.code is VerdictCode.STALE_RELEASE
+
+
+async def test_later_release_with_different_format_is_a_mismatch_not_stale() -> None:
+    v = await verifier().verify_claim(
+        Claim(statcan_citation(release="2026-03-01T08:30:00"), 2045.0)
+    )
+    assert v.code is VerdictCode.RELEASE_MISMATCH
+
+
+async def test_unparseable_release_date_is_malformed_before_any_request() -> None:
+    fake = FakeStatCan(RENT_2025_SERIES)
+    citation = statcan_citation(release="17 Dec 2025")
+    v = await CitationVerifier(fake, FakeValet(policy_rate())).verify_claim(Claim(citation, 1.0))
+    assert v.code is VerdictCode.MALFORMED_CITATION
+    assert "release_or_revision_date" in v.message
+    assert fake.calls == []
+
+
+async def test_latest_release_is_chosen_by_time_not_by_string() -> None:
+    # "2025-12-17T08:30" sorts after "2025-12-17T08:30:00+00:00" as text, but the UTC
+    # release (03:30 Eastern) is earlier; the citation must match the true latest one.
+    earlier = replace(RENT_2024, release_time="2025-12-17T08:30:00+00:00")
+    series = rent_series(earlier, RENT_2025)
+    v = await verifier(series).verify_claim(Claim(statcan_citation("2024/2025")))
+    assert v.code is VerdictCode.VERIFIED, v.message
+
+
 async def test_valet_policy_rate_is_verified_without_a_release_date() -> None:
     v = await verifier().verify_claim(Claim(valet_citation(), 2.25, "BoC rate, end of 2025"))
     assert v.code is VerdictCode.VERIFIED
+
+
+async def test_valet_tolerance_uses_published_decimals() -> None:
+    # BEN-48: Valet published "3.00". repr(3.0) reads one decimal and would accept 3.04.
+    detail = SeriesDetail("V39079", "Target for the overnight rate", "", "daily", None, None, "")
+    published = ObservationSet(
+        detail, (ValetObservation("2025-12-31", 3.0, 2),), "2026-10-28T00:00:00+00:00"
+    )
+    near = await verifier(valet=published).verify_claim(Claim(valet_citation(), 3.004))
+    off = await verifier(valet=published).verify_claim(Claim(valet_citation(), 3.04))
+    assert near.code is VerdictCode.VERIFIED
+    assert off.code is VerdictCode.VALUE_MISMATCH
 
 
 async def test_valet_wrong_rate_and_outage() -> None:
