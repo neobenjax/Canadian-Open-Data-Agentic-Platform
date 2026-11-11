@@ -15,7 +15,6 @@ plans, executed against live StatCan and Bank of Canada data).
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 import time
 import uuid
@@ -60,11 +59,11 @@ def _state() -> Any:
     return st.session_state
 
 
-def _sidebar(demo: bool) -> str | None:
+def _sidebar() -> str | None:
     with st.sidebar:
         st.header("CanData Agent")
 
-        # Optional user-provided API key for cloud demo visitors
+        # Optional user-provided API key for cloud demo visitors (ephemeral to this session)
         custom_key = st.text_input(
             "Anthropic API Key (optional)",
             value=st.session_state.get("custom_api_key", ""),
@@ -76,19 +75,16 @@ def _sidebar(demo: bool) -> str | None:
         )
         if custom_key != st.session_state.get("custom_api_key", ""):
             st.session_state.custom_api_key = custom_key
-            if custom_key:
-                os.environ["ANTHROPIC_API_KEY"] = custom_key
-            elif "ANTHROPIC_API_KEY" in os.environ and not os.environ.get("CANDATA_SYSTEM_KEY"):
-                os.environ.pop("ANTHROPIC_API_KEY", None)
             st.rerun()
 
-        if demo and not st.session_state.get("custom_api_key"):
+        session_key = st.session_state.get("custom_api_key")
+        if live_planner_available(session_key):
+            st.success("**Live mode.** Claude plans each question from StatCan discovery.")
+        else:
             st.info(
                 "**Demo mode.** No `ANTHROPIC_API_KEY`, so only the example questions are "
                 "planned. Their data is fetched live from StatCan and the Bank of Canada."
             )
-        else:
-            st.success("**Live mode.** Claude plans each question from StatCan discovery.")
         st.caption(f"Conversation `{st.session_state.thread_id}`")
         if st.button("New conversation", use_container_width=True):
             for key in STATE_KEYS:
@@ -102,13 +98,13 @@ def _sidebar(demo: bool) -> str | None:
 
 
 async def _ask(
-    question: str, progress: Any, resume: object = None
+    question: str, progress: Any, resume: object = None, api_key: str | None = None
 ) -> tuple[RunResult, dict[str, float]]:
     """Run one question; return its result and how long each agent took."""
     extra: dict[str, object] = {} if resume is None else {"resume": resume}
     started: dict[str, float] = {}
     took: dict[str, float] = {}
-    async with open_agent(db_path=ROOT / DEFAULT_DB) as (app, _):
+    async with open_agent(db_path=ROOT / DEFAULT_DB, api_key=api_key) as (app, _):
         async for event in stream_question(
             app,
             question,
@@ -286,8 +282,8 @@ def _evidence(result: RunResult) -> None:
 
 def main() -> None:
     state = _state()
-    demo = not live_planner_available()
-    clicked = _sidebar(demo)
+    clicked = _sidebar()
+    session_key = st.session_state.get("custom_api_key")
     st.title("Ask Canadian official statistics")
     st.caption(
         "Every figure is computed by SQL from an official series and its citation is checked "
@@ -330,7 +326,9 @@ def main() -> None:
             question = state.turns[-1].question
             with history, st.chat_message("assistant"):
                 with st.status("Continuing…", expanded=True) as progress:
-                    result, took = asyncio.run(_ask(question, progress, resume))
+                    result, took = asyncio.run(
+                        _ask(question, progress, resume, api_key=session_key)
+                    )
                     progress.update(label="Done", state="complete", expanded=False)
             state.turns.append(result)
             state.timings.append(took)
@@ -350,7 +348,7 @@ def main() -> None:
             with st.chat_message("assistant"):
                 with st.status("Planning…", expanded=True) as progress:
                     try:
-                        result, took = asyncio.run(_ask(question, progress))
+                        result, took = asyncio.run(_ask(question, progress, api_key=session_key))
                     except Exception as error:  # surface connector and API errors in the page
                         progress.update(label="Run failed", state="error")
                         st.error(f"{type(error).__name__}: {error}")

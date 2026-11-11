@@ -56,11 +56,13 @@ jobs:
       - name: Verify Docs Portal Production Build (Vercel Simulation)
         working-directory: apps/docs-portal
         run: |
-          npm ci --legacy-peer-deps
+          npm ci
           npm run build
 
-      - name: Verify Streamlit Headless Configuration
-        run: uv run streamlit --version
+      - name: Verify Streamlit Cloud Configuration & Requirements
+        run: |
+          uv pip install --dry-run -r requirements-cloud.txt
+          uv run streamlit config show | grep 'headless = true'
 
       - name: DeepEval Automated Scoring & Verification (CAN-42)
         run: uv run python collaboration/benchmarks/run_agent_evals.py grade collaboration/benchmarks/agent_evals/runs/agent_demo_live_20261104.jsonl --require-tier1

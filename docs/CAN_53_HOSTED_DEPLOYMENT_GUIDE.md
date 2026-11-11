@@ -22,13 +22,13 @@
                     │                                             │
       ┌─────────────┴─────────────┐                 ┌─────────────┴─────────────┐
       ▼                           ▼                 ▼                           ▼
-Next.js 16.4.6 App Router Interactive API     Streamlit 1.40 UI       LangGraph 0.2+ Agent
+Next.js 15.1.0 App Router  Interactive API     Streamlit 1.40 UI       LangGraph 0.2+ Agent
 Fumadocs MDX Portal       Sandbox Playground  Plotly Dynamic Charts   Supervisor / Analyst
 ```
 
 The platform provides two zero-install, live cloud endpoints:
 
-1. **`apps/docs-portal` (Vercel):** Modern, high-grade Next.js 16.4.6 + Fumadocs developer documentation portal styled after `fumadocs.dev` with Canadian Maple Red (`#D80621`), warm off-white paper (`#FDFCFB`), and dark tone (`#0B0F19`) design system tokens, floating sidebar navigation, search modal (`Ctrl+K`), right-hand Table of Contents, animated landing page with quickstart snippet, and client-side sandbox query testing.
+1. **`apps/docs-portal` (Vercel):** Modern, high-grade Next.js 15.1.0 + Fumadocs developer documentation portal styled after `fumadocs.dev` with Canadian Maple Red (`#D80621`), warm off-white paper (`#FDFCFB`), and dark tone (`#0B0F19`) design system tokens, floating sidebar navigation, search modal (`Ctrl+K`), right-hand Table of Contents, animated landing page with quickstart snippet, and client-side sandbox query testing.
 2. **`apps/agent-ui` (Streamlit Community Cloud):** Interactive multi-agent analytics app streaming live events via `astream_events` v2, generating dynamic Plotly charts, and displaying verifiable two-tier citation envelopes from Statistics Canada and the Bank of Canada.
 
 ---
