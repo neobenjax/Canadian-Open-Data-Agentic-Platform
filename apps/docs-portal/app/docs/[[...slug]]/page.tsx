@@ -1,6 +1,13 @@
 import { source } from '@/lib/source';
 import { notFound } from 'next/navigation';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
+import {
+  DocsPage,
+  DocsBody,
+  DocsTitle,
+  DocsDescription,
+} from 'fumadocs-ui/page';
+import { ArchitectureFlowDiagram } from '@/components/architecture-flow';
 
 interface PageProps {
   params: Promise<{ slug?: string[] }>;
@@ -18,21 +25,27 @@ export default async function DocsCatchAllPage({ params }: PageProps) {
   const MDX = pageData.body;
 
   return (
-    <div className="space-y-6">
-      <header className="border-b border-black/5 dark:border-white/10 pb-6 mb-6">
-        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          {pageData.title}
-        </h1>
-        {pageData.description && (
-          <p className="text-base text-slate-600 dark:text-slate-300 mt-2">
-            {pageData.description}
-          </p>
-        )}
-      </header>
-      <div className="prose dark:prose-invert max-w-none">
-        <MDX components={{ ...defaultMdxComponents }} />
-      </div>
-    </div>
+    <DocsPage
+      toc={pageData.toc}
+      full={pageData.full}
+      tableOfContent={{
+        style: 'clerk',
+        single: false,
+      }}
+    >
+      <DocsTitle>{pageData.title}</DocsTitle>
+      {pageData.description && (
+        <DocsDescription>{pageData.description}</DocsDescription>
+      )}
+      <DocsBody>
+        <MDX
+          components={{
+            ...defaultMdxComponents,
+            ArchitectureFlowDiagram,
+          }}
+        />
+      </DocsBody>
+    </DocsPage>
   );
 }
 

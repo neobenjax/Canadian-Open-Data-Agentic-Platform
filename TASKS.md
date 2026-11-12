@@ -129,7 +129,7 @@
 ### Feature 5.1: Package Release & Distribution
 - [ ] **CAN-51:** Package `candata-mcp` with `pyproject.toml` and publish to PyPI via `uv`. *(Owner: Benjamin · 2.5h)*
 - [ ] **CAN-52:** Submit server to official Anthropic MCP registry and Smithery.ai catalog. *(Owner: Benjamin / Yassir · 1.5h)*
-- [ ] **CAN-53:** Deploy hosted demo and docs portal to Vercel / Streamlit Cloud. *(Owner: Benjamin / Yassir · 2h)*
+- [x] **CAN-53:** Deploy hosted demo and docs portal to Vercel / Streamlit Cloud. *(Owner: Benjamin / Yassir · 2h)*
 
 ### Feature 5.2: Documentation & Case Study Report
 - [ ] **CAN-54:** Build comprehensive bilingual README with architecture diagrams and API reference. *(Owner: Benjamin / Samir · 2h)*

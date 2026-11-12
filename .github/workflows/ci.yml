@@ -46,6 +46,25 @@ jobs:
       - name: Run Test Suite (Pytest)
         run: uv run pytest -m 'not live'
 
+      - name: Set up Node.js 22 (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: apps/docs-portal/package-lock.json
+
+      - name: Verify Docs Portal Production Build (Vercel Simulation)
+        working-directory: apps/docs-portal
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verify Streamlit Cloud Configuration & Requirements
+        run: |
+          uv venv --clear /tmp/cloud && VIRTUAL_ENV=/tmp/cloud uv pip install -r requirements-cloud.txt
+          /tmp/cloud/bin/python -c "import candata_agent.ui.session, candata_mcp.server"
+          uv run streamlit config show | grep 'headless = true'
+
       - name: DeepEval Automated Scoring & Verification (CAN-42)
         run: uv run python collaboration/benchmarks/run_agent_evals.py grade collaboration/benchmarks/agent_evals/runs/agent_demo_live_20261104.jsonl --require-tier1
 
