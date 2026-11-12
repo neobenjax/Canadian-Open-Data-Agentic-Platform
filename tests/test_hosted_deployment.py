@@ -120,3 +120,14 @@ def test_session_isolated_api_key_does_not_mutate_environ() -> None:
     finally:
         if orig is not None:
             os.environ["ANTHROPIC_API_KEY"] = orig
+
+
+def test_orchestrator_pyproject_wheel_target() -> None:
+    """Verify packages/agent-orchestrator/pyproject.toml defines hatch wheel packages."""
+    orchestrator_toml = ROOT_DIR / "packages" / "agent-orchestrator" / "pyproject.toml"
+    assert orchestrator_toml.exists(), "agent-orchestrator pyproject.toml must exist"
+    with orchestrator_toml.open("rb") as f:
+        data = tomllib.load(f)
+    assert data.get("tool", {}).get("hatch", {}).get("build", {}).get("targets", {}).get(
+        "wheel", {}
+    ).get("packages") == ["src/candata_agent"]

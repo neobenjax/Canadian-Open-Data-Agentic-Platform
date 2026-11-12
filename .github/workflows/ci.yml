@@ -61,7 +61,8 @@ jobs:
 
       - name: Verify Streamlit Cloud Configuration & Requirements
         run: |
-          uv pip install --dry-run -r requirements-cloud.txt
+          uv venv --clear /tmp/cloud && VIRTUAL_ENV=/tmp/cloud uv pip install -r requirements-cloud.txt
+          /tmp/cloud/bin/python -c "import candata_agent.ui.session, candata_mcp.server"
           uv run streamlit config show | grep 'headless = true'
 
       - name: DeepEval Automated Scoring & Verification (CAN-42)
