@@ -14,11 +14,14 @@ the GTA Housing Ground-Truth Benchmark (gta_ground_truth_v1.md):
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import pyarrow as pa
 
 from candata_agent.analyst.sandbox import SandboxedDuckDB
+from candata_agent.state import SQLArtifact
+from candata_mcp.citation import CitationEnvelope
 
 
 def annual_inflation_rate(
@@ -190,7 +193,11 @@ def percentage_point_spread(
     value_col: str = "value",
     series_a_name: str = "series_a",
     series_b_name: str = "series_b",
-) -> tuple[list[dict[str, Any]], str]:
+    citation_a: CitationEnvelope | None = None,
+    citation_b: CitationEnvelope | None = None,
+    citations: tuple[CitationEnvelope, ...] | Sequence[CitationEnvelope] | None = None,
+    source_series_id: str = "rate_spread",
+) -> SQLArtifact:
     """Calculate rate spread in percentage points (pp) and basis points (bps).
 
     Directly powers GTA Ground-Truth GT-02 and BoC policy rate spreads.
@@ -217,7 +224,25 @@ def percentage_point_spread(
         db.register_table(name_a, table_a)
         db.register_table(name_b, table_b)
         rows = db.execute_sync(query)
-    return rows, query.strip()
+
+    cits_list: list[CitationEnvelope] = []
+    if citations:
+        cits_list.extend(citations)
+    else:
+        if citation_a is not None:
+            cits_list.append(citation_a)
+        if citation_b is not None:
+            cits_list.append(citation_b)
+    resolved_citations = tuple(cits_list)
+
+    return SQLArtifact(
+        source_series_id=source_series_id,
+        sql_query=query.strip(),
+        row_count=len(rows),
+        rows=tuple(rows),
+        citation=resolved_citations[0] if resolved_citations else None,
+        citations=resolved_citations,
+    )
 
 
 def affordability_burden_ratio(
@@ -228,7 +253,11 @@ def affordability_burden_ratio(
     rent_val_col: str = "value",
     income_date_col: str = "date",
     income_val_col: str = "value",
-) -> tuple[list[dict[str, Any]], str]:
+    rent_citation: CitationEnvelope | None = None,
+    income_citation: CitationEnvelope | None = None,
+    citations: tuple[CitationEnvelope, ...] | Sequence[CitationEnvelope] | None = None,
+    source_series_id: str = "rent_to_income_ratio",
+) -> SQLArtifact:
     """Calculate shelter cost as percentage of median after-tax income.
 
     Directly powers GTA Ground-Truth GT-07.
@@ -258,7 +287,25 @@ def affordability_burden_ratio(
         db.register_table(view_rent, rent_table)
         db.register_table(view_income, income_table)
         rows = db.execute_sync(query)
-    return rows, query.strip()
+
+    cits_list: list[CitationEnvelope] = []
+    if citations:
+        cits_list.extend(citations)
+    else:
+        if rent_citation is not None:
+            cits_list.append(rent_citation)
+        if income_citation is not None:
+            cits_list.append(income_citation)
+    resolved_citations = tuple(cits_list)
+
+    return SQLArtifact(
+        source_series_id=source_series_id,
+        sql_query=query.strip(),
+        row_count=len(rows),
+        rows=tuple(rows),
+        citation=resolved_citations[0] if resolved_citations else None,
+        citations=resolved_citations,
+    )
 
 
 def multi_year_cagr(

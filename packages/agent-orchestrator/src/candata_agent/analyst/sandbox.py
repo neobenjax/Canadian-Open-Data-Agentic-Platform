@@ -189,12 +189,14 @@ class SandboxedDuckDB:
         *,
         max_rows: int = 1000,
         timeout_seconds: float = 2.0,
+        timeout: float | None = None,
     ) -> list[dict[str, Any]]:
         """Validate and execute a query asynchronously with strict execution timeout."""
+        effective_timeout = timeout if timeout is not None else timeout_seconds
         try:
             return await asyncio.wait_for(
                 asyncio.to_thread(self.execute_sync, query, params, max_rows=max_rows),
-                timeout=timeout_seconds,
+                timeout=effective_timeout,
             )
         except TimeoutError as exc:
             try:
@@ -202,5 +204,5 @@ class SandboxedDuckDB:
             except Exception:
                 pass
             raise ExecutionTimeoutError(
-                f"Analytical query execution timed out after {timeout_seconds}s limit."
+                f"Analytical query execution timed out after {effective_timeout}s limit."
             ) from exc

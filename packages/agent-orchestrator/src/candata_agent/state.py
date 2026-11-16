@@ -11,7 +11,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -74,6 +74,7 @@ class PlanStep(BaseModel):
     tool_name: str | None = None
     tool_args: dict[str, Any] = Field(default_factory=dict)
     result_summary: str | None = None
+    error: str | None = None
 
 
 class QueryPlan(BaseModel):
@@ -99,9 +100,43 @@ class SQLArtifact(BaseModel):
     row_count: int
     rows: tuple[dict[str, Any], ...] = Field(default_factory=tuple)
     citation: CitationEnvelope | None = None
+    citations: tuple[CitationEnvelope, ...] = Field(default_factory=tuple)
     warnings: tuple[str, ...] = Field(default_factory=tuple)
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_citations_and_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            d: dict[str, Any] = dict(cast(dict[Any, Any], data))
+            if "data" in d and "rows" not in d:
+                raw_data: Any = d.pop("data")
+                d["rows"] = tuple(cast(Sequence[Any], raw_data)) if raw_data is not None else ()
+            cits: Any = d.get("citations")
+            cit: Any = d.get("citation")
+            if cits:
+                cits_tuple: tuple[Any, ...] = tuple(cast(Sequence[Any], cits))
+                d["citations"] = cits_tuple
+                if cit is None and len(cits_tuple) > 0:
+                    d["citation"] = cits_tuple[0]
+            elif cit is not None:
+                d["citations"] = (cit,)
+            return d
+        return data
+
+    @property
+    def data(self) -> list[dict[str, Any]]:
+        return list(self.rows)
+
+    def __iter__(self) -> Any:
+        return iter((list(self.rows), self.sql_query))
+
+    def __getitem__(self, idx: int | slice) -> Any:
+        return (list(self.rows), self.sql_query)[idx]
+
+    def __len__(self) -> int:
+        return 2
 
 
 def merge_citations(
@@ -122,6 +157,15 @@ def merge_citations(
         key = (cit.core.table_id, cit.core.vector_id, cit.core.reference_period)
         merged[key] = cit
     return tuple(merged.values())
+
+
+def add_warnings(
+    existing: Sequence[str],
+    incoming: Sequence[str] | str,
+) -> tuple[str, ...]:
+    """Append-only warnings reducer with deduplication."""
+    inc = (incoming,) if isinstance(incoming, str) else tuple(incoming)
+    return tuple(dict.fromkeys((*existing, *inc)))
 
 
 class InterruptType(StrEnum):
@@ -222,6 +266,9 @@ class AgentState(BaseModel):
     citations: Annotated[tuple[CitationEnvelope, ...], merge_citations] = Field(
         default_factory=tuple
     )
+
+    # Warnings emitted by nodes
+    warnings: Annotated[tuple[str, ...], add_warnings] = Field(default_factory=tuple)
 
     # Active HITL breakpoint
     active_interrupt: HITLInterrupt | None = None
