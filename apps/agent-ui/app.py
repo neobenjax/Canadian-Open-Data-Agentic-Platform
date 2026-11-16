@@ -22,8 +22,11 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[2]
+# Load .env without overriding explicitly exported environment variables
+load_dotenv(ROOT / ".env", override=False)
 for src in ("packages/candata-mcp/src", "packages/agent-orchestrator/src"):
     if str(ROOT / src) not in sys.path:
         sys.path.insert(0, str(ROOT / src))
@@ -79,11 +82,15 @@ def _sidebar() -> str | None:
 
         session_key = st.session_state.get("custom_api_key")
         if live_planner_available(session_key):
-            st.success("**Live mode.** Claude plans each question from StatCan discovery.")
+            source = "session" if session_key else ".env / environment"
+            st.success(
+                f"**Live mode.** Active ({source}). "
+                "Claude plans each question from StatCan discovery."
+            )
         else:
             st.info(
-                "**Demo mode.** No `ANTHROPIC_API_KEY`, so only the example questions are "
-                "planned. Their data is fetched live from StatCan and the Bank of Canada."
+                "**Demo mode.** No `ANTHROPIC_API_KEY` detected in `.env` or session. "
+                "Showing pre-computed plans against live official data."
             )
         st.caption(f"Conversation `{st.session_state.thread_id}`")
         if st.button("New conversation", use_container_width=True):
