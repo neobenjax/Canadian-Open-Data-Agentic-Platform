@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import time
+import tomllib
 
 if isinstance(sys.stdout, io.TextIOWrapper):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -20,6 +21,43 @@ if isinstance(sys.stderr, io.TextIOWrapper):
     sys.stderr.reconfigure(encoding="utf-8")
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def verify_packaging_parity() -> tuple[bool, str]:
+    """Verify distribution/pyproject.toml matches candata-mcp pyproject.toml (Issue #82)."""
+    pkg_toml_path = os.path.join(ROOT_DIR, "packages", "candata-mcp", "pyproject.toml")
+    dist_toml_path = os.path.join(ROOT_DIR, "distribution", "pyproject.toml")
+
+    if not os.path.exists(pkg_toml_path):
+        return False, f"Missing file: {pkg_toml_path}"
+    if not os.path.exists(dist_toml_path):
+        return False, f"Missing file: {dist_toml_path}"
+
+    try:
+        with open(pkg_toml_path, "rb") as f:
+            pkg_data = tomllib.load(f)
+        with open(dist_toml_path, "rb") as f:
+            dist_data = tomllib.load(f)
+    except Exception as e:
+        return False, f"Failed parsing pyproject.toml: {e}"
+
+    pkg_proj = pkg_data.get("project", {})
+    dist_proj = dist_data.get("project", {})
+
+    diffs: list[str] = []
+    for field in ("name", "version", "dependencies"):
+        pkg_val = pkg_proj.get(field)
+        dist_val = dist_proj.get(field)
+        if pkg_val != dist_val:
+            diffs.append(
+                f"Field '{field}' mismatch between packages/candata-mcp and distribution:\n"
+                f"  - packages/candata-mcp: {pkg_val}\n"
+                f"  - distribution:         {dist_val}"
+            )
+
+    if diffs:
+        return False, "\n".join(diffs)
+    return True, ""
 
 
 def run_command(cmd: list[str], cwd: str = ROOT_DIR) -> tuple[int, str, float]:
@@ -62,6 +100,21 @@ def verify_all(auto_fix: bool = False, fast: bool = False, quiet: bool = False) 
             print("🔧 Auto-fixing lint and formatting...")
         run_command(["uv", "run", "ruff", "check", "--fix", "."])
         run_command(["uv", "run", "ruff", "format", "."])
+
+    # 0. Packaging Parity Check (Issue #82)
+    parity_start = time.time()
+    parity_passed, parity_diff = verify_packaging_parity()
+    parity_duration = time.time() - parity_start
+    results.append(
+        {
+            "name": "Packaging Parity (candata-mcp <-> distribution)",
+            "passed": parity_passed,
+            "duration": parity_duration,
+            "output": parity_diff if not parity_passed else "",
+        }
+    )
+    if not parity_passed:
+        has_failure = True
 
     # 1. Ruff Lint
     code, output, duration = run_command(["uv", "run", "ruff", "check", "."])

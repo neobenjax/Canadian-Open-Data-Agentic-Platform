@@ -1,6 +1,8 @@
 """Unit tests for CAN-42 CI Pipeline with DeepEval Two-Tier Automated Scoring Gate."""
 
+import tomllib
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 
@@ -75,3 +77,74 @@ def test_committed_live_run_file_passes_tier1_offline():
     assert report.tier1_passed == report.graded == len(runs)
     assert report.mean("Tier 2 · Metadata enrichment") >= 0.7
     assert report.mean("Tier 2 · Revision freshness") == 1.0
+
+
+def test_verify_script_includes_packaging_parity_check():
+    """Verify scripts/verify.py includes Packaging Parity verification (Issue #82)."""
+    verify_script = REPO_ROOT / "scripts" / "verify.py"
+    assert verify_script.exists()
+    content = verify_script.read_text(encoding="utf-8")
+
+    assert "Packaging Parity (candata-mcp <-> distribution)" in content
+    assert "verify_packaging_parity" in content
+
+
+def test_packaging_pyproject_parity():
+    """Verify candata-mcp and distribution pyproject.toml parity (Issue #82)."""
+    pkg_toml = REPO_ROOT / "packages" / "candata-mcp" / "pyproject.toml"
+    dist_toml = REPO_ROOT / "distribution" / "pyproject.toml"
+    assert pkg_toml.exists(), f"Missing {pkg_toml}"
+    assert dist_toml.exists(), f"Missing {dist_toml}"
+
+    with pkg_toml.open("rb") as f:
+        pkg_data = tomllib.load(f)
+    with dist_toml.open("rb") as f:
+        dist_data = tomllib.load(f)
+
+    for field in ("name", "version", "dependencies"):
+        assert pkg_data["project"][field] == dist_data["project"][field], (
+            f"Field '{field}' mismatch between candata-mcp and distribution pyproject.toml"
+        )
+
+    # Verify top sync comment exists in both
+    sync_comment = (
+        "# KEEP IN SYNC: packages/candata-mcp/pyproject.toml <-> distribution/pyproject.toml"
+    )
+    assert sync_comment in pkg_toml.read_text(encoding="utf-8")
+    assert sync_comment in dist_toml.read_text(encoding="utf-8")
+
+
+def test_root_pyproject_decoupled_langgraph():
+    """Verify root pyproject.toml decouples langgraph to optional orchestrator extra (Issue #52)."""
+    root_toml = REPO_ROOT / "pyproject.toml"
+    assert root_toml.exists()
+
+    with root_toml.open("rb") as f:
+        data = tomllib.load(f)
+
+    # Base dependencies must NOT contain langgraph
+    base_deps = data["project"]["dependencies"]
+    assert not any("langgraph" in dep for dep in base_deps), (
+        "Base dependencies must not include langgraph"
+    )
+
+    # Orchestrator extra must exist and include langgraph
+    optional_deps = data["project"]["optional-dependencies"]
+    assert "orchestrator" in optional_deps, "Missing 'orchestrator' optional-dependencies group"
+    orch_deps = optional_deps["orchestrator"]
+    assert any("langgraph>=" in dep for dep in orch_deps)
+    assert any("langgraph-checkpoint-sqlite>=" in dep for dep in orch_deps)
+
+
+def test_verify_packaging_parity_mismatch_detected():
+    """Verify scripts.verify.verify_packaging_parity correctly detects mismatches."""
+    from scripts.verify import verify_packaging_parity
+
+    with patch("tomllib.load") as mock_load:
+        mock_load.side_effect = [
+            {"project": {"name": "candata-mcp", "version": "0.1.0", "dependencies": ["duckdb"]}},
+            {"project": {"name": "candata-mcp", "version": "0.2.0", "dependencies": ["duckdb"]}},
+        ]
+        passed, diff = verify_packaging_parity()
+        assert not passed
+        assert "version" in diff
