@@ -10,13 +10,7 @@ The **Canadian Open Data Agentic Platform (`CanData-MCP`)** provides an auditabl
 ## Core Problem
 Frontier LLMs without grounded data access hallucinate official figures, misquote statistical time periods, or fail on municipal vs census metropolitan area (CMA) boundaries. Furthermore, existing REST APIs deliver monolithic 200MB payloads that easily exhaust LLM context windows.
 
-```
-       Monolithic 200MB SDMX/CSV ──► Context Exhaustion & Hallucinations
-                                              ▲
-                                              │
-[LLM Question] ──► [CanData-MCP Engine] ──► [Auditable <3KB Slice + Tuple]
-                      (DuckDB Arrow)          (table_id, vector_id, ref_period)
-```
+<ArchitectureFlowDiagram />
 
 ## Solution Highlights
 - **In-Memory DuckDB Slicing:** Uses Apache Arrow and in-memory DuckDB 1.2+ to reduce 200MB data cubes into clean, typed `<3KB` observation payloads.

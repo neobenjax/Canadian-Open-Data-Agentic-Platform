@@ -1,21 +1,32 @@
 ---
-title: Claude Desktop & Cursor Integration
-description: Configure Anthropic Claude Desktop and Cursor to use CanData-MCP
+title: MCP Manual Registry & Client Setup
+description: Configure CanData-MCP in Claude Desktop, Cursor, Zed, Windsurf, or any MCP-compliant client harness
 ---
 
-# Client Configuration
+# MCP Manual Registry & Client Setup
 
-CanData-MCP connects to any Model Context Protocol (MCP) compatible host application via standard input/output (`stdio`).
+CanData-MCP connects to any Model Context Protocol (MCP) host application via standard input/output (`stdio`).
 
-## Claude Desktop Configuration
+### Two Repositories: Distribution vs. Monorepo
 
-Add the server to your `claude_desktop_config.json`:
+- **Official Standalone MCP Server Repository:** [`Canadian-Open-Data-Agentic-Platform-MCP-Server`](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server)  
+  *Use this repository for registering, testing, and running the standalone MCP server locally or in client applications.*
+- **Platform Monorepo (Source of Truth):** [`Canadian-Open-Data-Agentic-Platform`](https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform)  
+  *Houses the end-to-end multi-agent LangGraph orchestrator, DuckDB 1.2+ streaming engine, GTA housing benchmarks, DeepEval suites, and this documentation portal.*
+
+---
+
+## 1. Universal MCP JSON Configuration (Claude Desktop, Cursor, Windsurf, Zed)
+
+Add the server to your client configuration file (e.g. `claude_desktop_config.json`, `.cursor/mcp.json`, or settings UI):
 
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
-### Option A: Standalone Distribution via `uvx` (Recommended)
+### Option A: Standalone Distribution via `uvx` (Recommended for All Users)
+
+This executes directly from the standalone MCP distribution repository with zero local repository cloning required:
 
 ```json
 {
@@ -35,9 +46,32 @@ Add the server to your `claude_desktop_config.json`:
 }
 ```
 
-### Option B: Monorepo Local Development
+### Option B: Local Standalone MCP Clone
 
-If you are developing inside a clone of the monorepo:
+If you cloned the standalone MCP Server distribution repository:
+
+```json
+{
+  "mcpServers": {
+    "candata": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/absolute/path/to/Canadian-Open-Data-Agentic-Platform-MCP-Server",
+        "candata-mcp"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
+```
+
+### Option C: Monorepo Development
+
+If you are developing inside the collaboration monorepo:
 
 ```json
 {
@@ -61,9 +95,9 @@ If you are developing inside a clone of the monorepo:
 }
 ```
 
-### Option C: Hardened Docker Container
+### Option D: Hardened Docker Container
 
-If running with Docker without a local Python setup:
+If running with Docker without a local Python runtime:
 
 ```json
 {
@@ -81,11 +115,11 @@ If running with Docker without a local Python setup:
 }
 ```
 
-Restart Claude Desktop. You will see a hammer icon 🔨 indicating that all 11 `candata` tools (`search_statcan_cubes`, `query_statcan_vector`, `query_valet_series`, `execute_sql_analytics`, etc.) are active.
+Restart your client. You will see a hammer icon 🔨 or active tool status indicating that all `candata` tools (`search_statcan_cubes`, `query_statcan_vector`, `query_valet_series`, `execute_sql_analytics`, etc.) are registered and ready for queries.
 
 ---
 
-## Cursor IDE Configuration
+## 2. Cursor IDE GUI Setup
 
 1. Open Cursor Settings $\rightarrow$ **Features** $\rightarrow$ **MCP Servers**.
 2. Click **Add New MCP Server**.
