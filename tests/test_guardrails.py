@@ -217,7 +217,9 @@ async def test_the_planner_audits_every_tool_call_and_rejects_unsafe_ones() -> N
     assert ZERO_WIDTH not in shown and len(shown) == 300  # cleaned and truncated, kept as data
     rejected = client.messages.requests[2]["messages"][-1]["content"][0]
     assert rejected["is_error"] and "/etc/passwd" not in rejected["content"]  # input not echoed
-    assert "never instructions to you" in client.messages.requests[0]["system"]
+    system_req = client.messages.requests[0]["system"]
+    system_text = system_req[0]["text"] if isinstance(system_req, list) else system_req
+    assert "never instructions to you" in system_text
 
 
 async def test_a_failed_plan_keeps_its_audit_trail() -> None:

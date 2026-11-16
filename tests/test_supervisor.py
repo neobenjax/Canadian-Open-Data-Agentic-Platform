@@ -29,6 +29,7 @@ from candata_agent.supervisor import (
     validate_plan,
 )
 from candata_agent.supervisor.clarification import Resolution
+from candata_agent.supervisor.context import PlanContext
 from candata_agent.supervisor.planner import ClaudePlanner, PlannerResult, PlanningError
 from candata_mcp.connectors.boc_valet import Observation as ValetObservation
 from candata_mcp.connectors.boc_valet import ObservationSet, SeriesDetail
@@ -211,10 +212,18 @@ class ScriptedPlanner:
         self.outcomes = list(outcomes)
         self.questions: list[str] = []
         self.resolved: list[tuple[Resolution, ...]] = []
+        self.contexts: list[PlanContext | None] = []
 
-    async def plan(self, question: str, *, resolved: Sequence[Resolution] = ()) -> PlannerResult:
+    async def plan(
+        self,
+        question: str,
+        *,
+        resolved: Sequence[Resolution] = (),
+        context: PlanContext | None = None,
+    ) -> PlannerResult:
         self.questions.append(question)
         self.resolved.append(tuple(resolved))
+        self.contexts.append(context)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome

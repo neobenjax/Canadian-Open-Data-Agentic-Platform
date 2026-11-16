@@ -67,7 +67,7 @@ uv pip install -e packages/candata-mcp
 
 ### Option 2: Run directly with `uvx`
 ```bash
-uvx --from git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git candata-mcp
+uvx --from "git+https://github.com/neobenjax/Canadian-Open-Data-Agentic-Platform-MCP-Server.git#subdirectory=packages/candata-mcp" candata-mcp
 ```
 
 ---

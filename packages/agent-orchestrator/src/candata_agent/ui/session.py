@@ -20,6 +20,7 @@ from langgraph.graph.state import CompiledStateGraph
 from candata_agent.checkpoint import AsyncSqliteSaver
 from candata_agent.supervisor import DraftStep, PlanDraft, build_agent_graph, validate_plan
 from candata_agent.supervisor.clarification import Resolution
+from candata_agent.supervisor.context import PlanContext
 from candata_agent.supervisor.node import Planner
 from candata_agent.supervisor.planner import PlannerResult
 from candata_mcp.connectors.boc_valet import ValetClient
@@ -87,7 +88,13 @@ class DemoPlanner:
     def __init__(self, questions: tuple[DemoQuestion, ...] = DEMO_QUESTIONS) -> None:
         self._plans = {_normal(q.question): q.draft for q in questions}
 
-    async def plan(self, question: str, *, resolved: Sequence[Resolution] = ()) -> PlannerResult:
+    async def plan(
+        self,
+        question: str,
+        *,
+        resolved: Sequence[Resolution] = (),
+        context: PlanContext | None = None,
+    ) -> PlannerResult:
         found = self._plans.get(_normal(question))
         if found is None:
             return PlannerResult(
@@ -102,19 +109,25 @@ def _normal(text: str) -> str:
     return " ".join(text.lower().split())
 
 
-def live_planner_available() -> bool:
-    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+def live_planner_available(api_key: str | None = None) -> bool:
+    return bool(api_key or os.environ.get("ANTHROPIC_API_KEY"))
 
 
 @asynccontextmanager
 async def open_agent(
-    *, db_path: Path = DEFAULT_DB, demo: bool | None = None
+    *,
+    db_path: Path = DEFAULT_DB,
+    demo: bool | None = None,
+    api_key: str | None = None,
 ) -> AsyncGenerator[tuple[CompiledStateGraph[Any, Any, Any, Any], bool]]:
     """Yield the compiled graph and whether it is in demo mode.
 
     Threads are checkpointed to ``db_path`` so a conversation survives Streamlit reruns.
+    ``api_key`` allows session-isolated credentials without modifying process-wide
+    ``os.environ``.
     """
-    use_demo = not live_planner_available() if demo is None else demo
+    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    use_demo = not key if demo is None else demo
     db_path.parent.mkdir(parents=True, exist_ok=True)
     async with (
         StatCanClient() as statcan,
@@ -129,7 +142,7 @@ async def open_agent(
 
             from candata_agent.supervisor.planner import ClaudePlanner
 
-            planner = ClaudePlanner(AsyncAnthropic(), statcan)
+            planner = ClaudePlanner(AsyncAnthropic(api_key=key), statcan)
         yield (
             build_agent_graph(planner=planner, statcan=statcan, valet=valet, checkpointer=saver),
             use_demo,

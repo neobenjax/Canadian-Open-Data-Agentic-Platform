@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from email.utils import parsedate_to_datetime
 from types import TracebackType
-from typing import Any, Self
+from typing import Any, Self, cast
 from urllib.parse import quote
 
 import httpx
@@ -108,6 +108,9 @@ class SeriesDetail:
 class Observation:
     date: str
     value: float | None
+    # Decimal places as published in the raw payload ("3.00" -> 2). None when the payload
+    # carried a JSON number or no value, so the precision is unknown.
+    decimals: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -490,6 +493,22 @@ def _observation(row: Any, series_id: str) -> Observation:
     if raw is None or raw == "":
         return Observation(when, None)
     try:
-        return Observation(when, float(raw))  # pyright: ignore[reportUnknownArgumentType]
+        value = float(raw)  # pyright: ignore[reportUnknownArgumentType]
     except (TypeError, ValueError) as exc:
         raise ValetResponseError(f"non-numeric value {raw!r} on {when}") from exc
+    return Observation(when, value, _published_decimals(cast(object, raw)))
+
+
+def _published_decimals(raw: object) -> int | None:
+    """Decimal places in a value as Valet published it: "3.00" -> 2, "4" -> 0.
+
+    Only a string keeps its trailing zeros; a JSON number has already lost them, and an
+    exponent form says nothing reliable about precision, so both give None.
+    """
+    if not isinstance(raw, str):
+        return None
+    text = raw.strip()
+    if "e" in text.lower():
+        return None
+    _, dot, fraction = text.partition(".")
+    return len(fraction) if dot else 0

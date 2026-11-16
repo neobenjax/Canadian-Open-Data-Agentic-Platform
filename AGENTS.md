@@ -173,6 +173,14 @@ python scripts/verify.py
   3. **History & Time-Travel Replay:** Assert that `app.aget_state_history()` returns chronological checkpoints and that resuming/forking execution from a past `checkpoint_id` produces deterministic state restoration.
 - Static graph compilation checks without dynamic execution are strictly classified as incomplete coverage.
 
+### 27. Issue Closing & Mirroring Guardrail
+1. **Close through a PR:** An issue is closed by the PR that resolves it. The PR description includes `Closes #NN` (GitHub issue) alongside `Closes BEN-XX` and `Closes CAN-XXX` where the work is a sprint-board deliverable (rule 2).
+2. **Peer approval first:** A teammate approves the resolution through the normal triangular review (one approval minimum) before the issue is closed. Nobody closes their own issue without that approval.
+3. **Manual close needs a reason:** An issue closed without a PR (superseded, duplicate, plan complete) gets a closing comment that names the reason and links the related ticket or PR.
+4. **Mirror in both places:** Every GitHub issue has a matching Linear ticket and vice versa (rule 24). Closing one closes the other in the same step, and the closing comment says so.
+5. **Tech-debt closes with its fix:** A `[TECH-DEBT]` issue (rule 14) closes only when a merged PR resolves it. Deferring or dropping it needs a comment explaining why.
+6. **Same tone and scope:** Closing comments follow rule 21, and docs/chore-only issues carry no sprint ticket keys (rule 16).
+
 
 ---
 

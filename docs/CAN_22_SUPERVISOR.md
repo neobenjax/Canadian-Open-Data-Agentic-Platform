@@ -55,6 +55,12 @@ START → supervisor ─┬→ data_fetcher ─┐
 
 The Data Fetcher normalises periods to whole days: `2024` → `2024-01-01` and `2025` → `2025-12-31`. I checked live that WDS accepts these ranges for monthly (v42127475), annual (v3823103) and single-month (v41692889) series. The fetcher stores rows with `status_code` and `symbol_code`, so the analyst's quality warnings still apply, and adds the connector's citation to `AgentState.citations`.
 
+## Follow-up questions (BEN-62)
+
+A follow-up such as "What about Oshawa?" needs the question before it. When the Supervisor plans a new question, the plan still in the state is the previous question's. If that plan completed, the Supervisor builds a `PlanContext` (`supervisor/context.py`) from the previous question, the plan's objective and one line per step (tool, description, arguments), and passes it to `planner.plan(question, context=...)`. It holds no figures, because a step's result summary is not copied in. The text is cleaned and truncated like other untrusted text, only the previous turn is used, and at most eight steps are listed. The planner is told it is background and not an instruction.
+
+A turn that ended in a decline, a failed step or a cancelled clarification leaves no plan, so the next question gets no context. When a follow-up needs a clarification, the context is kept in the scratchpad and used again when the planner plans after the user's choice. A planner that does not take `context` still works until a second question is asked on the same thread.
+
 ## Using it
 
 ```python

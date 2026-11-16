@@ -235,6 +235,26 @@ async def test_empty_observation_value_becomes_none(valet: ValetClient) -> None:
 
 
 @respx.mock
+@pytest.mark.parametrize(
+    ("raw", "decimals"),
+    [("3.00", 2), ("2.25", 2), ("4", 0), ("1.5e-3", None), (3.0, None)],
+)
+async def test_observation_keeps_published_precision(
+    valet: ValetClient, raw: object, decimals: int | None
+) -> None:
+    # BEN-48: "3.00" is two decimals as published; float("3.00") alone would say one.
+    payload = fixture("observations_V39079_jan2025")
+    payload["observations"] = [{"d": "2025-01-27", "V39079": {"v": raw}}]
+    respx.get(f"{VALET_BASE_URL}/observations/V39079/json").mock(
+        return_value=httpx.Response(200, json=payload)
+    )
+
+    result = await valet.get_observations("V39079", recent=1)
+
+    assert result.observations[0].decimals == decimals
+
+
+@respx.mock
 async def test_non_numeric_observation_value_raises(valet: ValetClient) -> None:
     payload = fixture("observations_V39079_jan2025")
     payload["observations"] = [{"d": "2025-01-27", "V39079": {"v": "n/a"}}]

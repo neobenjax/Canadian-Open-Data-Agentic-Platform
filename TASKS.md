@@ -97,7 +97,7 @@
 **Goal:** Next.js 15 documentation portal (`/apps/docs-portal`), Streamlit interactive analytics app, and LangGraph `interrupt()` HITL.
 
 ### Feature 3.1: Documentation & Developer Playground
-- [ ] **CAN-31:** Scaffold Next.js 15 App Router + Fumadocs / Tailwind CSS v4 in `/apps/docs-portal`. *(Owner: Benjamin · 3h)*
+- [x] **CAN-31:** Scaffold Next.js 15 App Router + Fumadocs / Tailwind CSS v4 in `/apps/docs-portal`. *(Owner: Benjamin · 3h)*
 - [x] **CAN-32:** Build modern Streamlit UI with `astream_events` v2 real-time streaming and dynamic Plotly charts. *(Owner: Samir / Yassir · 2.5h)*
 - [x] **CAN-33:** Implement LangGraph `interrupt()` breakpoint when data ambiguities arise (e.g. municipal vs CMA boundaries). *(Owner: Samir / Benjamin · 2h)*
 
@@ -117,7 +117,7 @@
 
 ### Feature 4.2: AI Security Guardrails & Containerization
 - [x] **CAN-43:** Implement Pydantic v2 output validators and prompt injection defense; audit LLM tool calls. *(Owner: Samir · 2.5h)*
-- [ ] **CAN-44:** Token cost optimization with prompt caching and compressed serialization. *(Owner: Yassir / Benjamin · 2h)*
+- [x] **CAN-44:** Token cost optimization with prompt caching and compressed serialization. *(Owner: Yassir / Benjamin · 2h)*
 - [x] **CAN-45:** Containerize FastMCP server and LangGraph service; publish images to GHCR with Docker hardening. *(Owner: Benjamin · 2h)*
 
 ---
@@ -129,7 +129,7 @@
 ### Feature 5.1: Package Release & Distribution
 - [ ] **CAN-51:** Package `candata-mcp` with `pyproject.toml` and publish to PyPI via `uv`. *(Owner: Benjamin · 2.5h)*
 - [ ] **CAN-52:** Submit server to official Anthropic MCP registry and Smithery.ai catalog. *(Owner: Benjamin / Yassir · 1.5h)*
-- [ ] **CAN-53:** Deploy hosted demo and docs portal to Vercel / Streamlit Cloud. *(Owner: Benjamin / Yassir · 2h)*
+- [x] **CAN-53:** Deploy hosted demo and docs portal to Vercel / Streamlit Cloud. *(Owner: Benjamin / Yassir · 2h)*
 
 ### Feature 5.2: Documentation & Case Study Report
 - [ ] **CAN-54:** Build comprehensive bilingual README with architecture diagrams and API reference. *(Owner: Benjamin / Samir · 2h)*

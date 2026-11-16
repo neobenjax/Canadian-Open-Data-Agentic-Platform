@@ -83,6 +83,12 @@ class StatCanResponseError(StatCanError):
     """StatCan WDS returned 200 OK but the payload indicated failure or invalid JSON."""
 
 
+class StatCanFailedStatusError(StatCanResponseError):
+    """WDS answered 200 OK with ``status: FAILED`` for the request, as it does for a vector
+    or product that does not exist. Malformed or non-JSON payloads stay a plain
+    ``StatCanResponseError``, so callers can tell "no such series" from a broken response."""
+
+
 class StatCanUnavailableError(StatCanError):
     """Statistics Canada WDS catalog service is temporarily unreachable or undergoing
     maintenance."""
@@ -693,7 +699,7 @@ class StatCanClient:
         for item_dict in raw_items:
             if item_dict.get("status") != "SUCCESS":
                 msg = str(item_dict.get("object") or item_dict.get("status"))
-                raise StatCanResponseError(f"StatCan WDS vector query failed: {msg}")
+                raise StatCanFailedStatusError(f"StatCan WDS vector query failed: {msg}")
 
             obj_dict = _dict(item_dict.get("object"))
 
@@ -848,7 +854,7 @@ class StatCanClient:
         status = item_dict.get("status")
         if status != "SUCCESS":
             msg = str(item_dict.get("object") or status)
-            raise StatCanResponseError(f"WDS call failed for {context}: {msg}")
+            raise StatCanFailedStatusError(f"WDS call failed for {context}: {msg}")
         return _dict(item_dict.get("object"))
 
     @staticmethod
