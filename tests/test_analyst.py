@@ -241,3 +241,118 @@ def test_sql_artifact_sync_and_data_alias() -> None:
     )
     assert art2.citations == (cit,)
     assert art2.citation == cit
+
+
+@pytest.mark.asyncio
+async def test_dual_citations_never_fill_unmatched_inputs_by_position() -> None:
+    """Unmatched series IDs must never fall back to positional citations in state."""
+    cpi_cit = _make_citation("18-10-0004-01", "v41690973", "CPI")
+    rent_cit = _make_citation("34-10-0143-01", "v3823103", "Average Monthly Rent")
+    income_cit = _make_citation("11-10-0239-01", "v11223344", "Median After-Tax Income")
+
+    # Case 1: state has (CPI, rent, income); only rent series_id is provided -> only rent cited
+    step1 = PlanStep(
+        step_id=1,
+        description="GT-07 without income_series_id",
+        assigned_agent="data_analyst",
+        tool_name="affordability_burden_ratio",
+        tool_args={
+            "rent_table": [{"date": "2024", "value": 2000.0}],
+            "income_table": [{"date": "2024", "value": 60000.0}],
+            "series_id": "v3823103",
+        },
+    )
+    state1 = AgentState(
+        session_id="s1",
+        thread_id="t1",
+        plan=QueryPlan(objective="GT-07", steps=(step1,), active_step_id=1),
+        citations=(cpi_cit, rent_cit, income_cit),
+    )
+    delta1 = await data_analyst_node(state1)
+    art1 = delta1["sql_artifacts"][0]
+    assert art1.citations == (rent_cit,)
+    assert art1.citation == rent_cit
+
+    # Case 2: state has (CPI, income); series_id="v3823103" is missing -> no CPI positional match
+    state2 = AgentState(
+        session_id="s2",
+        thread_id="t2",
+        plan=QueryPlan(objective="GT-07", steps=(step1,), active_step_id=1),
+        citations=(cpi_cit, income_cit),
+    )
+    delta2 = await data_analyst_node(state2)
+    art2 = delta2["sql_artifacts"][0]
+    assert art2.citations == ()
+    assert art2.citation is None
+
+
+@pytest.mark.asyncio
+async def test_data_analyst_node_invalid_timeout_marks_step_failed() -> None:
+    """Non-numeric or non-positive timeout_seconds marks step FAILED cleanly."""
+    for bad_timeout in ("abc", -1.0, 0.0, float("nan"), float("inf")):
+        step = PlanStep(
+            step_id=1,
+            description="Run SQL with bad timeout",
+            assigned_agent="data_analyst",
+            tool_name="custom_sql",
+            tool_args={
+                "series_id": "v123456",
+                "query": "SELECT 1 AS val",
+                "timeout_seconds": bad_timeout,
+            },
+        )
+        state = AgentState(
+            session_id="s_bad",
+            thread_id="t_bad",
+            plan=QueryPlan(objective="Bad timeout", steps=(step,), active_step_id=1),
+        )
+        delta = await data_analyst_node(state)
+        assert delta["plan"] is not None
+        failed_step = delta["plan"].steps[0]
+        assert failed_step.status == StepStatus.FAILED
+        assert failed_step.error is not None
+        assert "timeout_seconds" in failed_step.error or "float" in failed_step.error
+
+
+@pytest.mark.asyncio
+async def test_data_analyst_node_clamps_excessive_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Excessive timeout_seconds from planner args is clamped to MAX_ANALYST_TIMEOUT_SECONDS."""
+    from candata_agent.analyst import MAX_ANALYST_TIMEOUT_SECONDS, SandboxedDuckDB
+
+    observed_timeouts: list[float] = []
+
+    async def fake_execute_async(
+        self: SandboxedDuckDB,
+        query: str,
+        params: object = None,
+        *,
+        max_rows: int = 1000,
+        timeout_seconds: float = 2.0,
+    ) -> list[dict[str, object]]:
+        observed_timeouts.append(timeout_seconds)
+        return [{"val": 1}]
+
+    monkeypatch.setattr(SandboxedDuckDB, "execute_async", fake_execute_async)
+
+    step = PlanStep(
+        step_id=1,
+        description="Run SQL with huge timeout",
+        assigned_agent="data_analyst",
+        tool_name="custom_sql",
+        tool_args={
+            "series_id": "v123456",
+            "query": "SELECT 1 AS val",
+            "timeout_seconds": 86400,
+        },
+    )
+    state = AgentState(
+        session_id="s_clamp",
+        thread_id="t_clamp",
+        plan=QueryPlan(objective="Clamp timeout", steps=(step,), active_step_id=1),
+    )
+    delta = await data_analyst_node(state)
+    assert delta["plan"] is not None
+    assert delta["plan"].steps[0].status == StepStatus.COMPLETED
+    assert observed_timeouts == [MAX_ANALYST_TIMEOUT_SECONDS]

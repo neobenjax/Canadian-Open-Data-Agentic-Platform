@@ -8,6 +8,7 @@ appends verified AgentMessages, and advances QueryPlan steps.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import Any
 
@@ -26,6 +27,7 @@ from candata_agent.state import (
 from candata_mcp.citation import CitationEnvelope
 
 DEFAULT_ANALYST_TIMEOUT_SECONDS: float = 5.0
+MAX_ANALYST_TIMEOUT_SECONDS: float = 30.0
 
 KNOWN_RECIPES = {
     "annual_inflation_rate",
@@ -131,19 +133,42 @@ def _extract_series_id(
     return candidate_str
 
 
+def _optional_table_series_id(table: pa.Table | None) -> str | None:
+    """Extract optional series/vector/table identifier from PyArrow schema metadata."""
+    if table is not None and table.schema.metadata:
+        meta = table.schema.metadata
+        for key in (b"vector_id", b"series_id", b"seriesId", b"vectorId", b"table_id"):
+            if key in meta:
+                val = meta[key].decode("utf-8").strip()
+                if val and val not in ("series_primary", "v0", "0", "None"):
+                    return val
+    return None
+
+
+def _match_citation_by_id(
+    pool: Sequence[CitationEnvelope],
+    candidate_id: str | None,
+) -> CitationEnvelope | None:
+    """Find a citation envelope matching candidate_id by vector_id or table_id."""
+    if not candidate_id:
+        return None
+    for c in pool:
+        if c.core.vector_id == candidate_id or c.core.table_id == candidate_id:
+            return c
+    return None
+
+
 def _resolve_citation(
     tool_args: dict[str, Any],
     state: AgentState,
     candidate_id: str | None = None,
 ) -> CitationEnvelope | None:
-    """Resolve Two-Tier Citation Envelope from arguments or state."""
+    """Resolve Two-Tier Citation Envelope from arguments or state by ID."""
     raw_cit = tool_args.get("citation") or state.scratchpad.get("citation")
     if isinstance(raw_cit, CitationEnvelope):
         return raw_cit
     if candidate_id:
-        for c in state.citations:
-            if c.core.vector_id == candidate_id or c.core.table_id == candidate_id:
-                return c
+        return _match_citation_by_id(state.citations, candidate_id)
     if len(state.citations) == 1:
         return state.citations[0]
     return None
@@ -157,46 +182,31 @@ def _resolve_dual_citations(
     id_a: str | None = None,
     id_b: str | None = None,
 ) -> tuple[CitationEnvelope, ...]:
-    """Resolve dual citation envelopes for multi-series recipes."""
-    # 1. Explicit citations tuple/list
-    raw_citations = tool_args.get("citations") or state.scratchpad.get("citations")
-    if raw_citations and isinstance(raw_citations, (list, tuple)):
-        cits = [c for c in raw_citations if isinstance(c, CitationEnvelope)]
-        if len(cits) >= 2:
-            return tuple(cits)
-
-    # 2. Key-specific citations (e.g. citation_a/b, rent_citation/income_citation)
+    """Resolve dual citation envelopes for multi-series recipes without positional guessing."""
     cit_a = tool_args.get(key_a) or state.scratchpad.get(key_a)
     cit_b = tool_args.get(key_b) or state.scratchpad.get(key_b)
 
     resolved_a = cit_a if isinstance(cit_a, CitationEnvelope) else None
     resolved_b = cit_b if isinstance(cit_b, CitationEnvelope) else None
 
-    if resolved_a is None and id_a:
-        for c in state.citations:
-            if c.core.vector_id == id_a or c.core.table_id == id_a:
-                resolved_a = c
-                break
+    candidate_pool: list[CitationEnvelope] = []
+    for raw_citations in (tool_args.get("citations"), state.scratchpad.get("citations")):
+        if raw_citations and isinstance(raw_citations, (list, tuple)):
+            candidate_pool.extend(c for c in raw_citations if isinstance(c, CitationEnvelope))
+    candidate_pool.extend(state.citations)
 
-    if resolved_b is None and id_b:
-        for c in state.citations:
-            if c.core.vector_id == id_b or c.core.table_id == id_b:
-                resolved_b = c
-                break
+    if resolved_a is None:
+        resolved_a = _match_citation_by_id(candidate_pool, id_a)
 
-    if resolved_a and resolved_b:
-        return (resolved_a, resolved_b)
+    if resolved_b is None:
+        resolved_b = _match_citation_by_id(candidate_pool, id_b)
 
-    # 3. Fallback to state.citations
-    if len(state.citations) >= 2:
-        return (resolved_a or state.citations[0], resolved_b or state.citations[1])
-
-    single = resolved_a or resolved_b
-    if single:
-        return (single,)
-    if len(state.citations) == 1:
-        return (state.citations[0],)
-    return ()
+    result: list[CitationEnvelope] = []
+    if resolved_a is not None:
+        result.append(resolved_a)
+    if resolved_b is not None and resolved_b != resolved_a:
+        result.append(resolved_b)
+    return tuple(result)
 
 
 def _format_analyst_message(
@@ -271,14 +281,20 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
     input_citation: CitationEnvelope | None = None
     input_citations: tuple[CitationEnvelope, ...] = ()
 
-    raw_timeout = tool_args.get("timeout_seconds")
-    if raw_timeout is None:
-        raw_timeout = tool_args.get("timeout")
-    timeout_seconds = (
-        float(raw_timeout) if raw_timeout is not None else DEFAULT_ANALYST_TIMEOUT_SECONDS
-    )
+    timeout_seconds: float = DEFAULT_ANALYST_TIMEOUT_SECONDS
 
     try:
+        raw_timeout = tool_args.get("timeout_seconds")
+        if raw_timeout is None:
+            raw_timeout = tool_args.get("timeout")
+        if raw_timeout is not None:
+            parsed_timeout = float(raw_timeout)
+            if not math.isfinite(parsed_timeout) or parsed_timeout <= 0:
+                raise ValueError(
+                    f"timeout_seconds must be a positive finite number, got {raw_timeout!r}"
+                )
+            timeout_seconds = min(parsed_timeout, MAX_ANALYST_TIMEOUT_SECONDS)
+
         if tool_name not in KNOWN_RECIPES and tool_name not in ("custom_sql", "sql_query"):
             raise ValueError(
                 f"Unknown data analyst recipe or tool '{tool_name}'. "
@@ -329,7 +345,9 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             warnings.extend(_inspect_data_quality(table_a))
             warnings.extend(_inspect_data_quality(table_b))
             source_series_id = _extract_series_id(tool_args, table_a, input_citation)
-            id_b = str(tool_args.get("series_b_id") or tool_args.get("vector_id_b") or "")
+            id_b = str(
+                tool_args.get("series_b_id") or tool_args.get("vector_id_b") or ""
+            ).strip() or _optional_table_series_id(table_b)
             dual_cits = _resolve_dual_citations(
                 tool_args,
                 state,
@@ -338,9 +356,8 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
                 id_a=source_series_id,
                 id_b=id_b,
             )
-            if dual_cits:
-                input_citations = dual_cits
-                input_citation = dual_cits[0]
+            input_citations = dual_cits
+            input_citation = dual_cits[0] if dual_cits else None
             recipe_art = recipes.percentage_point_spread(
                 table_a,
                 table_b,
@@ -353,9 +370,8 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             )
             rows = list(recipe_art.rows)
             executed_sql = recipe_art.sql_query
-            if recipe_art.citations:
-                input_citations = recipe_art.citations
-                input_citation = recipe_art.citation
+            input_citations = recipe_art.citations
+            input_citation = recipe_art.citation
 
         elif tool_name == "affordability_burden_ratio":
             rent_tbl = _resolve_table(
@@ -369,7 +385,7 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             source_series_id = _extract_series_id(tool_args, rent_tbl, input_citation)
             income_id = str(
                 tool_args.get("income_series_id") or tool_args.get("income_vector_id") or ""
-            )
+            ).strip() or _optional_table_series_id(inc_tbl)
             dual_cits = _resolve_dual_citations(
                 tool_args,
                 state,
@@ -378,9 +394,8 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
                 id_a=source_series_id,
                 id_b=income_id,
             )
-            if dual_cits:
-                input_citations = dual_cits
-                input_citation = dual_cits[0]
+            input_citations = dual_cits
+            input_citation = dual_cits[0] if dual_cits else None
             recipe_art = recipes.affordability_burden_ratio(
                 rent_tbl,
                 inc_tbl,
@@ -393,9 +408,8 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             )
             rows = list(recipe_art.rows)
             executed_sql = recipe_art.sql_query
-            if recipe_art.citations:
-                input_citations = recipe_art.citations
-                input_citation = recipe_art.citation
+            input_citations = recipe_art.citations
+            input_citation = recipe_art.citation
 
         elif tool_name == "multi_year_cagr":
             source_series_id = _extract_series_id(tool_args, None, input_citation)
