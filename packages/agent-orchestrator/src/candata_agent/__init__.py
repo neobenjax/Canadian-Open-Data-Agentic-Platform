@@ -6,7 +6,7 @@ from candata_agent.analyst import (
     SecurityValidationError,
     data_analyst_node,
 )
-from candata_agent.checkpoint import AsyncSqliteSaver
+from candata_agent.checkpoint import AsyncSqliteSaver, seed_thread
 from candata_agent.pricing import TokenPricing
 from candata_agent.state import (
     AgentMessage,
@@ -63,6 +63,7 @@ __all__ = [
     "current_trace_context",
     "data_analyst_node",
     "merge_citations",
+    "seed_thread",
     "setup_tracing",
     "traced_node",
     "traced_run",

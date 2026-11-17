@@ -8,7 +8,6 @@ and conversation time-travel rollback with session lineage preservation.
 
 from __future__ import annotations
 
-import uuid
 import zlib
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
@@ -27,6 +26,7 @@ from langgraph.checkpoint.base import (
     CheckpointMetadata,
     CheckpointTuple,
 )
+from langgraph.checkpoint.base.id import uuid6
 from langgraph.checkpoint.serde.base import SerializerProtocol
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver as _BaseAsyncSqliteSaver
@@ -70,6 +70,40 @@ class CompressedSerializer(SerializerProtocol):
             orig_type = type_str[:-5]
             return self._base.loads_typed((orig_type, decompressed))
         return self._base.loads_typed(data)
+
+
+async def seed_thread(
+    app: Any,
+    config: RunnableConfig | dict[str, Any],
+    initial_state: AgentState | dict[str, Any],
+) -> RunnableConfig:
+    """Seed a thread with an initial state, delegating checkpoint construction to LangGraph.
+
+    Ensures proper step metadata, channel versions, and type fidelity when starting or
+    restoring threads.
+    """
+    raw_cfg: dict[str, Any] = dict(config or {})
+    configurable = dict(raw_cfg.get("configurable") or {})
+    if "checkpoint_ns" not in configurable:
+        configurable["checkpoint_ns"] = ""
+    raw_cfg["configurable"] = configurable
+    cfg = cast(RunnableConfig, raw_cfg)
+
+    state_values = (
+        dict(initial_state) if isinstance(initial_state, AgentState) else dict(initial_state)
+    )
+    if hasattr(app, "aupdate_state"):
+        return await app.aupdate_state(cfg, state_values)
+    if hasattr(app, "checkpointer") and app.checkpointer is not None:
+        return await app.checkpointer.aput(
+            cfg,
+            initial_state
+            if isinstance(initial_state, AgentState)
+            else AgentState.model_validate(initial_state),
+        )
+    raise AttributeError(
+        "Cannot seed thread: provided app does not support aupdate_state or checkpointer"
+    )
 
 
 class AsyncSqliteSaver(_BaseAsyncSqliteSaver):
@@ -145,6 +179,15 @@ class AsyncSqliteSaver(_BaseAsyncSqliteSaver):
         cfg["configurable"] = configurable
         return cast(RunnableConfig, cfg)
 
+    async def seed_thread(
+        self,
+        app: Any,
+        config: RunnableConfig | dict[str, Any],
+        initial_state: AgentState | dict[str, Any],
+    ) -> RunnableConfig:
+        """Seed a thread with an initial state, delegating checkpoint construction to LangGraph."""
+        return await seed_thread(app, config, initial_state)
+
     async def aput(
         self,
         config: RunnableConfig,
@@ -161,24 +204,41 @@ class AsyncSqliteSaver(_BaseAsyncSqliteSaver):
         cfg["configurable"] = configurable
 
         if isinstance(checkpoint, AgentState):
-            chk_id = str(configurable.get("checkpoint_id") or f"chk_{uuid.uuid4().hex[:12]}")
+            chk_id = str(configurable.get("checkpoint_id") or str(uuid6(-1)))
             configurable["checkpoint_id"] = chk_id
             thread_id = str(configurable.get("thread_id") or checkpoint.thread_id)
             configurable["thread_id"] = thread_id
 
-            # Deep copy model dump so in-place scratchpad changes do not corrupt saved state
-            state_dict = deepcopy(checkpoint.model_dump())
+            # Deep copy dict representation so in-place scratchpad changes do not
+            # corrupt saved state, while preserving exact dataclass and Pydantic types.
+            state_dict = deepcopy(dict(checkpoint))
+
+            # Synthesize valid LangGraph channel versions and step tracking metadata
+            channel_versions: ChannelVersions = (
+                new_versions
+                if new_versions is not None
+                else {k: self.get_next_version(None, None) for k in state_dict.keys()}
+            )
+            meta: CheckpointMetadata = cast(
+                CheckpointMetadata,
+                {
+                    "source": "input",
+                    "step": 0,
+                    "writes": {},
+                    **(metadata or {}),
+                },
+            )
 
             chk_dict: Checkpoint = {
                 "v": 1,
                 "id": chk_id,
                 "ts": datetime.now(UTC).isoformat(),
                 "channel_values": state_dict,
-                "channel_versions": {},
+                "channel_versions": channel_versions,
                 "versions_seen": {},
                 "updated_channels": None,
             }
-            res = await super().aput(cfg, chk_dict, metadata or {}, new_versions or {})
+            res = await super().aput(cfg, chk_dict, meta, channel_versions)
             return res
 
         return await super().aput(cfg, checkpoint, metadata or {}, new_versions or {})
