@@ -96,13 +96,30 @@ supervisor --plan--------------> data_fetcher / data_analyst ... --> citation_ve
 - The test also caught a real bug: `find_members` didn't match member names with irregular
   spacing. Names are now compared with collapsed whitespace.
 
+## Live check (Nov 15)
+
+Run on `main` (4c42f49) with the live planner, in the Streamlit page.
+
+- Asked: "How many homes were started in the Toronto area in 2025, and how is that different
+  from 2024?" The page answered for Toronto (series v42127955), shown as verified.
+- Follow-up in the same conversation: "What about Ottawa?" The page paused and asked whether
+  to use the whole Ottawa-Gatineau area (member 12) or the Ontario part (member 13), as a
+  radio list with Continue and Cancel.
+- Chose member 13. The run resumed through Clarification, Supervisor, Data Fetcher, Data
+  Analyst and Citation Verifier and answered for Ottawa-Gatineau (Ontario part), series
+  v42127775: 10,864 for 2025, shown as verified. The follow-up kept the housing-starts
+  context.
+- Smiths Falls: a script scan of 150 candidate Statistics Canada tables found none with two
+  Smiths Falls members, so the live test used Ottawa-Gatineau. The agent was not run on
+  Smiths Falls.
+- Seen in the same run: the 2024 value and the change were blank in the Ottawa result (#78).
+
 ## Known gaps / follow-ups
 
-- **Not run against the live model.** It needs `ANTHROPIC_API_KEY`. Whether Claude asks at the
-  right times for looser ambiguity, like a municipality versus a CMA, is judgment that only a
-  live run shows. The same-name case is enforced in code.
-- **Page layout.** The radio, Continue and Cancel controls are a working baseline in
-  `app.py`; Yassir's layout B rewrite should keep the `ClarificationNeeded` and `resume=`
-  contract.
+- **Live run covers one case.** The pause has been run live once, on Ottawa-Gatineau (see Live
+  check). Whether Claude asks at the right times for other looser ambiguities is still only
+  shown by more live runs. The same-name case is enforced in code.
+- **Page layout.** The two-pane page (#86) keeps the `ClarificationNeeded` and `resume=`
+  contract. The live run showed the radio list with Continue and Cancel.
 - **Other interrupt types.** `HITLInterrupt` also defines `confidentiality_suppressed`,
   `policy_exception` and `user_confirmation`; only `ambiguous_member` is raised so far.
