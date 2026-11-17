@@ -75,6 +75,14 @@ def test_orchestrator_dockerfile_security():
     assert "8501" in content
     assert "HEALTHCHECK" in content
 
+    # uv sync must include --extra orchestrator so LangGraph dependencies are installed
+    sync_lines = [line for line in content.splitlines() if "uv sync" in line]
+    assert len(sync_lines) >= 2, "Expected at least 2 uv sync commands in Dockerfile.orchestrator"
+    for line in sync_lines:
+        assert "--extra orchestrator" in line, (
+            f"Dockerfile.orchestrator uv sync line missing '--extra orchestrator': {line}"
+        )
+
 
 def test_docker_compose_security_hardening():
     """Verify docker-compose.yml defines services with defense-in-depth hardening."""

@@ -39,6 +39,12 @@ def test_ci_workflow_yaml_structure_and_steps():
     assert any("Format" in name for name in step_names), "Missing Format step in ci.yml"
     assert any("Type Check" in name for name in step_names), "Missing Type Check step in ci.yml"
     assert any("Pytest" in name for name in step_names), "Missing Pytest step in ci.yml"
+    assert any("Packaging Parity" in name for name in step_names), (
+        "Missing Packaging Parity step in ci.yml"
+    )
+    assert any("Standalone candata-mcp" in name for name in step_names), (
+        "Missing Standalone candata-mcp step in ci.yml"
+    )
 
     # Verify DeepEval scoring gate (CAN-42)
     deepeval_step = next((s for s in steps if "DeepEval" in s.get("name", "")), None)
@@ -148,3 +154,50 @@ def test_verify_packaging_parity_mismatch_detected():
         passed, diff = verify_packaging_parity()
         assert not passed
         assert "version" in diff
+
+
+def test_packages_candata_mcp_dependencies_leave_out_langgraph():
+    """Acceptance test for #52: verify packages/candata-mcp/pyproject.toml excludes langgraph."""
+    pkg_toml = REPO_ROOT / "packages" / "candata-mcp" / "pyproject.toml"
+    assert pkg_toml.exists()
+
+    with pkg_toml.open("rb") as f:
+        data = tomllib.load(f)
+
+    deps = data["project"]["dependencies"]
+    assert not any("langgraph" in dep.lower() for dep in deps)
+    assert not any("langchain" in dep.lower() for dep in deps)
+    assert not any("aiosqlite" in dep.lower() for dep in deps)
+
+
+def test_candata_mcp_package_clean_import_without_langgraph():
+    """Acceptance test for #52: verify candata-mcp imports with langgraph completely blocked."""
+    import sys
+
+    # Simulate an environment where langgraph, langchain, and aiosqlite are not installed
+    blocked_modules = {
+        "langgraph": None,
+        "langgraph.graph": None,
+        "langgraph_checkpoint_sqlite": None,
+        "langchain": None,
+        "langchain_core": None,
+        "aiosqlite": None,
+    }
+
+    orig_modules = {}
+    for mod in list(sys.modules.keys()):
+        if any(mod == b or mod.startswith(f"{b}.") for b in blocked_modules):
+            orig_modules[mod] = sys.modules.pop(mod)
+
+    sys.modules.update(blocked_modules)
+    try:
+        # Import candata_mcp.server; must succeed without requiring any blocked modules
+        import candata_mcp.server  # noqa: F401
+
+        # Assert no blocked modules were imported
+        for b in blocked_modules:
+            assert b not in sys.modules or sys.modules[b] is None
+    finally:
+        for b in blocked_modules:
+            sys.modules.pop(b, None)
+        sys.modules.update(orig_modules)

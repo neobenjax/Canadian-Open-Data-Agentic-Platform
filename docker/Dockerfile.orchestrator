@@ -18,8 +18,8 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 COPY pyproject.toml uv.lock ./
 
-# Install agent, UI and tracing optional dependencies into /app/.venv
-RUN uv sync --frozen --no-install-project --no-dev --extra agent --extra ui --extra tracing
+# Install agent, UI, orchestrator and tracing optional dependencies into /app/.venv
+RUN uv sync --frozen --no-install-project --no-dev --extra agent --extra ui --extra tracing --extra orchestrator
 
 # Copy source trees
 COPY packages/candata-mcp ./packages/candata-mcp
@@ -29,7 +29,7 @@ COPY scripts ./scripts
 COPY governance.json ./
 
 # Finalize project install
-RUN uv sync --frozen --no-dev --extra agent --extra ui --extra tracing
+RUN uv sync --frozen --no-dev --extra agent --extra ui --extra tracing --extra orchestrator
 
 # ------------------------------------------------------------------------------
 # Stage 2: Hardened Runtime
