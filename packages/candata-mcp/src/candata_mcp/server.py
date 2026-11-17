@@ -7,6 +7,7 @@ to ensure all outputs are strictly bounded (<3KB) and paired with Two-Tier Citat
 
 from __future__ import annotations
 
+import calendar
 import json
 import re
 from dataclasses import asdict
@@ -76,18 +77,26 @@ def _valet_call(
 MAX_ANALYTIC_OBSERVATIONS: int = 5000
 
 
-def _normalize_period(period_str: str) -> str:
+def _normalize_period(period_str: str, *, is_end: bool = False) -> str:
     """Normalize partial or full ISO date periods to standard ISO dates (Guardrail 8).
 
-    - YYYY -> YYYY-01-01
-    - YYYY-MM -> YYYY-MM-01
-    - YYYY-MM-DD -> YYYY-MM-DD
+    - For start bounds: YYYY -> YYYY-01-01, YYYY-MM -> YYYY-MM-01, YYYY-MM-DD -> YYYY-MM-DD
+    - For end bounds: YYYY -> YYYY-12-31, YYYY-MM -> last day of month, YYYY-MM-DD -> YYYY-MM-DD
     """
     clean = period_str.strip()
     if re.match(r"^\d{4}$", clean):
-        clean = f"{clean}-01-01"
+        clean = f"{clean}-12-31" if is_end else f"{clean}-01-01"
     elif re.match(r"^\d{4}-\d{2}$", clean):
-        clean = f"{clean}-01"
+        year, month = int(clean[:4]), int(clean[5:7])
+        if not (1 <= month <= 12):
+            raise ValueError(
+                f"Invalid period format: '{period_str}'. Expected YYYY, YYYY-MM, or YYYY-MM-DD."
+            )
+        if is_end:
+            _, last_day = calendar.monthrange(year, month)
+            clean = f"{year:04d}-{month:02d}-{last_day:02d}"
+        else:
+            clean = f"{clean}-01"
     try:
         date.fromisoformat(clean)
     except ValueError as exc:
@@ -875,7 +884,7 @@ class CanDataServer:
             norm_end: str | None = None
             if start_period is not None:
                 try:
-                    norm_start = _normalize_period(start_period)
+                    norm_start = _normalize_period(start_period, is_end=False)
                 except ValueError as exc:
                     return {
                         "error": str(exc),
@@ -885,7 +894,7 @@ class CanDataServer:
                     }
             if end_period is not None:
                 try:
-                    norm_end = _normalize_period(end_period)
+                    norm_end = _normalize_period(end_period, is_end=True)
                 except ValueError as exc:
                     return {
                         "error": str(exc),
@@ -917,7 +926,7 @@ class CanDataServer:
                         source_call = statcan_call(
                             "getDataFromVectorByReferencePeriodRange",
                             {
-                                "vectorIds": f'"{clean_vid}"',
+                                "vectorIds": clean_vid,
                                 "startRefPeriod": start_arg,
                                 "endReferencePeriod": norm_end or start_arg,
                             },

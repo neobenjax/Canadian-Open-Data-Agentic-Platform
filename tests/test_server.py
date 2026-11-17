@@ -924,7 +924,7 @@ async def test_execute_sql_analytics_statcan_date_range_150_points(
     assert payload["complete"] is True
     assert payload["total_available"] == 150
     mock_server.statcan_client.get_data_by_reference_period.assert_awaited_once_with(
-        "41690973", start="2012-01-01", end="2024-06-01"
+        "41690973", start="2012-01-01", end="2024-06-30"
     )
 
 
@@ -989,7 +989,7 @@ async def test_execute_sql_analytics_valet_date_range_150_points(
     assert payload["complete"] is True
     assert payload["total_available"] == 150
     mock_server.valet_client.get_observations.assert_awaited_once_with(
-        "V39079", start_date="2012-01-01", end_date="2024-06-01"
+        "V39079", start_date="2012-01-01", end_date="2024-06-30"
     )
 
 
@@ -1157,3 +1157,100 @@ async def test_execute_sql_analytics_start_after_end_period(
     assert payload["isError"] is True
     assert payload["error_code"] == "INVALID_ARGUMENT"
     assert "cannot be after" in payload["error"]
+
+
+async def test_execute_sql_analytics_valet_whole_year_bounds(
+    mock_server: CanDataServer,
+) -> None:
+    obs = tuple(
+        ValetObservation(
+            date=f"2024-{m:02d}-01",
+            value=5.0 - (m * 0.25),
+        )
+        for m in range(1, 13)
+    )
+    citation = CitationEnvelope(
+        publisher="Bank of Canada",
+        core=CoreVerificationTuple(
+            table_id="10-10-0139",
+            vector_id="V39079",
+            reference_period="2024-01-01/2024-12-01",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate=None,
+            release_or_revision_date="2024-12-01",
+            bilingual_title=BilingualTitle(
+                en="Policy Interest Rate",
+                fr="Taux cible du financement à un jour",
+            ),
+            canonical_url="https://www.bankofcanada.ca/valet/observations/V39079/json",
+        ),
+    )
+    series = SeriesDetail(
+        name="V39079",
+        label="Policy Interest Rate",
+        description="Target for the overnight rate",
+        frequency="M",
+        unit="%",
+        date_format="YYYY-MM-DD",
+        url="https://www.bankofcanada.ca/valet/series/V39079/json",
+    )
+    valet_year = MagicMock(spec=ObservationSet)
+    valet_year.series = series
+    valet_year.observations = obs
+    valet_year.citation.return_value = citation
+    valet_year.fetched_at = "Thu, 22 Oct 2026 19:00:00 GMT"
+
+    mock_server.valet_client.get_observations = AsyncMock(return_value=valet_year)
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "valet",
+            "series_id": "V39079",
+            "sql_query": "SELECT count(*) AS total_rows FROM series",
+            "start_period": "2024",
+            "end_period": "2024",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["fetched_count"] == 12
+    assert payload["data"][0]["total_rows"] == 12
+    assert payload["complete"] is True
+    # Asserts that YYYY normalized start to 2024-01-01 and end to 2024-12-31 per Guardrail 8
+    mock_server.valet_client.get_observations.assert_awaited_once_with(
+        "V39079", start_date="2024-01-01", end_date="2024-12-31"
+    )
+
+
+async def test_execute_sql_analytics_statcan_whole_year_bounds_and_source_call(
+    mock_server: CanDataServer,
+    mock_statcan_result: StatCanSeriesResult,
+) -> None:
+    mock_server.statcan_client.get_data_by_reference_period = AsyncMock(
+        return_value=mock_statcan_result
+    )
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "statcan",
+            "series_id": "v41690973",
+            "sql_query": "SELECT count(*) AS n FROM series",
+            "start_period": "2024",
+            "end_period": "2024",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["complete"] is True
+    assert payload["data"][0]["n"] == 12
+    # Verify exact date bounds: 2024-01-01 to 2024-12-31 per Guardrail 8
+    mock_server.statcan_client.get_data_by_reference_period.assert_awaited_once_with(
+        "41690973", start="2024-01-01", end="2024-12-31"
+    )
+    # Verify clean unquoted vectorIds in source_call
+    source_call = payload["lineage"]["source_call"]
+    assert source_call["request"]["vectorIds"] == "41690973"
+    assert source_call["request"]["startRefPeriod"] == "2024-01-01"
+    assert source_call["request"]["endReferencePeriod"] == "2024-12-31"
