@@ -11,8 +11,9 @@ import calendar
 import json
 import re
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
@@ -72,6 +73,14 @@ def _valet_call(
         f"observations/{result.series.name}/json",
         {"recent": recent, "start_date": start_date, "end_date": end_date},
     )
+
+
+EASTERN_TZ = ZoneInfo("America/Toronto")
+
+
+def _today_et() -> str:
+    """Return current calendar date in Eastern Time (America/Toronto) as ISO YYYY-MM-DD."""
+    return datetime.now(EASTERN_TZ).date().isoformat()
 
 
 MAX_ANALYTIC_OBSERVATIONS: int = 5000
@@ -920,15 +929,16 @@ class CanDataServer:
                 try:
                     if norm_start or norm_end:
                         start_arg = norm_start or "1900-01-01"
+                        end_arg = norm_end or _today_et()
                         target_result = await self.statcan_client.get_data_by_reference_period(
-                            clean_vid, start=start_arg, end=norm_end
+                            clean_vid, start=start_arg, end=end_arg
                         )
                         source_call = statcan_call(
                             "getDataFromVectorByReferencePeriodRange",
                             {
                                 "vectorIds": clean_vid,
                                 "startRefPeriod": start_arg,
-                                "endReferencePeriod": norm_end or start_arg,
+                                "endReferencePeriod": end_arg,
                             },
                         )
                     else:

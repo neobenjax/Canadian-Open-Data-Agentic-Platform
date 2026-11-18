@@ -1254,3 +1254,37 @@ async def test_execute_sql_analytics_statcan_whole_year_bounds_and_source_call(
     assert source_call["request"]["vectorIds"] == "41690973"
     assert source_call["request"]["startRefPeriod"] == "2024-01-01"
     assert source_call["request"]["endReferencePeriod"] == "2024-12-31"
+
+
+async def test_execute_sql_analytics_statcan_start_period_only_queries_to_today(
+    mock_server: CanDataServer,
+    mock_statcan_result: StatCanSeriesResult,
+) -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    mock_server.statcan_client.get_data_by_reference_period = AsyncMock(
+        return_value=mock_statcan_result
+    )
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "statcan",
+            "series_id": "v41690973",
+            "sql_query": "SELECT count(*) AS n FROM series",
+            "start_period": "2020",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["complete"] is True
+    assert payload["data"][0]["n"] == 12
+
+    today_et = datetime.now(ZoneInfo("America/Toronto")).date().isoformat()
+    mock_server.statcan_client.get_data_by_reference_period.assert_awaited_once_with(
+        "41690973", start="2020-01-01", end=today_et
+    )
+    source_call = payload["lineage"]["source_call"]
+    assert source_call["request"]["startRefPeriod"] == "2020-01-01"
+    assert source_call["request"]["endReferencePeriod"] == today_et
+    assert payload["lineage"]["steps"][0].endswith("to latest)")
