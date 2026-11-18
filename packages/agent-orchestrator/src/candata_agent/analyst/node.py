@@ -181,8 +181,12 @@ def _resolve_dual_citations(
     key_b: str,
     id_a: str | None = None,
     id_b: str | None = None,
-) -> tuple[CitationEnvelope, ...]:
-    """Resolve dual citation envelopes for multi-series recipes without positional guessing."""
+    *,
+    label_a: str = "series_a",
+    label_b: str = "series_b",
+    recipe_name: str = "dual_series",
+) -> tuple[CitationEnvelope, CitationEnvelope]:
+    """Resolve both citation envelopes for multi-series recipes or fail loud."""
     cit_a = tool_args.get(key_a) or state.scratchpad.get(key_a)
     cit_b = tool_args.get(key_b) or state.scratchpad.get(key_b)
 
@@ -201,12 +205,19 @@ def _resolve_dual_citations(
     if resolved_b is None:
         resolved_b = _match_citation_by_id(candidate_pool, id_b)
 
-    result: list[CitationEnvelope] = []
-    if resolved_a is not None:
-        result.append(resolved_a)
-    if resolved_b is not None and resolved_b != resolved_a:
-        result.append(resolved_b)
-    return tuple(result)
+    missing: list[str] = []
+    if resolved_a is None:
+        missing.append(f"{label_a} ({id_a or 'no series ID provided'})")
+    if resolved_b is None:
+        missing.append(f"{label_b} ({id_b or 'no series ID provided'})")
+    if missing:
+        raise ValueError(
+            f"Missing Tier 1 citation(s) for '{recipe_name}': {', '.join(missing)}. "
+            "Dual-series recipes require verified provenance for both input series."
+        )
+
+    assert resolved_a is not None and resolved_b is not None
+    return (resolved_a, resolved_b)
 
 
 def _format_analyst_message(
@@ -355,9 +366,12 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
                 key_b="citation_b",
                 id_a=source_series_id,
                 id_b=id_b,
+                label_a=str(tool_args.get("series_a_name", "series_a")),
+                label_b=str(tool_args.get("series_b_name", "series_b")),
+                recipe_name="percentage_point_spread",
             )
             input_citations = dual_cits
-            input_citation = dual_cits[0] if dual_cits else None
+            input_citation = dual_cits[0]
             recipe_art = recipes.percentage_point_spread(
                 table_a,
                 table_b,
@@ -393,9 +407,12 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
                 key_b="income_citation",
                 id_a=source_series_id,
                 id_b=income_id,
+                label_a="rent",
+                label_b="income",
+                recipe_name="affordability_burden_ratio",
             )
             input_citations = dual_cits
-            input_citation = dual_cits[0] if dual_cits else None
+            input_citation = dual_cits[0]
             recipe_art = recipes.affordability_burden_ratio(
                 rent_tbl,
                 inc_tbl,

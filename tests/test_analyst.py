@@ -244,13 +244,13 @@ def test_sql_artifact_sync_and_data_alias() -> None:
 
 
 @pytest.mark.asyncio
-async def test_dual_citations_never_fill_unmatched_inputs_by_position() -> None:
-    """Unmatched series IDs must never fall back to positional citations in state."""
+async def test_dual_citations_fail_loud_when_missing_or_unmatched() -> None:
+    """Dual-series recipes fail loud when either input citation is missing or unmatched."""
     cpi_cit = _make_citation("18-10-0004-01", "v41690973", "CPI")
     rent_cit = _make_citation("34-10-0143-01", "v3823103", "Average Monthly Rent")
     income_cit = _make_citation("11-10-0239-01", "v11223344", "Median After-Tax Income")
 
-    # Case 1: state has (CPI, rent, income); only rent series_id is provided -> only rent cited
+    # Case 1: state has (CPI, rent, income); only rent series_id given -> fails naming income
     step1 = PlanStep(
         step_id=1,
         description="GT-07 without income_series_id",
@@ -269,11 +269,15 @@ async def test_dual_citations_never_fill_unmatched_inputs_by_position() -> None:
         citations=(cpi_cit, rent_cit, income_cit),
     )
     delta1 = await data_analyst_node(state1)
-    art1 = delta1["sql_artifacts"][0]
-    assert art1.citations == (rent_cit,)
-    assert art1.citation == rent_cit
+    assert "sql_artifacts" not in delta1
+    assert delta1["plan"] is not None
+    failed1 = delta1["plan"].steps[0]
+    assert failed1.status == StepStatus.FAILED
+    assert failed1.error is not None
+    assert "income" in failed1.error
+    assert "v3823103" not in failed1.error
 
-    # Case 2: state has (CPI, income); series_id="v3823103" is missing -> no CPI positional match
+    # Case 2: state has (CPI, income); rent v3823103 missing -> fails naming both rent & income
     state2 = AgentState(
         session_id="s2",
         thread_id="t2",
@@ -281,9 +285,39 @@ async def test_dual_citations_never_fill_unmatched_inputs_by_position() -> None:
         citations=(cpi_cit, income_cit),
     )
     delta2 = await data_analyst_node(state2)
-    art2 = delta2["sql_artifacts"][0]
-    assert art2.citations == ()
-    assert art2.citation is None
+    assert "sql_artifacts" not in delta2
+    assert delta2["plan"] is not None
+    failed2 = delta2["plan"].steps[0]
+    assert failed2.status == StepStatus.FAILED
+    assert failed2.error is not None
+    assert "rent (v3823103)" in failed2.error
+    assert "income" in failed2.error
+
+    # Case 3: both series_id and income_series_id provided -> resolves exact pair from state
+    step3 = PlanStep(
+        step_id=1,
+        description="GT-07 with both series IDs",
+        assigned_agent="data_analyst",
+        tool_name="affordability_burden_ratio",
+        tool_args={
+            "rent_table": [{"date": "2024", "value": 2000.0}],
+            "income_table": [{"date": "2024", "value": 60000.0}],
+            "series_id": "v3823103",
+            "income_series_id": "v11223344",
+        },
+    )
+    state3 = AgentState(
+        session_id="s3",
+        thread_id="t3",
+        plan=QueryPlan(objective="GT-07", steps=(step3,), active_step_id=1),
+        citations=(cpi_cit, rent_cit, income_cit),
+    )
+    delta3 = await data_analyst_node(state3)
+    assert delta3["plan"] is not None
+    assert delta3["plan"].steps[0].status == StepStatus.COMPLETED
+    art3 = delta3["sql_artifacts"][0]
+    assert art3.citations == (rent_cit, income_cit)
+    assert art3.citation == rent_cit
 
 
 @pytest.mark.asyncio
