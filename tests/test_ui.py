@@ -8,6 +8,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
+import pytest
 import pytest_asyncio
 from streamlit.testing.v1 import AppTest
 
@@ -40,6 +41,13 @@ from tests.test_supervisor import (
     draft,
     planned,
 )
+
+
+@pytest.fixture(autouse=True)
+def isolate_app_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    empty_env = tmp_path / ".empty.env"
+    empty_env.write_text("", encoding="utf-8")
+    monkeypatch.setenv("CANDATA_ENV_FILE", str(empty_env))
 
 
 @pytest_asyncio.fixture

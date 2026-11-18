@@ -15,6 +15,7 @@ plans, executed against live StatCan and Bank of Canada data).
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import time
 import uuid
@@ -22,11 +23,24 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
-from dotenv import load_dotenv
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover
+    load_dotenv = None
 
 ROOT = Path(__file__).resolve().parents[2]
-# Load .env without overriding explicitly exported environment variables
-load_dotenv(ROOT / ".env", override=False)
+
+
+def _load_env(path: Path | None = None) -> None:
+    """Load local environment file safely without overriding exported variables."""
+    if load_dotenv is not None:
+        target = path or Path(os.environ.get("CANDATA_ENV_FILE", ROOT / ".env"))
+        if target.is_file():
+            load_dotenv(target, override=False)
+
+
+_load_env()
 for src in ("packages/candata-mcp/src", "packages/agent-orchestrator/src"):
     if str(ROOT / src) not in sys.path:
         sys.path.insert(0, str(ROOT / src))
