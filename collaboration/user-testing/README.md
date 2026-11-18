@@ -1,8 +1,16 @@
-# User testing pilot (simulated) for the agent UI
+# User testing for the agent UI
 
-**Status: Pilot (simulated).** This is a rehearsal of the CAN-35 sessions, not the sessions
-themselves. The personas are fictional and played by an AI assistant driving the local
-Streamlit UI. It does not count as the 3 sessions with external researchers.
+Two simulated rounds, both played by an AI assistant driving the local Streamlit UI. All
+personas are imaginary.
+
+- **Pilot (simulated):** a rehearsal of the CAN-35 sessions, with the personas in `personas.md`
+  and results in `pilot_results.md`. It does not count as the CAN-35 sessions.
+- **CAN-35 researcher sessions (AI-played):** three imaginary researchers in
+  `personas_researchers.md`, nine fixed questions, results in `researcher_sessions_results.md`.
+  CAN-35 was amended to cover these AI-played sessions; they are not sessions with real people.
+
+The sections below describe the pilot's setup and method; the researcher sessions used the same
+setup.
 
 ## Purpose
 

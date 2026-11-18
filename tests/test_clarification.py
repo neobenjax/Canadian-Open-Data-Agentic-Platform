@@ -27,6 +27,7 @@ from candata_agent.supervisor.clarification import (
 from candata_agent.supervisor.node import CLARIFICATIONS, HUMAN_CLARIFICATION, PLANNER_AUDIT
 from candata_agent.supervisor.planner import PlannerResult
 from candata_agent.ui import ClarificationNeeded, RunFinished, stream_question
+from candata_agent.ui.session import open_agent
 from candata_mcp.connectors.statcan_wds import CubeMetadata, Dimension, DimensionMember
 from tests.test_supervisor import (
     GT05_DRAFT,
@@ -304,3 +305,51 @@ def test_resolution_instructions_name_the_member(answer: object) -> None:
         'By "Smiths Falls" the user means Smiths Falls, Ontario (town) '
         "(member 2 in dimension 1 of table 34-10-0154-01). Use that member."
     )
+
+
+# ---------------------------------------------------------------------------------------------
+# Live: real Claude planner and real StatCan data (needs ANTHROPIC_API_KEY; `pytest -m live`)
+# ---------------------------------------------------------------------------------------------
+
+LIVE_QUESTION = (
+    "How many homes were started in the Toronto area in 2025, and how is that different from 2024?"
+)
+LIVE_FOLLOW_UP = "What about Ottawa?"
+OTTAWA_GATINEAU, OTTAWA_GATINEAU_ONTARIO_PART = 12, 13
+
+
+@pytest.mark.live
+async def test_live_ottawa_follow_up_pauses_and_resumes_with_the_chosen_member(
+    tmp_path: Path,
+) -> None:
+    """BEN-73 / #99: the pause-and-ask step end to end with the real planner (follow-up to #81).
+
+    Claude's choices vary, so this asserts the offered members and the final series, not wording.
+    """
+    async with open_agent(db_path=tmp_path / "live.db", demo=False) as (app, demo):
+        assert not demo, "set ANTHROPIC_API_KEY to run this live test"
+        first = [
+            e async for e in stream_question(app, LIVE_QUESTION, thread_id="t", session_id="s")
+        ]
+        assert isinstance(first[-1], RunFinished)
+
+        paused = [
+            e async for e in stream_question(app, LIVE_FOLLOW_UP, thread_id="t", session_id="s")
+        ]
+        (needed,) = [e for e in paused if isinstance(e, ClarificationNeeded)]
+        assert {OTTAWA_GATINEAU, OTTAWA_GATINEAU_ONTARIO_PART} <= {m for m, _ in needed.options}
+
+        resumed = [
+            e
+            async for e in stream_question(
+                app,
+                LIVE_FOLLOW_UP,
+                thread_id="t",
+                session_id="s",
+                resume=str(OTTAWA_GATINEAU_ONTARIO_PART),
+            )
+        ]
+        last = resumed[-1]
+        assert isinstance(last, RunFinished) and last.result.clarification is None
+        assert last.result.verified
+        assert "v42127775" in {s.source for s in last.result.series}
