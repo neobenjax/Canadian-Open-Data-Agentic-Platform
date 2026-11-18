@@ -1,6 +1,8 @@
 """Unit tests for CAN-42 CI Pipeline with DeepEval Two-Tier Automated Scoring Gate."""
 
+import tomllib
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 
@@ -37,6 +39,12 @@ def test_ci_workflow_yaml_structure_and_steps():
     assert any("Format" in name for name in step_names), "Missing Format step in ci.yml"
     assert any("Type Check" in name for name in step_names), "Missing Type Check step in ci.yml"
     assert any("Pytest" in name for name in step_names), "Missing Pytest step in ci.yml"
+    assert any("Packaging Parity" in name for name in step_names), (
+        "Missing Packaging Parity step in ci.yml"
+    )
+    assert any("Standalone candata-mcp" in name for name in step_names), (
+        "Missing Standalone candata-mcp step in ci.yml"
+    )
 
     # Verify DeepEval scoring gate (CAN-42)
     deepeval_step = next((s for s in steps if "DeepEval" in s.get("name", "")), None)
@@ -75,3 +83,121 @@ def test_committed_live_run_file_passes_tier1_offline():
     assert report.tier1_passed == report.graded == len(runs)
     assert report.mean("Tier 2 · Metadata enrichment") >= 0.7
     assert report.mean("Tier 2 · Revision freshness") == 1.0
+
+
+def test_verify_script_includes_packaging_parity_check():
+    """Verify scripts/verify.py includes Packaging Parity verification (Issue #82)."""
+    verify_script = REPO_ROOT / "scripts" / "verify.py"
+    assert verify_script.exists()
+    content = verify_script.read_text(encoding="utf-8")
+
+    assert "Packaging Parity (candata-mcp <-> distribution)" in content
+    assert "verify_packaging_parity" in content
+
+
+def test_packaging_pyproject_parity():
+    """Verify candata-mcp and distribution pyproject.toml parity (Issue #82)."""
+    pkg_toml = REPO_ROOT / "packages" / "candata-mcp" / "pyproject.toml"
+    dist_toml = REPO_ROOT / "distribution" / "pyproject.toml"
+    assert pkg_toml.exists(), f"Missing {pkg_toml}"
+    assert dist_toml.exists(), f"Missing {dist_toml}"
+
+    with pkg_toml.open("rb") as f:
+        pkg_data = tomllib.load(f)
+    with dist_toml.open("rb") as f:
+        dist_data = tomllib.load(f)
+
+    for field in ("name", "version", "dependencies"):
+        assert pkg_data["project"][field] == dist_data["project"][field], (
+            f"Field '{field}' mismatch between candata-mcp and distribution pyproject.toml"
+        )
+
+    # Verify top sync comment exists in both
+    sync_comment = (
+        "# KEEP IN SYNC: packages/candata-mcp/pyproject.toml <-> distribution/pyproject.toml"
+    )
+    assert sync_comment in pkg_toml.read_text(encoding="utf-8")
+    assert sync_comment in dist_toml.read_text(encoding="utf-8")
+
+
+def test_root_pyproject_decoupled_langgraph():
+    """Verify root pyproject.toml decouples langgraph to optional orchestrator extra (Issue #52)."""
+    root_toml = REPO_ROOT / "pyproject.toml"
+    assert root_toml.exists()
+
+    with root_toml.open("rb") as f:
+        data = tomllib.load(f)
+
+    # Base dependencies must NOT contain langgraph
+    base_deps = data["project"]["dependencies"]
+    assert not any("langgraph" in dep for dep in base_deps), (
+        "Base dependencies must not include langgraph"
+    )
+
+    # Orchestrator extra must exist and include langgraph
+    optional_deps = data["project"]["optional-dependencies"]
+    assert "orchestrator" in optional_deps, "Missing 'orchestrator' optional-dependencies group"
+    orch_deps = optional_deps["orchestrator"]
+    assert any("langgraph>=" in dep for dep in orch_deps)
+    assert any("langgraph-checkpoint-sqlite>=" in dep for dep in orch_deps)
+
+
+def test_verify_packaging_parity_mismatch_detected():
+    """Verify scripts.verify.verify_packaging_parity correctly detects mismatches."""
+    from scripts.verify import verify_packaging_parity
+
+    with patch("tomllib.load") as mock_load:
+        mock_load.side_effect = [
+            {"project": {"name": "candata-mcp", "version": "0.1.0", "dependencies": ["duckdb"]}},
+            {"project": {"name": "candata-mcp", "version": "0.2.0", "dependencies": ["duckdb"]}},
+        ]
+        passed, diff = verify_packaging_parity()
+        assert not passed
+        assert "version" in diff
+
+
+def test_packages_candata_mcp_dependencies_leave_out_langgraph():
+    """Acceptance test for #52: verify packages/candata-mcp/pyproject.toml excludes langgraph."""
+    pkg_toml = REPO_ROOT / "packages" / "candata-mcp" / "pyproject.toml"
+    assert pkg_toml.exists()
+
+    with pkg_toml.open("rb") as f:
+        data = tomllib.load(f)
+
+    deps = data["project"]["dependencies"]
+    assert not any("langgraph" in dep.lower() for dep in deps)
+    assert not any("langchain" in dep.lower() for dep in deps)
+    assert not any("aiosqlite" in dep.lower() for dep in deps)
+
+
+def test_candata_mcp_package_clean_import_without_langgraph():
+    """Acceptance test for #52: verify candata-mcp imports with langgraph completely blocked."""
+    import sys
+
+    # Simulate an environment where langgraph, langchain, and aiosqlite are not installed
+    blocked_modules = {
+        "langgraph": None,
+        "langgraph.graph": None,
+        "langgraph_checkpoint_sqlite": None,
+        "langchain": None,
+        "langchain_core": None,
+        "aiosqlite": None,
+    }
+
+    orig_modules = {}
+    for mod in list(sys.modules.keys()):
+        if any(mod == b or mod.startswith(f"{b}.") for b in blocked_modules):
+            orig_modules[mod] = sys.modules.pop(mod)
+
+    sys.modules.update(blocked_modules)
+    try:
+        # Import candata_mcp.server; must succeed without requiring any blocked modules
+        import candata_mcp.server  # noqa: F401
+
+        # Assert no blocked modules were imported
+        for b in blocked_modules:
+            assert b not in sys.modules or sys.modules[b] is None
+    finally:
+        for b in blocked_modules:
+            sys.modules.pop(b, None)
+        sys.modules.update(orig_modules)

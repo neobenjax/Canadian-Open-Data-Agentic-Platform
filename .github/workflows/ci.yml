@@ -46,6 +46,14 @@ jobs:
       - name: Run Test Suite (Pytest)
         run: uv run pytest -m 'not live'
 
+      - name: Verify Packaging Parity (Issue #82)
+        run: uv run python -c "import sys, scripts.verify as v; passed, diff = v.verify_packaging_parity(); sys.exit(0 if passed else 1)"
+
+      - name: Verify Standalone candata-mcp Clean Install (Issue #52)
+        run: |
+          uv venv --clear /tmp/mcp-clean && VIRTUAL_ENV=/tmp/mcp-clean uv pip install ./packages/candata-mcp
+          /tmp/mcp-clean/bin/python -c "import candata_mcp.server; import sys; assert not any('langgraph' in m for m in sys.modules); print('Clean FastMCP import succeeded without LangGraph')"
+
       - name: Set up Node.js 22 (LTS)
         uses: actions/setup-node@v4
         with:

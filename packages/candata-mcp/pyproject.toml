@@ -1,3 +1,4 @@
+# KEEP IN SYNC: packages/candata-mcp/pyproject.toml <-> distribution/pyproject.toml
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
