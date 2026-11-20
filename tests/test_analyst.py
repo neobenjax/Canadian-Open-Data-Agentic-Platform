@@ -323,7 +323,7 @@ async def test_dual_citations_fail_loud_when_missing_or_unmatched() -> None:
 @pytest.mark.asyncio
 async def test_data_analyst_node_invalid_timeout_marks_step_failed() -> None:
     """Non-numeric or non-positive timeout_seconds marks step FAILED cleanly."""
-    for bad_timeout in ("abc", -1.0, 0.0, float("nan"), float("inf")):
+    for bad_timeout in ("abc", -1.0, 0.0, float("nan"), float("inf"), True, False):
         step = PlanStep(
             step_id=1,
             description="Run SQL with bad timeout",
@@ -390,3 +390,175 @@ async def test_data_analyst_node_clamps_excessive_timeout(
     assert delta["plan"] is not None
     assert delta["plan"].steps[0].status == StepStatus.COMPLETED
     assert observed_timeouts == [MAX_ANALYST_TIMEOUT_SECONDS]
+
+
+@pytest.mark.asyncio
+async def test_validate_plan_to_analyst_dual_series_handoff() -> None:
+    """Planner-to-analyst handoff binds both dual-series IDs and fails loud on gaps."""
+    import json
+
+    from candata_agent.supervisor.registry import (
+        DraftStep,
+        PlanDraft,
+        PlanValidationError,
+        validate_plan,
+    )
+
+    cpi_cit = _make_citation("18-10-0004-01", "v41690973", "CPI")
+    cit_a = _make_citation("10-10-0122-01", "v2293021", "Policy Rate")
+    cit_b = _make_citation("10-10-0122-01", "v39079", "5-Year Yield")
+    rent_cit = _make_citation("34-10-0143-01", "v3823103", "Average Monthly Rent")
+    income_cit = _make_citation("11-10-0239-01", "v11223344", "Median After-Tax Income")
+
+    # 1. percentage_point_spread via validate_plan
+    spread_draft = PlanDraft(
+        objective="Spread between policy rate and 5-year yield",
+        steps=(
+            DraftStep(
+                tool="fetch_statcan_vector",
+                args_json=json.dumps(
+                    {
+                        "vector_id": "v2293021",
+                        "start": "2024-01",
+                        "end": "2024-02",
+                        "into": "table_a",
+                    }
+                ),
+                description="Fetch series A",
+            ),
+            DraftStep(
+                tool="fetch_statcan_vector",
+                args_json=json.dumps(
+                    {"vector_id": "v39079", "start": "2024-01", "end": "2024-02", "into": "table_b"}
+                ),
+                description="Fetch series B",
+            ),
+            DraftStep(
+                tool="percentage_point_spread",
+                args_json=json.dumps({"series_a_name": "policy", "series_b_name": "yield_5y"}),
+                description="Compute percentage point spread",
+            ),
+        ),
+    )
+    spread_plan = validate_plan(spread_draft)
+    spread_step = spread_plan.steps[2]
+    assert spread_step.tool_args["series_id"] == "v2293021"
+    assert spread_step.tool_args["series_b_id"] == "v39079"
+
+    spread_state = AgentState(
+        session_id="s_spread",
+        thread_id="t_spread",
+        plan=spread_plan.model_copy(update={"active_step_id": spread_step.step_id}),
+        scratchpad={
+            "table_a": [{"date": "2024-01-01", "value": 5.0}],
+            "table_a_source": "v2293021",
+            "table_b": [{"date": "2024-01-01", "value": 3.5}],
+            "table_b_source": "v39079",
+        },
+        citations=(cpi_cit, cit_a, cit_b),
+    )
+    spread_delta = await data_analyst_node(spread_state)
+    assert spread_delta["plan"].steps[2].status == StepStatus.COMPLETED
+    assert spread_delta["sql_artifacts"][0].citations == (cit_a, cit_b)
+
+    # 2. affordability_burden_ratio via validate_plan
+    gt07_draft = PlanDraft(
+        objective="Affordability burden ratio",
+        steps=(
+            DraftStep(
+                tool="fetch_statcan_vector",
+                args_json=json.dumps(
+                    {"vector_id": "v3823103", "start": "2024", "end": "2024", "into": "rent_table"}
+                ),
+                description="Fetch rent",
+            ),
+            DraftStep(
+                tool="fetch_statcan_vector",
+                args_json=json.dumps(
+                    {
+                        "vector_id": "v11223344",
+                        "start": "2024",
+                        "end": "2024",
+                        "into": "income_table",
+                    }
+                ),
+                description="Fetch income",
+            ),
+            DraftStep(
+                tool="affordability_burden_ratio",
+                args_json="{}",
+                description="Compute affordability burden ratio",
+            ),
+        ),
+    )
+    gt07_plan = validate_plan(gt07_draft)
+    gt07_step = gt07_plan.steps[2]
+    assert gt07_step.tool_args["series_id"] == "v3823103"
+    assert gt07_step.tool_args["income_series_id"] == "v11223344"
+
+    gt07_state = AgentState(
+        session_id="s_gt07",
+        thread_id="t_gt07",
+        plan=gt07_plan.model_copy(update={"active_step_id": gt07_step.step_id}),
+        scratchpad={
+            "rent_table": [{"date": "2024", "value": 2000.0}],
+            "rent_table_source": "v3823103",
+            "income_table": [{"date": "2024", "value": 60000.0}],
+            "income_table_source": "v11223344",
+        },
+        citations=(cpi_cit, rent_cit, income_cit),
+    )
+    gt07_delta = await data_analyst_node(gt07_state)
+    assert gt07_delta["plan"].steps[2].status == StepStatus.COMPLETED
+    assert gt07_delta["sql_artifacts"][0].citations == (rent_cit, income_cit)
+
+    # 3. Break-it-on-purpose (missing/deleted citation): deleting second citation fails loud
+    broken_state = gt07_state.model_copy(update={"citations": (cpi_cit, rent_cit)})
+    broken_delta = await data_analyst_node(broken_state)
+    assert "sql_artifacts" not in broken_delta
+    assert broken_delta["plan"].steps[2].status == StepStatus.FAILED
+    assert "v11223344" in (broken_delta["plan"].steps[2].error or "")
+
+    # 4. Break-it-on-purpose (extras rejected): model cannot supply series_b_id or income_series_id
+    with pytest.raises(PlanValidationError, match="series_b_id: Extra inputs"):
+        validate_plan(
+            PlanDraft(
+                objective="Inject extra series_b_id",
+                steps=(
+                    spread_draft.steps[0],
+                    spread_draft.steps[1],
+                    DraftStep(
+                        tool="percentage_point_spread",
+                        args_json=json.dumps({"series_b_id": "v_spoofed"}),
+                        description="Attempt to spoof second ID",
+                    ),
+                ),
+            )
+        )
+    with pytest.raises(PlanValidationError, match="income_series_id: Extra inputs"):
+        validate_plan(
+            PlanDraft(
+                objective="Inject extra income_series_id",
+                steps=(
+                    gt07_draft.steps[0],
+                    gt07_draft.steps[1],
+                    DraftStep(
+                        tool="affordability_burden_ratio",
+                        args_json=json.dumps({"income_series_id": "v_spoofed"}),
+                        description="Attempt to spoof income ID",
+                    ),
+                ),
+            )
+        )
+
+    # 5. Break-it-on-purpose (missing fetch step): omitting second slot fails validation
+    with pytest.raises(PlanValidationError, match="no earlier fetch step fills table_b"):
+        validate_plan(
+            PlanDraft(
+                objective="Missing table_b",
+                steps=(
+                    spread_draft.steps[0],
+                    spread_draft.steps[2],
+                ),
+            )
+        )

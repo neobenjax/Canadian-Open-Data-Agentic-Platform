@@ -299,6 +299,10 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
         if raw_timeout is None:
             raw_timeout = tool_args.get("timeout")
         if raw_timeout is not None:
+            if isinstance(raw_timeout, bool):
+                raise ValueError(
+                    f"timeout_seconds must be a positive finite number, got {raw_timeout!r}"
+                )
             parsed_timeout = float(raw_timeout)
             if not math.isfinite(parsed_timeout) or parsed_timeout <= 0:
                 raise ValueError(
@@ -356,9 +360,12 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             warnings.extend(_inspect_data_quality(table_a))
             warnings.extend(_inspect_data_quality(table_b))
             source_series_id = _extract_series_id(tool_args, table_a, input_citation)
-            id_b = str(
-                tool_args.get("series_b_id") or tool_args.get("vector_id_b") or ""
-            ).strip() or _optional_table_series_id(table_b)
+            id_b = (
+                str(tool_args.get("series_b_id") or tool_args.get("vector_id_b") or "").strip()
+                or _optional_table_series_id(table_b)
+                or str(state.scratchpad.get("table_b_source") or "").strip()
+                or None
+            )
             dual_cits = _resolve_dual_citations(
                 tool_args,
                 state,
@@ -397,9 +404,14 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             warnings.extend(_inspect_data_quality(rent_tbl))
             warnings.extend(_inspect_data_quality(inc_tbl))
             source_series_id = _extract_series_id(tool_args, rent_tbl, input_citation)
-            income_id = str(
-                tool_args.get("income_series_id") or tool_args.get("income_vector_id") or ""
-            ).strip() or _optional_table_series_id(inc_tbl)
+            income_id = (
+                str(
+                    tool_args.get("income_series_id") or tool_args.get("income_vector_id") or ""
+                ).strip()
+                or _optional_table_series_id(inc_tbl)
+                or str(state.scratchpad.get("income_table_source") or "").strip()
+                or None
+            )
             dual_cits = _resolve_dual_citations(
                 tool_args,
                 state,
