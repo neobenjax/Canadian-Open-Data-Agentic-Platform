@@ -7,10 +7,13 @@ to ensure all outputs are strictly bounded (<3KB) and paired with Two-Tier Citat
 
 from __future__ import annotations
 
+import calendar
 import json
 import re
 from dataclasses import asdict
+from datetime import date, datetime
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
@@ -70,6 +73,46 @@ def _valet_call(
         f"observations/{result.series.name}/json",
         {"recent": recent, "start_date": start_date, "end_date": end_date},
     )
+
+
+EASTERN_TZ = ZoneInfo("America/Toronto")
+
+
+def _today_et() -> str:
+    """Return current calendar date in Eastern Time (America/Toronto) as ISO YYYY-MM-DD."""
+    return datetime.now(EASTERN_TZ).date().isoformat()
+
+
+MAX_ANALYTIC_OBSERVATIONS: int = 5000
+
+
+def _normalize_period(period_str: str, *, is_end: bool = False) -> str:
+    """Normalize partial or full ISO date periods to standard ISO dates (Guardrail 8).
+
+    - For start bounds: YYYY -> YYYY-01-01, YYYY-MM -> YYYY-MM-01, YYYY-MM-DD -> YYYY-MM-DD
+    - For end bounds: YYYY -> YYYY-12-31, YYYY-MM -> last day of month, YYYY-MM-DD -> YYYY-MM-DD
+    """
+    clean = period_str.strip()
+    if re.match(r"^\d{4}$", clean):
+        clean = f"{clean}-12-31" if is_end else f"{clean}-01-01"
+    elif re.match(r"^\d{4}-\d{2}$", clean):
+        year, month = int(clean[:4]), int(clean[5:7])
+        if not (1 <= month <= 12):
+            raise ValueError(
+                f"Invalid period format: '{period_str}'. Expected YYYY, YYYY-MM, or YYYY-MM-DD."
+            )
+        if is_end:
+            _, last_day = calendar.monthrange(year, month)
+            clean = f"{year:04d}-{month:02d}-{last_day:02d}"
+        else:
+            clean = f"{clean}-01"
+    try:
+        date.fromisoformat(clean)
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid period format: '{period_str}'. Expected YYYY, YYYY-MM, or YYYY-MM-DD."
+        ) from exc
+    return clean
 
 
 class CanDataServer:
@@ -833,7 +876,9 @@ class CanDataServer:
                 "Execute read-only SQL calculations over an official Canadian dataset. "
                 "Fetches the series from StatCan, Valet, or CKAN DataStore, registers it as "
                 "Arrow table 'series' in DuckDB, executes exact SQL math (mean, min, max), "
-                "and returns deterministic results to prevent LLM mental math errors."
+                "and returns deterministic results to prevent LLM mental math errors. "
+                "Specify start_period and end_period (e.g. 'YYYY' or 'YYYY-MM') to query "
+                "complete ranges without sample truncation."
             ),
             annotations=LOCAL_ANALYTIC_TOOL,
         )
@@ -841,39 +886,192 @@ class CanDataServer:
             source: str,
             series_id: str,
             sql_query: str,
+            start_period: str | None = None,
+            end_period: str | None = None,
         ) -> dict[str, Any]:
+            norm_start: str | None = None
+            norm_end: str | None = None
+            if start_period is not None:
+                try:
+                    norm_start = _normalize_period(start_period, is_end=False)
+                except ValueError as exc:
+                    return {
+                        "error": str(exc),
+                        "isError": True,
+                        "error_code": "INVALID_ARGUMENT",
+                        "message": str(exc),
+                    }
+            if end_period is not None:
+                try:
+                    norm_end = _normalize_period(end_period, is_end=True)
+                except ValueError as exc:
+                    return {
+                        "error": str(exc),
+                        "isError": True,
+                        "error_code": "INVALID_ARGUMENT",
+                        "message": str(exc),
+                    }
+            if norm_start and norm_end and norm_start > norm_end:
+                return {
+                    "error": (
+                        f"start_period '{start_period}' cannot be after end_period '{end_period}'."
+                    ),
+                    "isError": True,
+                    "error_code": "INVALID_ARGUMENT",
+                    "message": (
+                        f"start_period '{start_period}' cannot be after end_period '{end_period}'."
+                    ),
+                }
+
             src = source.strip().lower()
             if src in ("statcan", "statistics canada"):
                 clean_vid = re.sub(r"^v", "", series_id.strip(), flags=re.IGNORECASE)
-                results = await self.statcan_client.get_data_from_vectors([clean_vid], latest_n=100)
-                if not results:
+                try:
+                    if norm_start or norm_end:
+                        start_arg = norm_start or "1900-01-01"
+                        end_arg = norm_end or _today_et()
+                        target_result = await self.statcan_client.get_data_by_reference_period(
+                            clean_vid, start=start_arg, end=end_arg
+                        )
+                        source_call = statcan_call(
+                            "getDataFromVectorByReferencePeriodRange",
+                            {
+                                "vectorIds": clean_vid,
+                                "startRefPeriod": start_arg,
+                                "endReferencePeriod": end_arg,
+                            },
+                        )
+                    else:
+                        results = await self.statcan_client.get_data_from_vectors(
+                            [clean_vid], latest_n=100
+                        )
+                        if not results:
+                            return {
+                                "error": f"No data found for StatCan vector {series_id}",
+                                "isError": True,
+                                "error_code": "NOT_FOUND",
+                                "message": f"No data found for StatCan vector {series_id}",
+                            }
+                        target_result = results[0]
+                        source_call = statcan_call(
+                            "getDataFromVectorsAndLatestNPeriods",
+                            {"vectorId": target_result.vector_id, "latestN": 100},
+                        )
+                except Exception as exc:
+                    return {
+                        "error": str(exc),
+                        "isError": True,
+                        "error_code": "STATCAN_ERROR",
+                        "message": str(exc),
+                    }
+
+                fetched_count = len(target_result.observations)
+                if fetched_count == 0:
                     return {
                         "error": f"No data found for StatCan vector {series_id}",
                         "isError": True,
                         "error_code": "NOT_FOUND",
                         "message": f"No data found for StatCan vector {series_id}",
                     }
-                target_result = results[0]
+
+                if fetched_count > MAX_ANALYTIC_OBSERVATIONS:
+                    return {
+                        "error": (
+                            "Time-series range exceeds safety threshold. "
+                            "Specify narrower start_period / end_period."
+                        ),
+                        "isError": True,
+                        "error_code": "RANGE_TOO_LARGE",
+                        "suggested_action": (
+                            "Narrow start_period or end_period in execute_sql_analytics."
+                        ),
+                    }
+
                 table = self.engine.table_from_statcan(target_result)
                 envelope = target_result.citation()
                 citation = asdict(envelope)
                 fetched_at = target_result.fetched_at
-                source_call = statcan_call(
-                    "getDataFromVectorsAndLatestNPeriods",
-                    {"vectorId": target_result.vector_id, "latestN": 100},
-                )
-                fetched_count = len(target_result.observations)
-                fetch_step = f"fetched {fetched_count} observations"
+
+                if norm_start or norm_end:
+                    complete = True
+                    total_available: int | None = fetched_count
+                    fetch_step = (
+                        f"fetched {fetched_count} observations "
+                        f"({norm_start or 'earliest'} to {norm_end or 'latest'})"
+                    )
+                else:
+                    complete = fetched_count < 100
+                    total_available = fetched_count if complete else None
+                    fetch_step = f"fetched {fetched_count} observations"
             elif src in ("valet", "boc", "bank of canada"):
                 clean_sid = series_id.strip()
-                valet_result = await self.valet_client.get_observations(clean_sid, recent=100)
+                try:
+                    if norm_start or norm_end:
+                        valet_result = await self.valet_client.get_observations(
+                            clean_sid, start_date=norm_start, end_date=norm_end
+                        )
+                        source_call = _valet_call(
+                            valet_result,
+                            start_date=norm_start,
+                            end_date=norm_end,
+                            recent=None,
+                        )
+                    else:
+                        valet_result = await self.valet_client.get_observations(
+                            clean_sid, recent=100
+                        )
+                        source_call = _valet_call(
+                            valet_result,
+                            start_date=None,
+                            end_date=None,
+                            recent=100,
+                        )
+                except Exception as exc:
+                    return {
+                        "error": str(exc),
+                        "isError": True,
+                        "error_code": "VALET_ERROR",
+                        "message": str(exc),
+                    }
+
+                fetched_count = len(valet_result.observations)
+                if fetched_count == 0:
+                    return {
+                        "error": f"No records found for Valet series {series_id}",
+                        "isError": True,
+                        "error_code": "NOT_FOUND",
+                        "message": f"No records found for Valet series {series_id}",
+                    }
+
+                if fetched_count > MAX_ANALYTIC_OBSERVATIONS:
+                    return {
+                        "error": (
+                            "Time-series range exceeds safety threshold. "
+                            "Specify narrower start_period / end_period."
+                        ),
+                        "isError": True,
+                        "error_code": "RANGE_TOO_LARGE",
+                        "suggested_action": (
+                            "Narrow start_period or end_period in execute_sql_analytics."
+                        ),
+                    }
+
                 table = self.engine.table_from_valet(valet_result)
                 envelope = valet_result.citation()
                 citation = asdict(envelope)
                 fetched_at = valet_result.fetched_at
-                source_call = _valet_call(valet_result, start_date=None, end_date=None, recent=100)
-                fetched_count = len(valet_result.observations)
-                fetch_step = f"fetched {fetched_count} observations"
+
+                if norm_start or norm_end:
+                    complete = True
+                    total_available = fetched_count
+                    fetch_step = (
+                        f"fetched {fetched_count} observations "
+                        f"({norm_start or 'earliest'} to {norm_end or 'latest'})"
+                    )
+                else:
+                    complete = fetched_count < 100
+                    total_available = fetched_count if complete else None
+                    fetch_step = f"fetched {fetched_count} observations"
             elif src in ("ckan", "open_canada", "open canada", "open government"):
                 res_id = series_id.strip()
                 pack_id: str | None = None
@@ -919,6 +1117,8 @@ class CanDataServer:
                     {"resource_id": res_id, "limit": DATASTORE_PAGE_SIZE},
                 )
                 fetched_count = len(datastore_res.records)
+                complete = True
+                total_available = datastore_res.total_records
                 fetch_step = (
                     f"fetched all {fetched_count} rows via paged datastore_search "
                     f"(page size {DATASTORE_PAGE_SIZE}); aggregate covers the whole table"
@@ -947,6 +1147,9 @@ class CanDataServer:
                 "sql_query": sql_query,
                 "row_count": len(results_list),
                 "data": results_list,
+                "fetched_count": fetched_count,
+                "complete": complete,
+                "total_available": total_available,
                 "citation": citation,
                 "lineage": build_lineage(
                     publisher=envelope.publisher,

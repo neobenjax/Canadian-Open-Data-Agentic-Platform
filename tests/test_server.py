@@ -127,6 +127,7 @@ def mock_server(
     statcan = MagicMock(spec=StatCanClient)
     statcan.get_data_from_vectors = AsyncMock(return_value=(mock_statcan_result,))
     statcan.get_data_from_cube = AsyncMock(return_value=mock_statcan_result)
+    statcan.get_data_by_reference_period = AsyncMock(return_value=mock_statcan_result)
     statcan.aclose = AsyncMock()
 
     valet = MagicMock(spec=ValetClient)
@@ -860,3 +861,430 @@ async def test_invalid_datastore_filters_are_rejected(mock_server: CanDataServer
     assert number_payload["isError"] is True
     assert number_payload["error_code"] == "INVALID_ARGUMENT"
     mock_server.ckan_client.query_datastore.assert_not_called()
+
+
+async def test_execute_sql_analytics_statcan_date_range_150_points(
+    mock_server: CanDataServer,
+) -> None:
+    obs = tuple(
+        StatCanObservation(
+            ref_per=f"{2012 + (i // 12)}-{(i % 12) + 1:02d}",
+            value=100.0 + i * 0.5,
+            decimals=1,
+            release_time="2024-12-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=6,
+        )
+        for i in range(150)
+    )
+    citation = CitationEnvelope(
+        publisher="Statistics Canada",
+        core=CoreVerificationTuple(
+            table_id="18-10-0004",
+            vector_id="v41690973",
+            reference_period="2012-01/2024-06",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate="2.1",
+            release_or_revision_date="2024-12-15",
+            bilingual_title=BilingualTitle(
+                en="Consumer Price Index, shelter",
+                fr="Indice des prix à la consommation, logement",
+            ),
+            canonical_url="https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401",
+        ),
+    )
+    result_150 = MagicMock(spec=StatCanSeriesResult)
+    result_150.product_id = 18100004
+    result_150.vector_id = 41690973
+    result_150.coordinate = "2.1"
+    result_150.title_en = "Consumer Price Index, shelter"
+    result_150.title_fr = "Indice des prix à la consommation, logement"
+    result_150.unit = "2002=100"
+    result_150.observations = obs
+    result_150.citation.return_value = citation
+    result_150.fetched_at = "Thu, 22 Oct 2026 19:00:00 GMT"
+
+    mock_server.statcan_client.get_data_by_reference_period = AsyncMock(return_value=result_150)
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "statcan",
+            "series_id": "v41690973",
+            "sql_query": "SELECT count(*) AS total_rows, avg(value) AS mean_val FROM series",
+            "start_period": "2012-01",
+            "end_period": "2024-06",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["fetched_count"] == 150
+    assert payload["data"][0]["total_rows"] == 150
+    assert payload["complete"] is True
+    assert payload["total_available"] == 150
+    mock_server.statcan_client.get_data_by_reference_period.assert_awaited_once_with(
+        "41690973", start="2012-01-01", end="2024-06-30"
+    )
+
+
+async def test_execute_sql_analytics_valet_date_range_150_points(
+    mock_server: CanDataServer,
+) -> None:
+    obs = tuple(
+        ValetObservation(
+            date=f"{2012 + (i // 12)}-{(i % 12) + 1:02d}-01",
+            value=2.0 + (i * 0.01),
+        )
+        for i in range(150)
+    )
+    citation = CitationEnvelope(
+        publisher="Bank of Canada",
+        core=CoreVerificationTuple(
+            table_id="10-10-0139",
+            vector_id="V39079",
+            reference_period="2012-01-01/2024-06-01",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate=None,
+            release_or_revision_date="2024-06-01",
+            bilingual_title=BilingualTitle(
+                en="Policy Interest Rate",
+                fr="Taux cible du financement à un jour",
+            ),
+            canonical_url="https://www.bankofcanada.ca/valet/observations/V39079/json",
+        ),
+    )
+    series = SeriesDetail(
+        name="V39079",
+        label="Policy Interest Rate",
+        description="Target for the overnight rate",
+        frequency="M",
+        unit="%",
+        date_format="YYYY-MM-DD",
+        url="https://www.bankofcanada.ca/valet/series/V39079/json",
+    )
+    valet_150 = MagicMock(spec=ObservationSet)
+    valet_150.series = series
+    valet_150.observations = obs
+    valet_150.citation.return_value = citation
+    valet_150.fetched_at = "Thu, 22 Oct 2026 19:00:00 GMT"
+
+    mock_server.valet_client.get_observations = AsyncMock(return_value=valet_150)
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "valet",
+            "series_id": "V39079",
+            "sql_query": "SELECT count(*) AS total_rows, avg(value) AS mean_rate FROM series",
+            "start_period": "2012-01",
+            "end_period": "2024-06",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["fetched_count"] == 150
+    assert payload["data"][0]["total_rows"] == 150
+    assert payload["complete"] is True
+    assert payload["total_available"] == 150
+    mock_server.valet_client.get_observations.assert_awaited_once_with(
+        "V39079", start_date="2012-01-01", end_date="2024-06-30"
+    )
+
+
+async def test_execute_sql_analytics_unbounded_100_marks_incomplete(
+    mock_server: CanDataServer,
+) -> None:
+    obs = tuple(
+        ValetObservation(
+            date=f"2020-01-{i + 1:02d}" if i < 28 else "2020-02-01",
+            value=1.0,
+        )
+        for i in range(100)
+    )
+    citation = CitationEnvelope(
+        publisher="Bank of Canada",
+        core=CoreVerificationTuple(
+            table_id="10-10-0139",
+            vector_id="V39079",
+            reference_period="2020-01-01/2020-02-01",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate=None,
+            release_or_revision_date="2020-02-01",
+            bilingual_title=BilingualTitle(
+                en="Policy Interest Rate",
+                fr="Taux cible du financement à un jour",
+            ),
+            canonical_url="https://www.bankofcanada.ca/valet/observations/V39079/json",
+        ),
+    )
+    series = SeriesDetail(
+        name="V39079",
+        label="Policy Interest Rate",
+        description="Target for the overnight rate",
+        frequency="M",
+        unit="%",
+        date_format="YYYY-MM-DD",
+        url="https://www.bankofcanada.ca/valet/series/V39079/json",
+    )
+    valet_100 = MagicMock(spec=ObservationSet)
+    valet_100.series = series
+    valet_100.observations = obs
+    valet_100.citation.return_value = citation
+    valet_100.fetched_at = "Thu, 22 Oct 2026 19:00:00 GMT"
+
+    mock_server.valet_client.get_observations = AsyncMock(return_value=valet_100)
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "valet",
+            "series_id": "V39079",
+            "sql_query": "SELECT count(*) AS n FROM series",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["fetched_count"] == 100
+    assert payload["complete"] is False
+    assert payload["total_available"] is None
+
+
+async def test_execute_sql_analytics_statcan_huge_series_range_too_large(
+    mock_server: CanDataServer,
+) -> None:
+    obs = tuple(
+        StatCanObservation(
+            ref_per=f"{1900 + (i // 12)}-{(i % 12) + 1:02d}",
+            value=100.0,
+            decimals=1,
+            release_time="2024-12-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=6,
+        )
+        for i in range(5001)
+    )
+    huge_result = MagicMock(spec=StatCanSeriesResult)
+    huge_result.observations = obs
+    mock_server.statcan_client.get_data_by_reference_period = AsyncMock(return_value=huge_result)
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "statcan",
+            "series_id": "v41690973",
+            "sql_query": "SELECT count(*) FROM series",
+            "start_period": "1900-01",
+            "end_period": "2024-12",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["isError"] is True
+    assert payload["error_code"] == "RANGE_TOO_LARGE"
+    assert "safety threshold" in payload["error"]
+    assert "suggested_action" in payload
+
+
+async def test_execute_sql_analytics_valet_huge_series_range_too_large(
+    mock_server: CanDataServer,
+) -> None:
+    obs = tuple(
+        ValetObservation(
+            date=f"{1900 + (i // 12)}-{(i % 12) + 1:02d}-01",
+            value=1.0,
+        )
+        for i in range(5001)
+    )
+    huge_valet = MagicMock(spec=ObservationSet)
+    huge_valet.observations = obs
+    mock_server.valet_client.get_observations = AsyncMock(return_value=huge_valet)
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "valet",
+            "series_id": "V39079",
+            "sql_query": "SELECT count(*) FROM series",
+            "start_period": "1900-01",
+            "end_period": "2024-12",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["isError"] is True
+    assert payload["error_code"] == "RANGE_TOO_LARGE"
+    assert "safety threshold" in payload["error"]
+    assert "suggested_action" in payload
+
+
+async def test_execute_sql_analytics_invalid_period_format(
+    mock_server: CanDataServer,
+) -> None:
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "statcan",
+            "series_id": "v41690973",
+            "sql_query": "SELECT count(*) FROM series",
+            "start_period": "invalid-period",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["isError"] is True
+    assert payload["error_code"] == "INVALID_ARGUMENT"
+    assert "Invalid period format" in payload["error"]
+
+
+async def test_execute_sql_analytics_start_after_end_period(
+    mock_server: CanDataServer,
+) -> None:
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "statcan",
+            "series_id": "v41690973",
+            "sql_query": "SELECT count(*) FROM series",
+            "start_period": "2024-12-01",
+            "end_period": "2024-01-01",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["isError"] is True
+    assert payload["error_code"] == "INVALID_ARGUMENT"
+    assert "cannot be after" in payload["error"]
+
+
+async def test_execute_sql_analytics_valet_whole_year_bounds(
+    mock_server: CanDataServer,
+) -> None:
+    obs = tuple(
+        ValetObservation(
+            date=f"2024-{m:02d}-01",
+            value=5.0 - (m * 0.25),
+        )
+        for m in range(1, 13)
+    )
+    citation = CitationEnvelope(
+        publisher="Bank of Canada",
+        core=CoreVerificationTuple(
+            table_id="10-10-0139",
+            vector_id="V39079",
+            reference_period="2024-01-01/2024-12-01",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate=None,
+            release_or_revision_date="2024-12-01",
+            bilingual_title=BilingualTitle(
+                en="Policy Interest Rate",
+                fr="Taux cible du financement à un jour",
+            ),
+            canonical_url="https://www.bankofcanada.ca/valet/observations/V39079/json",
+        ),
+    )
+    series = SeriesDetail(
+        name="V39079",
+        label="Policy Interest Rate",
+        description="Target for the overnight rate",
+        frequency="M",
+        unit="%",
+        date_format="YYYY-MM-DD",
+        url="https://www.bankofcanada.ca/valet/series/V39079/json",
+    )
+    valet_year = MagicMock(spec=ObservationSet)
+    valet_year.series = series
+    valet_year.observations = obs
+    valet_year.citation.return_value = citation
+    valet_year.fetched_at = "Thu, 22 Oct 2026 19:00:00 GMT"
+
+    mock_server.valet_client.get_observations = AsyncMock(return_value=valet_year)
+
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "valet",
+            "series_id": "V39079",
+            "sql_query": "SELECT count(*) AS total_rows FROM series",
+            "start_period": "2024",
+            "end_period": "2024",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["fetched_count"] == 12
+    assert payload["data"][0]["total_rows"] == 12
+    assert payload["complete"] is True
+    # Asserts that YYYY normalized start to 2024-01-01 and end to 2024-12-31 per Guardrail 8
+    mock_server.valet_client.get_observations.assert_awaited_once_with(
+        "V39079", start_date="2024-01-01", end_date="2024-12-31"
+    )
+
+
+async def test_execute_sql_analytics_statcan_whole_year_bounds_and_source_call(
+    mock_server: CanDataServer,
+    mock_statcan_result: StatCanSeriesResult,
+) -> None:
+    mock_server.statcan_client.get_data_by_reference_period = AsyncMock(
+        return_value=mock_statcan_result
+    )
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "statcan",
+            "series_id": "v41690973",
+            "sql_query": "SELECT count(*) AS n FROM series",
+            "start_period": "2024",
+            "end_period": "2024",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["complete"] is True
+    assert payload["data"][0]["n"] == 12
+    # Verify exact date bounds: 2024-01-01 to 2024-12-31 per Guardrail 8
+    mock_server.statcan_client.get_data_by_reference_period.assert_awaited_once_with(
+        "41690973", start="2024-01-01", end="2024-12-31"
+    )
+    # Verify clean unquoted vectorIds in source_call
+    source_call = payload["lineage"]["source_call"]
+    assert source_call["request"]["vectorIds"] == "41690973"
+    assert source_call["request"]["startRefPeriod"] == "2024-01-01"
+    assert source_call["request"]["endReferencePeriod"] == "2024-12-31"
+
+
+async def test_execute_sql_analytics_statcan_start_period_only_queries_to_today(
+    mock_server: CanDataServer,
+    mock_statcan_result: StatCanSeriesResult,
+) -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    mock_server.statcan_client.get_data_by_reference_period = AsyncMock(
+        return_value=mock_statcan_result
+    )
+    result = await mock_server.mcp.call_tool(
+        "execute_sql_analytics",
+        {
+            "source": "statcan",
+            "series_id": "v41690973",
+            "sql_query": "SELECT count(*) AS n FROM series",
+            "start_period": "2020",
+        },
+    )
+    assert not result.is_error
+    payload = json.loads(result.content[0].text)  # type: ignore[union-attr]
+    assert payload["complete"] is True
+    assert payload["data"][0]["n"] == 12
+
+    today_et = datetime.now(ZoneInfo("America/Toronto")).date().isoformat()
+    mock_server.statcan_client.get_data_by_reference_period.assert_awaited_once_with(
+        "41690973", start="2020-01-01", end=today_et
+    )
+    source_call = payload["lineage"]["source_call"]
+    assert source_call["request"]["startRefPeriod"] == "2020-01-01"
+    assert source_call["request"]["endReferencePeriod"] == today_et
+    assert payload["lineage"]["steps"][0].endswith("to latest)")
