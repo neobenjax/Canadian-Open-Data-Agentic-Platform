@@ -8,7 +8,11 @@ Provides:
 - data_analyst_node: LangGraph 0.2+ async state graph node
 """
 
-from candata_agent.analyst.node import data_analyst_node
+from candata_agent.analyst.node import (
+    DEFAULT_ANALYST_TIMEOUT_SECONDS,
+    MAX_ANALYST_TIMEOUT_SECONDS,
+    data_analyst_node,
+)
 from candata_agent.analyst.recipes import (
     affordability_burden_ratio,
     annual_inflation_rate,
@@ -27,7 +31,9 @@ from candata_agent.analyst.sandbox import (
 )
 
 __all__ = [
+    "DEFAULT_ANALYST_TIMEOUT_SECONDS",
     "ExecutionTimeoutError",
+    "MAX_ANALYST_TIMEOUT_SECONDS",
     "SandboxedDuckDB",
     "SecurityValidationError",
     "affordability_burden_ratio",

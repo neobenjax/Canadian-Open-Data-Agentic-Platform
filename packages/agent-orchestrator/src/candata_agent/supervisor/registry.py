@@ -113,6 +113,12 @@ class RegimeChangeArgs(_SingleSeriesArgs):
     year: Annotated[int, Field(ge=1900, le=2100)]
 
 
+_SECOND_SLOT_ID_KEY: Final[Mapping[str, str]] = {
+    "percentage_point_spread": "series_b_id",
+    "affordability_burden_ratio": "income_series_id",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class ToolSpec:
     name: str
@@ -276,6 +282,9 @@ def validate_plan(
                 continue
             # The analyst cites the series it was handed, never an ID the model typed.
             tool_args["series_id"] = filled[reads[0]]
+            second_key = _SECOND_SLOT_ID_KEY.get(spec.name)
+            if second_key is not None and len(reads) > 1:
+                tool_args[second_key] = filled[reads[1]]
 
         steps.append(
             PlanStep(
