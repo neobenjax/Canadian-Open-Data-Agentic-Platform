@@ -15,6 +15,7 @@ plans, executed against live StatCan and Bank of Canada data).
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import time
 import uuid
@@ -23,7 +24,23 @@ from typing import Any
 
 import streamlit as st
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover
+    load_dotenv = None
+
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_env(path: Path | None = None) -> None:
+    """Load local environment file safely without overriding exported variables."""
+    if load_dotenv is not None:
+        target = path or Path(os.environ.get("CANDATA_ENV_FILE", ROOT / ".env"))
+        if target.is_file():
+            load_dotenv(target, override=False)
+
+
+_load_env()
 for src in ("packages/candata-mcp/src", "packages/agent-orchestrator/src"):
     if str(ROOT / src) not in sys.path:
         sys.path.insert(0, str(ROOT / src))
@@ -79,11 +96,15 @@ def _sidebar() -> str | None:
 
         session_key = st.session_state.get("custom_api_key")
         if live_planner_available(session_key):
-            st.success("**Live mode.** Claude plans each question from StatCan discovery.")
+            source = "session" if session_key else ".env / environment"
+            st.success(
+                f"**Live mode.** Active ({source}). "
+                "Claude plans each question from StatCan discovery."
+            )
         else:
             st.info(
-                "**Demo mode.** No `ANTHROPIC_API_KEY`, so only the example questions are "
-                "planned. Their data is fetched live from StatCan and the Bank of Canada."
+                "**Demo mode.** No `ANTHROPIC_API_KEY` detected in `.env` or session. "
+                "Showing pre-computed plans against live official data."
             )
         st.caption(f"Conversation `{st.session_state.thread_id}`")
         if st.button("New conversation", use_container_width=True):
