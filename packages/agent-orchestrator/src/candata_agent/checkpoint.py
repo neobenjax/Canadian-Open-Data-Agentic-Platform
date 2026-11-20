@@ -89,20 +89,19 @@ async def seed_thread(
     raw_cfg["configurable"] = configurable
     cfg = cast(RunnableConfig, raw_cfg)
 
-    state_values = (
-        dict(initial_state) if isinstance(initial_state, AgentState) else dict(initial_state)
-    )
+    state_values = dict(initial_state)
     if hasattr(app, "aupdate_state"):
         return await app.aupdate_state(cfg, state_values)
-    if hasattr(app, "checkpointer") and app.checkpointer is not None:
-        return await app.checkpointer.aput(
+    checkpointer = getattr(app, "checkpointer", None)
+    if isinstance(checkpointer, AsyncSqliteSaver):
+        return await checkpointer.aput(
             cfg,
             initial_state
             if isinstance(initial_state, AgentState)
             else AgentState.model_validate(initial_state),
         )
     raise AttributeError(
-        "Cannot seed thread: provided app does not support aupdate_state or checkpointer"
+        "Cannot seed thread: provided app does not support aupdate_state or AsyncSqliteSaver"
     )
 
 
@@ -195,7 +194,13 @@ class AsyncSqliteSaver(_BaseAsyncSqliteSaver):
         metadata: CheckpointMetadata | None = None,
         new_versions: ChannelVersions | None = None,
     ) -> RunnableConfig:
-        """Store a checkpoint tuple or typed AgentState under the configured thread."""
+        """Store a checkpoint tuple or typed AgentState under the configured thread.
+
+        Note: Passing a typed AgentState directly is intended for seeding initial checkpoints
+        on a new thread (writing step 0 and initial channel versions). To update or advance
+        an existing thread during multi-turn orchestration, use `app.aupdate_state(config, values)`
+        or provide a native LangGraph Checkpoint dict with explicit step metadata.
+        """
         cfg = self._normalize_config(config)
         raw_configurable = cfg.get("configurable")
         configurable: dict[str, Any] = (
