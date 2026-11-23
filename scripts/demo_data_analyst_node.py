@@ -88,8 +88,14 @@ async def main() -> None:
 
     # 2B: Vacancy Spread in pp and bps (GT-02)
     print("\n[GT-02] Rental Vacancy Rate Spread (2025 vs 2023):")
-    tab_2025 = pa.Table.from_pydict({"date": ["2025"], "value": [3.0]})
-    tab_2023 = pa.Table.from_pydict({"date": ["2025"], "value": [1.4]})
+    tab_2025 = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [3.0]},
+        metadata={b"unit": b"Percent"},
+    )
+    tab_2023 = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [1.4]},
+        metadata={b"unit": b"Percent"},
+    )
     spread_rows, _ = percentage_point_spread(
         tab_2025,
         tab_2023,

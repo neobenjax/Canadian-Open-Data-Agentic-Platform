@@ -152,8 +152,14 @@ def test_yoy_point_to_point_recipe() -> None:
 
 def test_percentage_point_spread_recipe() -> None:
     """Rate spread calculates difference in percentage points and basis points (GT-02)."""
-    table_a = pa.Table.from_pydict({"date": ["2025", "2023"], "value": [3.0, 1.4]})
-    table_b = pa.Table.from_pydict({"date": ["2025", "2023"], "value": [1.4, 1.4]})
+    table_a = pa.Table.from_pydict(
+        {"date": ["2025", "2023"], "value": [3.0, 1.4]},
+        metadata={b"unit": b"Percent"},
+    )
+    table_b = pa.Table.from_pydict(
+        {"date": ["2025", "2023"], "value": [1.4, 1.4]},
+        metadata={b"unit": b"Percent"},
+    )
 
     rows, _ = percentage_point_spread(
         table_a,
@@ -190,6 +196,21 @@ def test_percentage_point_spread_fails_loud_on_raw_levels() -> None:
     )
     with pytest.raises(ValueError, match="requires rate or percentage inputs"):
         percentage_point_spread(rate_tbl, cpi_tbl)
+
+    # One input is 'Percent' and the other is an unknown non-rate unit (e.g. 'CustomUnit')
+    custom_tbl = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [10.0]},
+        metadata={b"unit": b"CustomUnit", b"vector_id": b"v999"},
+    )
+    with pytest.raises(ValueError, match="requires rate or percentage inputs"):
+        percentage_point_spread(rate_tbl, custom_tbl)
+
+    # Unlabeled table with raw level column 'value' fails loud against Percent
+    unlabeled_raw_tbl = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [100.0]},
+    )
+    with pytest.raises(ValueError, match="requires rate or percentage inputs"):
+        percentage_point_spread(rate_tbl, unlabeled_raw_tbl)
 
 
 def test_percentage_point_spread_supports_change_pct_columns() -> None:

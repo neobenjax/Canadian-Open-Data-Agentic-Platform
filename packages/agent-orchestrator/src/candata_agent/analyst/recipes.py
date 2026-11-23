@@ -250,10 +250,10 @@ def _is_explicitly_incompatible(unit_str: str, col_name: str) -> bool:
     if "=100" in unit_clean or "index" in unit_clean:
         return True
 
-    # Check for dollars, currency, counts
+    # Check for dollars, currency, counts (careful: 'cent' is a substring of 'percent'!)
     if any(
         w in unit_clean
-        for w in ("dollar", "cent", "units", "persons", "tonnes", "metres", "litres", "barrels")
+        for w in ("dollar", "cents", "units", "persons", "tonnes", "metres", "litres", "barrels")
     ):
         return True
 
@@ -309,16 +309,17 @@ def percentage_point_spread(
                 "Do not subtract raw levels (e.g. wage level minus CPI index)."
             )
 
-        # 2. If both units are given and neither is a rate/percentage, fail loud
-        if (
-            unit_a
-            and unit_b
-            and not _is_rate_or_percentage(unit_a, col_a)
-            and not _is_rate_or_percentage(unit_b, col_b)
-        ):
+        # 2. Both inputs must be valid rates or percentages.
+        # If either input is not a rate/percentage (unit given or raw level column), fail loud.
+        is_rate_a = _is_rate_or_percentage(unit_a, col_a)
+        is_rate_b = _is_rate_or_percentage(unit_b, col_b)
+
+        if not is_rate_a or not is_rate_b:
+            unit_a_desc = f"'{unit_a}'" if unit_a else f"column '{col_a}'"
+            unit_b_desc = f"'{unit_b}'" if unit_b else f"column '{col_b}'"
             raise ValueError(
-                f"percentage_point_spread requires rate or percentage inputs; got units "
-                f"'{unit_a}' and '{unit_b}'. "
+                f"percentage_point_spread requires rate or percentage inputs; got {unit_a_desc} "
+                f"and {unit_b_desc}. "
                 "Do not subtract raw levels (e.g. wage level minus CPI index)."
             )
 
