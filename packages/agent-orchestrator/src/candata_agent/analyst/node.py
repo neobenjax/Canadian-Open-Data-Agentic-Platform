@@ -512,11 +512,19 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
                 )
             executed_sql = custom_query
 
-        # If any row in calculation contains warnings, bubble them up
-        for r in rows:
-            w = r.get("warning")
-            if w and str(w) not in warnings:
-                warnings.append(str(w))
+        # If calculation contains warnings, bubble them up
+        # For comparison recipes (e.g. yoy_point_to_point), only flag missing prior value if
+        # ALL rows lack a lag_value (e.g. single-period fetch with no comparison data)
+        if tool_name == "yoy_point_to_point":
+            if rows and all(r.get("lag_value") is None for r in rows):
+                w = rows[0].get("warning")
+                if w and str(w) not in warnings:
+                    warnings.append(str(w))
+        else:
+            for r in rows:
+                w = r.get("warning")
+                if w and str(w) not in warnings:
+                    warnings.append(str(w))
 
     except ExecutionTimeoutError as exc:
         timeout_msg = f"SQL execution timed out after {timeout_seconds}s: {exc}"

@@ -520,3 +520,35 @@ async def test_sandboxed_duckdb_timeout_interruption() -> None:
                 ),
                 timeout_seconds=0.1,
             )
+
+
+@pytest.mark.asyncio
+async def test_yoy_point_to_point_missing_prior_period_warning() -> None:
+    """A comparison recipe whose prior value (lag_value) is missing bubbles up a warning."""
+    # Table with only 1 observation (no prior period)
+    table = pa.Table.from_pydict({"date": ["2025"], "value": [26087.0]})
+    rows, _ = yoy_point_to_point(table)
+    assert len(rows) == 1
+    assert rows[0]["current_value"] == 26087.0
+    assert rows[0]["lag_value"] is None
+    assert rows[0]["change_pct"] is None
+    assert "Missing prior period value for comparison" in str(rows[0]["warning"])
+
+    # Test execution through Data Analyst node
+    step = PlanStep(
+        step_id=1,
+        description="Compare 2025 housing starts",
+        assigned_agent="data_analyst",
+        tool_name="yoy_point_to_point",
+        tool_args={
+            "series_id": "v42127955",
+            "table": [{"date": "2025", "value": 26087.0}],
+        },
+    )
+    plan = QueryPlan(objective="Compare starts", steps=(step,), active_step_id=1)
+    state = AgentState(session_id="s1", thread_id="t1", plan=plan)
+
+    delta = await data_analyst_node(state)
+    assert "sql_artifacts" in delta
+    artifact = delta["sql_artifacts"][0]
+    assert any("Missing prior period value for comparison" in w for w in artifact.warnings)

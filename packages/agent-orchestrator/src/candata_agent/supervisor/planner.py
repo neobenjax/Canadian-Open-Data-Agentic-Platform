@@ -136,7 +136,8 @@ Rules:
   "slot" (default series_table); to compare two series, load them into two slots (for example
   table_a and table_b) and run the calculation once per slot.
 - Prefer a table that publishes the figure directly (an annual table for an annual figure) over
-  computing it from a finer series.
+  computing it from a finer series. For comparisons between periods (e.g. 2025 vs 2024), ensure
+  fetch steps load both the target period and the comparison/prior period into the slot.
 - If official data cannot answer the question (the series is not published for that geography,
   period or breakdown), call decline with the reason instead of planning around it.
 - Finish by calling submit_plan or decline exactly once. If submit_plan returns problems, fix
