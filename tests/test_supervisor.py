@@ -780,6 +780,102 @@ async def test_forked_thread_continues_with_the_graph(saver: AsyncSqliteSaver) -
     assert len([m for m in original["messages"] if m.role is MessageRole.USER]) == 2
 
 
+async def test_graph_real_wage_change_m3_end_to_end(saver: AsyncSqliteSaver) -> None:
+    """Issue 101 / M3 / Rule 26: Full graph lifecycle executing real wage change & spread.
+
+    Tests multi-turn invocation on the same thread, checkpointer state roundtrip,
+    Two-Tier Citation Envelope verification, and prevention of bogus -150.8 pp spread.
+    """
+    m3_question = (
+        "How have average hourly wages for workers aged 15 to 24 in Alberta changed since "
+        "2019 after adjusting for inflation?"
+    )
+    # v2293021: Alberta youth wages (2019: 19.44, 2025: 21.40, Canadian dollars)
+    wage_obs = (
+        Observation("2019-01-01", 19.44, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2025-01-01", 21.40, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+    )
+    wage_series = StatCanSeriesResult(
+        product_id=14100064,
+        coordinate="1.1.1.1.0.0.0.0.0.0",
+        vector_id=2293021,
+        title_en="Alberta average hourly wage rate, 15 to 24 years",
+        title_fr=None,
+        frequency_code=1,
+        unit="Canadian dollars",
+        observations=wage_obs,
+        fetched_at="2026-11-03T00:00:00+00:00",
+    )
+    # v41694625: Alberta CPI (2019: 143.1, 2025: 172.2, 2002=100)
+    cpi_obs = (
+        Observation("2019-01-01", 143.1, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2025-01-01", 172.2, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+    )
+    cpi_series_res = StatCanSeriesResult(
+        product_id=18100005,
+        coordinate="1.1.0.0.0.0.0.0.0.0",
+        vector_id=41694625,
+        title_en="Consumer Price Index, Alberta",
+        title_fr=None,
+        frequency_code=1,
+        unit="2002=100",
+        observations=cpi_obs,
+        fetched_at="2026-11-03T00:00:00+00:00",
+    )
+
+    statcan = FakeStatCan(wage_series, cpi_series_res)
+
+    # Valid plan using real_wage_change recipe
+    m3_plan = draft(
+        (
+            "fetch_statcan_vector",
+            {"vector_id": "v2293021", "start": "2019", "end": "2025", "into": "table_a"},
+        ),
+        (
+            "fetch_statcan_vector",
+            {"vector_id": "v41694625", "start": "2019", "end": "2025", "into": "table_b"},
+        ),
+        ("real_wage_change", {}),
+    )
+
+    planner = ScriptedPlanner(planned(m3_plan), planned(m3_plan))
+    app = build_agent_graph(planner=planner, statcan=statcan, valet=FakeValet(), checkpointer=saver)
+    config = {"configurable": {"thread_id": "m3_real_wage"}}
+
+    # Turn 1: Execute graph
+    first = await app.ainvoke(
+        {"session_id": "s_m3", "thread_id": "m3_real_wage", "messages": (user(m3_question),)},
+        config,
+    )
+    assert first["plan"].completed
+    assert first["verification"]["passed"] is True
+    # Assert both vectors verified
+    verified_vectors = sorted(
+        v["claim"]["citation"]["core"]["vector_id"] for v in first["verification"]["verdicts"]
+    )
+    assert verified_vectors == ["v2293021", "v41694625"]
+
+    # Verify calculation output
+    artifact = first["sql_artifacts"][-1]
+    assert len(artifact.rows) == 2
+    r_2025 = [r for r in artifact.rows if str(r["obs_date"]).startswith("2025")][0]
+    assert r_2025["wage"] == 21.40
+    assert r_2025["cpi"] == 172.2
+    assert r_2025["nominal_wage_change_pct"] == pytest.approx(10.0823, rel=1e-3)
+    assert r_2025["cpi_inflation_pct"] == pytest.approx(20.3354, rel=1e-3)
+    assert r_2025["spread_pp"] == pytest.approx(-10.2531, rel=1e-3)
+    assert r_2025["real_wage_change_pct"] == pytest.approx(-8.5205, rel=1e-3)
+    # Ensure raw -150.8 level subtraction NEVER happens
+    assert r_2025["spread_pp"] != pytest.approx(-150.8, abs=1.0)
+
+    # Turn 2: Repeat query on same thread (Rule 26: multi-turn invocation & state retention)
+    second = await app.ainvoke({"messages": (user(m3_question),)}, config)
+    assert second["plan"].completed
+    assert second["verification"]["passed"] is True
+    assert len(second["sql_artifacts"]) >= 2
+    assert len(planner.questions) == 2
+
+
 # ---------------------------------------------------------------------------------------------
 # Live: real Claude planner with real StatCan discovery (costs API tokens; `pytest -m live`)
 # ---------------------------------------------------------------------------------------------

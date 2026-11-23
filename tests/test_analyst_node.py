@@ -18,6 +18,7 @@ from candata_agent.analyst import (
     discrete_regime_change_counter,
     multi_year_cagr,
     percentage_point_spread,
+    real_wage_change,
     validate_sql_security,
     yoy_point_to_point,
 )
@@ -164,6 +165,78 @@ def test_percentage_point_spread_recipe() -> None:
     row_2025 = rows[0]
     assert row_2025["spread_pp"] == 1.6
     assert row_2025["spread_bps"] == 160.0
+
+
+def test_percentage_point_spread_fails_loud_on_raw_levels() -> None:
+    """Issue 101: percentage_point_spread fails loud when inputs are raw levels (wage $ vs CPI)."""
+    # Alberta youth wages: $21.40 (dollars)
+    wage_tbl = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [21.40]},
+        metadata={b"unit": b"Canadian dollars", b"vector_id": b"v2293021"},
+    )
+    # Alberta CPI: 172.2 (2002=100)
+    cpi_tbl = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [172.2]},
+        metadata={b"unit": b"2002=100", b"vector_id": b"v41694625"},
+    )
+
+    with pytest.raises(ValueError, match="requires rate or percentage inputs"):
+        percentage_point_spread(wage_tbl, cpi_tbl)
+
+    # Even if only one is incompatible (e.g. rate minus index)
+    rate_tbl = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [5.0]},
+        metadata={b"unit": b"Percent", b"vector_id": b"v111"},
+    )
+    with pytest.raises(ValueError, match="requires rate or percentage inputs"):
+        percentage_point_spread(rate_tbl, cpi_tbl)
+
+
+def test_percentage_point_spread_supports_change_pct_columns() -> None:
+    """Issue 101: percentage_point_spread computes spread from two change_pct series."""
+    # Wage growth: +10.0823%
+    wage_chg = pa.Table.from_pydict(
+        {"date": ["2025"], "change_pct": [10.0823]},
+        metadata={b"unit": b"Canadian dollars", b"vector_id": b"v2293021"},
+    )
+    # CPI inflation: +20.3354%
+    cpi_chg = pa.Table.from_pydict(
+        {"date": ["2025"], "change_pct": [20.3354]},
+        metadata={b"unit": b"2002=100", b"vector_id": b"v41694625"},
+    )
+
+    rows, _ = percentage_point_spread(
+        wage_chg,
+        cpi_chg,
+        series_a_name="wage_growth",
+        series_b_name="cpi_inflation",
+    )
+    assert len(rows) == 1
+    # Spread should be 10.0823 - 20.3354 = -10.2531 pp
+    assert rows[0]["spread_pp"] == pytest.approx(-10.2531, rel=1e-3)
+    assert rows[0]["spread_bps"] == pytest.approx(-1025.3, rel=1e-2)
+
+
+def test_real_wage_change_recipe() -> None:
+    """Issue 101: real_wage_change computes wage growth, inflation, spread, and real change."""
+    # 2019 to 2025 Alberta youth wages: $19.44 -> $21.40 (+10.0823%)
+    wage_tbl = pa.Table.from_pydict(
+        {"date": ["2019", "2025"], "value": [19.44, 21.40]},
+        metadata={b"unit": b"Canadian dollars", b"vector_id": b"v2293021"},
+    )
+    # 2019 to 2025 Alberta CPI: 143.1 -> 172.2 (+20.3354%)
+    cpi_tbl = pa.Table.from_pydict(
+        {"date": ["2019", "2025"], "value": [143.1, 172.2]},
+        metadata={b"unit": b"2002=100", b"vector_id": b"v41694625"},
+    )
+
+    rows, _ = real_wage_change(wage_tbl, cpi_tbl)
+    assert len(rows) == 2
+    r_2025 = [r for r in rows if r["obs_date"] == "2025"][0]
+    assert r_2025["nominal_wage_change_pct"] == pytest.approx(10.0823, rel=1e-3)
+    assert r_2025["cpi_inflation_pct"] == pytest.approx(20.3354, rel=1e-3)
+    assert r_2025["spread_pp"] == pytest.approx(-10.2531, rel=1e-3)
+    assert r_2025["real_wage_change_pct"] == pytest.approx(-8.5205, rel=1e-3)
 
 
 def test_affordability_burden_ratio_recipe() -> None:

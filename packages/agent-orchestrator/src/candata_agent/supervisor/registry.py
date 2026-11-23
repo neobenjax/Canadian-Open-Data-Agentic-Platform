@@ -163,6 +163,13 @@ TOOLS: Final[Mapping[str, ToolSpec]] = {
             ("table_a", "table_b"),
         ),
         ToolSpec(
+            "real_wage_change",
+            DATA_ANALYST,
+            "Real wage change and inflation spread between wages (table_a) and CPI (table_b).",
+            NoArgs,
+            ("table_a", "table_b"),
+        ),
+        ToolSpec(
             "affordability_burden_ratio",
             DATA_ANALYST,
             "A year of monthly rent (rent_table) as a % of annual income (income_table).",

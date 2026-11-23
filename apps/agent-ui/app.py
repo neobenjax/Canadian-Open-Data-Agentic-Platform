@@ -159,19 +159,24 @@ def _claim_core(verdict: dict[str, Any]) -> dict[str, Any]:
 
 def _badge(analysis: AnalysisResult, verdicts: list[dict[str, Any]]) -> str:
     """Whether the series a figure was computed from passed verification."""
-    source = analysis.artifact.source_series_id
-    mine = [v for v in verdicts if _claim_core(v)["vector_id"] == source]
+    # If the artifact has warnings of incompatible units, do not show verified
+    if any(
+        "incompatible" in w.lower() or "failed" in w.lower() for w in analysis.artifact.warnings
+    ):
+        return "⚠️ not verified (incompatible_units)"
+
+    sources = [s.strip() for s in analysis.artifact.source_series_id.split(",") if s.strip()]
+    mine = [v for v in verdicts if _claim_core(v)["vector_id"] in sources]
     if not mine:
         return "⚪ not checked"
-    if all(v["passed"] for v in mine):
+    if len(mine) == len(sources) and all(v["passed"] for v in mine):
         if _analysis_has_missing_prior(analysis):
             return "⚠️ comparison missing prior period"
         return "✅ verified"
-    return (
-        "⚠️ not verified ("
-        + ", ".join(sorted({str(v["code"]) for v in mine if not v["passed"]}))
-        + ")"
-    )
+    failed_codes = sorted({str(v["code"]) for v in mine if not v["passed"]})
+    if failed_codes:
+        return f"⚠️ not verified ({', '.join(failed_codes)})"
+    return "⚪ not checked"
 
 
 def _analysis_has_missing_prior(analysis: AnalysisResult) -> bool:

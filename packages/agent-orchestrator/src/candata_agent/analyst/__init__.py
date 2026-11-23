@@ -21,6 +21,7 @@ from candata_agent.analyst.recipes import (
     discrete_regime_change_counter,
     multi_year_cagr,
     percentage_point_spread,
+    real_wage_change,
     yoy_point_to_point,
 )
 from candata_agent.analyst.sandbox import (
@@ -44,6 +45,7 @@ __all__ = [
     "discrete_regime_change_counter",
     "multi_year_cagr",
     "percentage_point_spread",
+    "real_wage_change",
     "validate_sql_security",
     "yoy_point_to_point",
 ]
