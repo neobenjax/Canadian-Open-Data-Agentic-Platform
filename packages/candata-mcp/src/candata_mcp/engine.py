@@ -33,7 +33,7 @@ _DATE_REGEX = re.compile(r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$")
 
 # Forbidden SQL statements for read-only security guardrails
 _FORBIDDEN_SQL_KEYWORDS = re.compile(
-    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|ATTACH|DETACH|COPY|PRAGMA|CALL|INSTALL|LOAD)\b",
+    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|ATTACH|DETACH|COPY|PRAGMA|CALL|INSTALL|LOAD|SET|EXPORT|CHECKPOINT|VACUUM)\b",
     re.IGNORECASE,
 )
 
@@ -92,13 +92,144 @@ def normalize_date_bound(date_str: str, *, is_end: bool) -> tuple[str, str]:
             return "<=", clean_date
 
 
+class DuckDBSecurityError(ValueError):
+    """Raised when a DuckDB connection violates zero-trust driver-level sandboxing (Rule 7)."""
+
+    pass
+
+
+def validate_and_lock_connection(
+    connection: Any,
+    *,
+    require_prelocked: bool = False,
+) -> duckdb.DuckDBPyConnection:
+    """Validate and enforce driver-level sandbox lockdown on a DuckDB connection (Rule 7).
+
+    Guarantees that:
+    1. The connection is a valid, open `duckdb.DuckDBPyConnection`.
+    2. No external file-backed databases are attached (strictly in-memory `:memory:`).
+    3. `enable_external_access` is `False` (blocking all filesystem and network IO).
+    4. `lock_configuration` is `True` (preventing runtime configuration alteration).
+
+    If the connection has `lock_configuration=False`, lockdown is automatically applied
+    via driver-level SQL (`SET enable_external_access = false; SET lock_configuration = true`)
+    unless `require_prelocked=True`, in which case a `DuckDBSecurityError` is raised.
+    If the connection is already locked in an unsafe state (`enable_external_access=True`),
+    lockdown is impossible and a `DuckDBSecurityError` is raised immediately.
+
+    Args:
+        connection: The DuckDB connection to inspect and secure.
+        require_prelocked: If True, rejects connections that were not pre-configured
+            with lockdown at connect time.
+
+    Returns:
+        The validated and secured `duckdb.DuckDBPyConnection`.
+
+    Raises:
+        TypeError: If connection is not a duckdb.DuckDBPyConnection instance.
+        DuckDBSecurityError: If the connection is closed, attached to external files,
+            locked in an unsafe configuration, or fails post-lockdown verification.
+    """
+    if not isinstance(connection, duckdb.DuckDBPyConnection):
+        conn_type = type(connection).__name__
+        msg = f"Invalid connection type: expected duckdb.DuckDBPyConnection, got {conn_type}"
+        raise TypeError(msg)
+
+    # Verify connection is open and inspect attached databases
+    try:
+        db_rows = connection.execute(
+            "SELECT database_name, path FROM duckdb_databases()"
+        ).fetchall()
+    except Exception as exc:
+        raise DuckDBSecurityError(
+            f"Caller-supplied DuckDB connection is unusable or closed: {exc}"
+        ) from exc
+
+    # Enforce strictly in-memory databases (no external file-backed databases)
+    for db_name, db_path in db_rows:
+        if db_path is not None and str(db_path).strip() != "":
+            raise DuckDBSecurityError(
+                f"Caller-supplied DuckDB connection has file-backed database '{db_name}' "
+                f"at '{db_path}'. Rule 7 requires in-memory only (:memory:)."
+            )
+
+    # Inspect current sandbox configuration
+    try:
+        settings_rows = connection.execute(
+            "SELECT name, value FROM duckdb_settings() "
+            "WHERE name IN ('enable_external_access', 'lock_configuration')"
+        ).fetchall()
+    except Exception as exc:
+        raise DuckDBSecurityError(
+            f"Failed to inspect DuckDB configuration settings: {exc}"
+        ) from exc
+
+    settings = {str(name): str(value).strip().lower() for name, value in settings_rows}
+    ext_access = settings.get("enable_external_access")
+    lock_config = settings.get("lock_configuration")
+
+    if lock_config == "true":
+        if ext_access != "false":
+            raise DuckDBSecurityError(
+                "Caller-supplied DuckDB connection is locked with enable_external_access=True. "
+                "Driver-level sandbox lockdown cannot be enforced."
+            )
+        # Already pre-locked with enable_external_access=False and lock_configuration=True
+        return connection
+
+    # Connection is configurable (lock_configuration=False)
+    if require_prelocked:
+        raise DuckDBSecurityError(
+            "Caller-supplied DuckDB connection is not pre-locked. "
+            "Rule 7 requires driver-level lockdown "
+            "(enable_external_access=False, lock_configuration=True)."
+        )
+
+    try:
+        connection.execute("SET enable_external_access = false")
+        connection.execute("SET lock_configuration = true")
+    except Exception as exc:
+        raise DuckDBSecurityError(
+            f"Failed to apply driver-level sandbox lockdown to DuckDB connection: {exc}"
+        ) from exc
+
+    # Verify post-lockdown settings
+    try:
+        post_rows = connection.execute(
+            "SELECT name, value FROM duckdb_settings() "
+            "WHERE name IN ('enable_external_access', 'lock_configuration')"
+        ).fetchall()
+    except Exception as exc:
+        raise DuckDBSecurityError(f"Failed to verify post-lockdown settings: {exc}") from exc
+
+    post_settings = {str(name): str(value).strip().lower() for name, value in post_rows}
+    if post_settings.get("enable_external_access") != "false":
+        raise DuckDBSecurityError(
+            f"Failed to disable external access on DuckDB connection: {post_settings}"
+        )
+    if post_settings.get("lock_configuration") != "true":
+        raise DuckDBSecurityError(
+            f"Failed to lock configuration on DuckDB connection: {post_settings}"
+        )
+
+    return connection
+
+
 class DuckDBSlicingEngine:
     """In-memory DuckDB engine with Arrow streaming for zero-copy analytical queries."""
 
-    def __init__(self, connection: duckdb.DuckDBPyConnection | None = None) -> None:
+    def __init__(
+        self,
+        connection: duckdb.DuckDBPyConnection | None = None,
+        *,
+        require_prelocked: bool = False,
+    ) -> None:
         """Initialize in-memory DuckDB connection locked down against filesystem/network access."""
         if connection is not None:
-            self._con: duckdb.DuckDBPyConnection = connection
+            self._con: duckdb.DuckDBPyConnection = validate_and_lock_connection(
+                connection,
+                require_prelocked=require_prelocked,
+            )
         else:
             self._con: duckdb.DuckDBPyConnection = duckdb.connect(
                 ":memory:",

@@ -18,15 +18,21 @@ from candata_mcp.connectors import (  # noqa: E402
     StatCanClient,
     ValetClient,
 )
-from candata_mcp.engine import DuckDBSlicingEngine  # noqa: E402
+from candata_mcp.engine import (  # noqa: E402
+    DuckDBSecurityError,
+    DuckDBSlicingEngine,
+    validate_and_lock_connection,
+)
 
 __all__ = [
     "BilingualTitle",
     "CitationEnvelope",
     "CoreVerificationTuple",
+    "DuckDBSecurityError",
     "DuckDBSlicingEngine",
     "MetadataEnrichment",
     "StatCanAmbiguousMemberError",
     "StatCanClient",
     "ValetClient",
+    "validate_and_lock_connection",
 ]
