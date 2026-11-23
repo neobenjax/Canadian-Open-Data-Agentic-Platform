@@ -211,6 +211,77 @@ def test_payload_clamp_immutability(engine: DuckDBSlicingEngine) -> None:
     assert len(payload["data"]) == 2  # Original remains unmutated
 
 
+def test_payload_clamp_hard_fallback_oversized_title(engine: DuckDBSlicingEngine) -> None:
+    """Oversized 5KB+ title string triggers hard byte truncation fallback."""
+    oversized_title = "Rapport économique sur l'inflation et le logement au Canada: " + (
+        "éàçôù " * 1000
+    )
+    payload = {
+        "source": "Statistics Canada",
+        "title": {"en": "Short Title", "fr": oversized_title},
+        "returned_count": 0,
+        "data": [],
+        "citation": {"publisher": "Statistics Canada"},
+        "summary": {"count": 0},
+    }
+    raw_bytes = len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    assert raw_bytes > 5000
+
+    clamped = engine.clamp_payload(payload, max_bytes=MAX_PAYLOAD_BYTES)
+    clamped_bytes = len(json.dumps(clamped, ensure_ascii=False).encode("utf-8"))
+    assert clamped_bytes <= MAX_PAYLOAD_BYTES
+    assert clamped.get("truncated") is True
+    # Ensure UTF-8 multi-byte decoding is clean and valid
+    json_str = json.dumps(clamped, ensure_ascii=False)
+    assert isinstance(json_str, str)
+
+
+def test_payload_clamp_nested_metadata_and_escaping_expansion(
+    engine: DuckDBSlicingEngine,
+) -> None:
+    """Test deeply nested metadata and JSON escaping expansion (quotes, slashes, newlines)."""
+    tricky_string = '\\"\\\n\t\r\\/' * 300
+    payload = {
+        "source": "Bank of Canada",
+        "nested": {
+            "level1": {
+                "level2": {
+                    "heavy_text": tricky_string,
+                    "french_unicode": "Élévation de l'indice des prix à la consommation " * 50,
+                }
+            }
+        },
+        "citation": {"publisher": "Bank of Canada"},
+        "data": [{"date": "2024-01-01", "value": 1.5}],
+    }
+    clamped = engine.clamp_payload(payload, max_bytes=1000)
+    clamped_bytes = len(json.dumps(clamped, ensure_ascii=False).encode("utf-8"))
+    assert clamped_bytes <= 1000
+    assert clamped.get("truncated") is True
+
+
+def test_payload_clamp_sub_minimum_and_tiny_budgets(engine: DuckDBSlicingEngine) -> None:
+    """Extreme sub-minimum max_bytes scenarios (e.g. 100, 50, 25, 10, 2, 0)."""
+    payload = {
+        "source": "Statistics Canada",
+        "title": "A" * 200,
+        "citation": {"publisher": "StatCan"},
+        "data": [{"a": 1}],
+    }
+
+    for tiny_budget in [100, 50, 25, 10, 2]:
+        clamped = engine.clamp_payload(payload, max_bytes=tiny_budget)
+        clamped_bytes = len(json.dumps(clamped, ensure_ascii=False).encode("utf-8"))
+        assert clamped_bytes <= tiny_budget
+        if tiny_budget >= 19:
+            assert clamped.get("truncated") is True
+
+    # Budgets under 2 bytes cannot hold valid JSON ({}) and must fail deterministically
+    for invalid_budget in [1, 0, -1]:
+        with pytest.raises(ValueError, match="smaller than minimum valid JSON payload"):
+            engine.clamp_payload(payload, max_bytes=invalid_budget)
+
+
 def test_invalid_date_format_rejection(
     engine: DuckDBSlicingEngine,
     sample_valet_result: ObservationSet,

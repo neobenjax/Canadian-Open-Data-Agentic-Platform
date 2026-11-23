@@ -634,17 +634,26 @@ class DuckDBSlicingEngine:
         payload: dict[str, Any],
         max_bytes: int = MAX_PAYLOAD_BYTES,
     ) -> dict[str, Any]:
-        """Guarantee payload strictly complies with the <3KB budget immutably.
+        """Guarantee payload strictly complies with the byte budget immutably.
 
-        If payload exceeds max_bytes, progressively pops data rows while
-        preserving summary statistics and the Two-Tier Citation Envelope.
+        If payload exceeds max_bytes:
+        1. Progressively pops data rows while preserving summary statistics
+           and the Two-Tier Citation Envelope.
+        2. Progressively truncates long string fields in metadata dictionaries.
+        3. Applies recursive hard byte-budget truncation fallback on all string values.
+        4. If the skeletal container overhead alone exceeds max_bytes, prunes non-essential
+           keys and ultimately collapses to a deterministic minimal JSON envelope.
         """
         clamped = copy.deepcopy(payload)
-        encoded_len = len(json.dumps(clamped, default=str).encode("utf-8"))
+
+        def _measure(val: Any) -> int:
+            return len(json.dumps(val, default=str, ensure_ascii=False).encode("utf-8"))
+
+        encoded_len = _measure(clamped)
         if encoded_len <= max_bytes:
             return clamped
 
-        # Payload exceeds budget; truncate data rows
+        # Step 1: Payload exceeds budget; truncate data rows
         data = clamped.get("data")
         if isinstance(data, list) and data:
             lineage = clamped.get("lineage")
@@ -657,9 +666,9 @@ class DuckDBSlicingEngine:
                 clamped["data"] = truncated_data
                 clamped["returned_count"] = len(truncated_data)
                 clamped["truncated"] = True
-                encoded_len = len(json.dumps(clamped, default=str).encode("utf-8"))
+                encoded_len = _measure(clamped)
 
-        # If metadata alone still exceeds max_bytes, clamp metadata strings deterministically
+        # Step 2: If metadata alone still exceeds max_bytes, clamp known metadata strings
         if encoded_len > max_bytes:
             clamped["data"] = []
             clamped["returned_count"] = 0
@@ -669,6 +678,80 @@ class DuckDBSlicingEngine:
                     for subk, subv in clamped[field].items():
                         if isinstance(subv, str) and len(subv) > 80:
                             clamped[field][subk] = subv[:80] + "..."
-            encoded_len = len(json.dumps(clamped, default=str).encode("utf-8"))
+            encoded_len = _measure(clamped)
+
+        # Step 3: Hard byte truncation fallback for oversized strings anywhere in metadata
+        if encoded_len > max_bytes:
+
+            def _truncate_utf8_string(s: str, target_bytes: int) -> str:
+                """Truncate string so its UTF-8 encoding is at most target_bytes with suffix."""
+                suffix = "..."
+                suffix_len = len(suffix.encode("utf-8"))
+                if target_bytes <= suffix_len:
+                    return suffix[:target_bytes]
+                avail = target_bytes - suffix_len
+                b = s.encode("utf-8")[:avail]
+                return b.decode("utf-8", errors="ignore") + suffix
+
+            def _recursively_trim_strings(val: Any, limit_bytes: int) -> Any:
+                if isinstance(val, str):
+                    b_len = len(val.encode("utf-8"))
+                    if b_len > limit_bytes:
+                        return _truncate_utf8_string(val, limit_bytes)
+                    return val
+                elif isinstance(val, dict):
+                    return {k: _recursively_trim_strings(v, limit_bytes) for k, v in val.items()}
+                elif isinstance(val, list | tuple):
+                    return [_recursively_trim_strings(v, limit_bytes) for v in val]
+                return val
+
+            for max_str_bytes in [500, 200, 80, 40, 20, 10, 5, 0]:
+                if encoded_len <= max_bytes:
+                    break
+
+                clamped = _recursively_trim_strings(clamped, max_str_bytes)
+                encoded_len = _measure(clamped)
+
+        # Step 4: If structural overhead (keys/brackets) still exceeds max_bytes
+        if encoded_len > max_bytes:
+            # First prune optional or verbose metadata keys in order of priority
+            prune_candidates = [
+                "display",
+                "series_title",
+                "summary",
+                "lineage",
+                "citation",
+                "title",
+            ]
+            for key in prune_candidates:
+                if encoded_len <= max_bytes:
+                    break
+                if key in clamped:
+                    clamped.pop(key, None)
+                    encoded_len = _measure(clamped)
+
+            # If still exceeding budget, strip remaining keys except essential ones
+            if encoded_len > max_bytes:
+                for key in list(clamped.keys()):
+                    if encoded_len <= max_bytes:
+                        break
+                    if key not in ("truncated", "error"):
+                        clamped.pop(key, None)
+                        encoded_len = _measure(clamped)
+
+        # Step 5: Final fallback for sub-minimum or extreme max_bytes
+        if encoded_len > max_bytes:
+            clamped = {"truncated": True}
+            encoded_len = _measure(clamped)
+            if encoded_len > max_bytes:
+                # If even {"truncated": True} (19 bytes) doesn't fit, empty dict {} is 2 bytes
+                clamped = {}
+                encoded_len = _measure(clamped)
+                if encoded_len > max_bytes:
+                    msg = (
+                        f"max_bytes={max_bytes} is smaller than minimum valid "
+                        "JSON payload (2 bytes for '{}')"
+                    )
+                    raise ValueError(msg)
 
         return clamped
