@@ -391,3 +391,39 @@ def test_page_flags_comparison_missing_prior_period() -> None:
     # The banner should show warning instead of success
     assert not at.success
     assert any("comparison prior period is missing" in w.value for w in at.warning)
+
+
+def test_page_valid_comparison_shows_verified_banner() -> None:
+    """When a 2-year comparison has a valid prior for the target period, it shows verified."""
+    turn = RunResult("How many housing units started in 2025 vs 2024?")
+    turn.series.append(series("v42127955", "Units", row("2025", 26087.0)))
+    yoy_valid = artifact(
+        "v42127955",
+        {
+            "obs_date": "2025",
+            "current_value": 26087.0,
+            "lag_value": 27800.0,
+            "change_pct": -6.16,
+        },
+        {
+            "obs_date": "2024",
+            "current_value": 27800.0,
+            "lag_value": None,
+            "change_pct": None,
+        },
+    )
+    turn.analyses.append(
+        AnalysisResult("yoy_point_to_point", yoy_valid, "Housing starts 2025 vs 2024")
+    )
+    turn.verification = {
+        "passed": True,
+        "verdicts": [verdict("v42127955", True)],
+    }
+    at = page_with(turn)
+
+    assert not at.exception
+    text = " ".join(m.value for m in at.markdown)
+    assert "✅ verified" in text
+    assert "⚠️ comparison missing prior period" not in text
+    assert at.success
+    assert not at.warning

@@ -513,10 +513,11 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             executed_sql = custom_query
 
         # If calculation contains warnings, bubble them up
-        # For comparison recipes (e.g. yoy_point_to_point), only flag missing prior value if
-        # ALL rows lack a lag_value (e.g. single-period fetch with no comparison data)
+        # For comparison recipes (e.g. yoy_point_to_point), rows are ordered DESC by date.
+        # The primary comparison is the latest/target row (rows[0]). If rows[0] lacks lag_value,
+        # the comparison prior period is missing and change cannot be calculated.
         if tool_name == "yoy_point_to_point":
-            if rows and all(r.get("lag_value") is None for r in rows):
+            if rows and rows[0].get("lag_value") is None:
                 w = rows[0].get("warning")
                 if w and str(w) not in warnings:
                     warnings.append(str(w))

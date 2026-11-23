@@ -175,14 +175,15 @@ def _badge(analysis: AnalysisResult, verdicts: list[dict[str, Any]]) -> str:
 
 
 def _analysis_has_missing_prior(analysis: AnalysisResult) -> bool:
-    """Check if a comparison analysis produced rows with None lag_value."""
+    """Check if a comparison analysis produced rows with None lag_value for the target period."""
     rows = analysis.artifact.rows
     if not rows:
         return False
     # If the recipe produces lag_value (e.g. yoy_point_to_point)
     has_lag_col = any("lag_value" in r for r in rows)
     if has_lag_col:
-        return all(r.get("lag_value") is None for r in rows)
+        # Rows are ordered DESC; rows[0] is the target/latest period being compared
+        return rows[0].get("lag_value") is None
     return False
 
 
