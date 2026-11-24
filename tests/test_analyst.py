@@ -194,8 +194,12 @@ async def test_data_analyst_node_affordability_burden_ratio_dual_citations() -> 
 
 def test_percentage_point_spread_dual_citations() -> None:
     """percentage_point_spread recipe produces SQLArtifact with citations for both series."""
-    table_a = pa.Table.from_pydict({"date": ["2025"], "value": [3.0]})
-    table_b = pa.Table.from_pydict({"date": ["2025"], "value": [1.4]})
+    table_a = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [3.0]}, metadata={b"unit": b"Percent"}
+    )
+    table_b = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [1.4]}, metadata={b"unit": b"Percent"}
+    )
 
     cit_a = _make_citation("10-10-0122-01", "v11111", "Series A")
     cit_b = _make_citation("10-10-0122-01", "v22222", "Series B")
@@ -452,8 +456,10 @@ async def test_validate_plan_to_analyst_dual_series_handoff() -> None:
         scratchpad={
             "table_a": [{"date": "2024-01-01", "value": 5.0}],
             "table_a_source": "v2293021",
+            "table_a_unit": "Percent",
             "table_b": [{"date": "2024-01-01", "value": 3.5}],
             "table_b_source": "v39079",
+            "table_b_unit": "Percent",
         },
         citations=(cpi_cit, cit_a, cit_b),
     )

@@ -374,16 +374,23 @@ def real_wage_change(
     date_col: str = "date",
     wage_val_col: str = "value",
     cpi_val_col: str = "value",
-) -> tuple[list[dict[str, Any]], str]:
-    """Calculate real (inflation-adjusted) wage change and spread against CPI inflation.
+    base_date: str | None = None,
+    citation_a: CitationEnvelope | None = None,
+    citation_b: CitationEnvelope | None = None,
+    citations: tuple[CitationEnvelope, ...] | Sequence[CitationEnvelope] | None = None,
+    source_series_id: str = "real_wage_change",
+) -> SQLArtifact:
+    """Calculate cumulative real (inflation-adjusted) wage change and spread against CPI inflation.
 
     Directly addresses user testing M3 (Alberta youth wages vs CPI).
+    Anchors every period against the base period (explicit ``base_date`` if provided,
+    otherwise the earliest overlapping period in the fetched range) so multi-year
+    queries like "since 2019" compute the cumulative change rather than a 1-period lag.
     Calculates:
-      - nominal_wage_change_pct: percentage change in nominal wages
-      - cpi_inflation_pct: percentage change in CPI index
+      - nominal_wage_change_pct: cumulative percentage change in nominal wages from base
+      - cpi_inflation_pct: cumulative percentage change in CPI index from base
       - spread_pp: nominal_wage_change_pct - cpi_inflation_pct
-      - real_wage_change_pct: ((1 + wage_pct/100) / (1 + cpi_pct/100) - 1) * 100
-        or equivalently ((wage_end/cpi_end) - (wage_start/cpi_start)) / (wage_start/cpi_start) * 100
+      - real_wage_change_pct: ((wage/cpi) - (base_wage/base_cpi)) / (base_wage/base_cpi) * 100
     """
     view_wage = "wage_series"
     view_cpi = "cpi_series"
@@ -391,60 +398,122 @@ def real_wage_change(
     clean_w_val = wage_val_col.replace('"', '""')
     clean_c_val = cpi_val_col.replace('"', '""')
 
-    query = f"""
-    WITH combined AS (
+    base_norm_str: str | None = None
+    if base_date is not None:
+        raw_base = str(base_date).strip()
+        if len(raw_base) == 4:
+            base_norm_str = f"{raw_base}-01-01"
+        elif len(raw_base) == 7:
+            base_norm_str = f"{raw_base}-01"
+        else:
+            base_norm_str = raw_base
+
+    if base_norm_str is not None:
+        anchor_cte = """
+    base_row AS (
         SELECT
-            w."{clean_date}" AS obs_date,
-            TRY_CAST(CASE
-                WHEN LENGTH(w."{clean_date}") = 4 THEN w."{clean_date}" || '-01-01'
-                WHEN LENGTH(w."{clean_date}") = 7 THEN w."{clean_date}" || '-01'
-                ELSE w."{clean_date}"
-            END AS DATE) AS date_norm,
-            w."{clean_w_val}" AS wage,
-            c."{clean_c_val}" AS cpi
-        FROM {view_wage} w
-        JOIN {view_cpi} c ON w."{clean_date}" = c."{clean_date}"
-        WHERE w."{clean_w_val}" IS NOT NULL AND c."{clean_c_val}" IS NOT NULL
+            obs_date AS base_obs_date,
+            date_norm AS base_date_norm,
+            wage AS base_wage,
+            cpi AS base_cpi
+        FROM combined
+        WHERE date_norm = TRY_CAST(? AS DATE)
+        LIMIT 1
     ),
+    ordered AS (
+        SELECT
+            c.obs_date,
+            c.date_norm,
+            ROUND(c.wage, 4) AS wage,
+            ROUND(c.cpi, 4) AS cpi,
+            b.base_obs_date,
+            ROUND(b.base_wage, 4) AS base_wage,
+            ROUND(b.base_cpi, 4) AS base_cpi
+        FROM combined c
+        CROSS JOIN base_row b
+        WHERE c.date_norm >= b.base_date_norm
+    )"""
+        params: list[Any] | None = [base_norm_str]
+    else:
+        anchor_cte = """
     ordered AS (
         SELECT
             obs_date,
             date_norm,
             ROUND(wage, 4) AS wage,
             ROUND(cpi, 4) AS cpi,
-            LAG(wage, 1) OVER (ORDER BY date_norm ASC) AS prev_wage,
-            LAG(cpi, 1) OVER (ORDER BY date_norm ASC) AS prev_cpi
+            FIRST_VALUE(obs_date) OVER (ORDER BY date_norm ASC) AS base_obs_date,
+            ROUND(FIRST_VALUE(wage) OVER (ORDER BY date_norm ASC), 4) AS base_wage,
+            ROUND(FIRST_VALUE(cpi) OVER (ORDER BY date_norm ASC), 4) AS base_cpi
         FROM combined
-    )
+    )"""
+        params = None
+
+    query = f"""
+    WITH wage_norm AS (
+        SELECT
+            "{clean_date}" AS obs_date,
+            TRY_CAST(CASE
+                WHEN LENGTH("{clean_date}") = 4 THEN "{clean_date}" || '-01-01'
+                WHEN LENGTH("{clean_date}") = 7 THEN "{clean_date}" || '-01'
+                ELSE "{clean_date}"
+            END AS DATE) AS date_norm,
+            "{clean_w_val}" AS wage
+        FROM {view_wage}
+        WHERE "{clean_w_val}" IS NOT NULL
+    ),
+    cpi_norm AS (
+        SELECT
+            "{clean_date}" AS obs_date,
+            TRY_CAST(CASE
+                WHEN LENGTH("{clean_date}") = 4 THEN "{clean_date}" || '-01-01'
+                WHEN LENGTH("{clean_date}") = 7 THEN "{clean_date}" || '-01'
+                ELSE "{clean_date}"
+            END AS DATE) AS date_norm,
+            "{clean_c_val}" AS cpi
+        FROM {view_cpi}
+        WHERE "{clean_c_val}" IS NOT NULL
+    ),
+    combined AS (
+        SELECT
+            w.obs_date AS obs_date,
+            w.date_norm AS date_norm,
+            w.wage AS wage,
+            c.cpi AS cpi
+        FROM wage_norm w
+        JOIN cpi_norm c ON w.date_norm = c.date_norm
+        WHERE w.date_norm IS NOT NULL
+    ),{anchor_cte}
     SELECT
         obs_date,
+        base_obs_date,
         wage,
         cpi,
-        prev_wage,
-        prev_cpi,
+        base_wage,
+        base_cpi,
         CASE
-            WHEN prev_wage IS NULL OR prev_wage = 0 THEN NULL
-            ELSE ROUND(((wage - prev_wage) / prev_wage) * 100.0, 4)
+            WHEN base_wage IS NULL OR base_wage <= 0 THEN NULL
+            ELSE ROUND(((wage - base_wage) / base_wage) * 100.0, 4)
         END AS nominal_wage_change_pct,
         CASE
-            WHEN prev_cpi IS NULL OR prev_cpi = 0 THEN NULL
-            ELSE ROUND(((cpi - prev_cpi) / prev_cpi) * 100.0, 4)
+            WHEN base_cpi IS NULL OR base_cpi <= 0 THEN NULL
+            ELSE ROUND(((cpi - base_cpi) / base_cpi) * 100.0, 4)
         END AS cpi_inflation_pct,
         CASE
-            WHEN prev_wage IS NULL OR prev_wage = 0 OR prev_cpi IS NULL OR prev_cpi = 0
+            WHEN base_wage IS NULL OR base_wage <= 0 OR base_cpi IS NULL OR base_cpi <= 0
             THEN NULL
             ELSE ROUND(
-                (((wage - prev_wage) / prev_wage) * 100.0)
-                - (((cpi - prev_cpi) / prev_cpi) * 100.0),
+                (((wage - base_wage) / base_wage) * 100.0)
+                - (((cpi - base_cpi) / base_cpi) * 100.0),
                 4
             )
         END AS spread_pp,
         CASE
-            WHEN prev_wage IS NULL OR prev_wage = 0 OR prev_cpi IS NULL OR prev_cpi = 0
-                 OR cpi = 0
+            WHEN base_wage IS NULL OR base_wage <= 0 OR base_cpi IS NULL OR base_cpi <= 0
+                 OR cpi <= 0
             THEN NULL
             ELSE ROUND(
-                (((wage / cpi) - (prev_wage / prev_cpi)) / (prev_wage / prev_cpi)) * 100.0,
+                (((wage / cpi) - (base_wage / base_cpi)) / (base_wage / base_cpi)) * 100.0,
                 4
             )
         END AS real_wage_change_pct
@@ -454,8 +523,31 @@ def real_wage_change(
     with SandboxedDuckDB() as db:
         db.register_table(view_wage, wage_table)
         db.register_table(view_cpi, cpi_table)
-        rows = db.execute_sync(query)
-    return rows, query.strip()
+        rows = db.execute_sync(query, params)
+
+    if base_norm_str is not None and not rows:
+        raise ValueError(
+            f"Base period '{base_date}' not found in overlapping wage and CPI observations."
+        )
+
+    cits_list: list[CitationEnvelope] = []
+    if citations:
+        cits_list.extend(citations)
+    else:
+        if citation_a is not None:
+            cits_list.append(citation_a)
+        if citation_b is not None:
+            cits_list.append(citation_b)
+    resolved_citations = tuple(cits_list)
+
+    return SQLArtifact(
+        source_series_id=source_series_id,
+        sql_query=query.strip(),
+        row_count=len(rows),
+        rows=tuple(rows),
+        citation=resolved_citations[0] if resolved_citations else None,
+        citations=resolved_citations,
+    )
 
 
 def affordability_burden_ratio(

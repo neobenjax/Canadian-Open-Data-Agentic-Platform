@@ -116,6 +116,7 @@ class RegimeChangeArgs(_SingleSeriesArgs):
 _SECOND_SLOT_ID_KEY: Final[Mapping[str, str]] = {
     "percentage_point_spread": "series_b_id",
     "affordability_burden_ratio": "income_series_id",
+    "real_wage_change": "cpi_series_id",
 }
 
 

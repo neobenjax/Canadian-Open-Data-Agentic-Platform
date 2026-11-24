@@ -421,20 +421,45 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             )
             warnings.extend(_inspect_data_quality(wage_tbl))
             warnings.extend(_inspect_data_quality(cpi_tbl))
-            id_wage = _extract_series_id(tool_args, wage_tbl, input_citation)
-            id_cpi = None
-            try:
-                id_cpi = _extract_series_id({}, cpi_tbl, None)
-            except Exception:
-                pass
-            source_series_id = f"{id_wage}, {id_cpi}" if id_cpi and id_cpi != id_wage else id_wage
-            rows, executed_sql = recipes.real_wage_change(
+            source_series_id = _extract_series_id(tool_args, wage_tbl, input_citation)
+            cpi_id = (
+                str(
+                    tool_args.get("cpi_series_id")
+                    or tool_args.get("series_b_id")
+                    or tool_args.get("vector_id_b")
+                    or ""
+                ).strip()
+                or _optional_table_series_id(cpi_tbl)
+                or str(state.scratchpad.get("table_b_source") or "").strip()
+                or None
+            )
+            dual_cits = _resolve_dual_citations(
+                tool_args,
+                state,
+                key_a="citation_a",
+                key_b="citation_b",
+                id_a=source_series_id,
+                id_b=cpi_id,
+                label_a="wage",
+                label_b="cpi",
+                recipe_name="real_wage_change",
+            )
+            input_citations = dual_cits
+            input_citation = dual_cits[0]
+            recipe_art = recipes.real_wage_change(
                 wage_tbl,
                 cpi_tbl,
                 date_col=str(tool_args.get("date_col", "date")),
                 wage_val_col=str(tool_args.get("wage_val_col", "value")),
                 cpi_val_col=str(tool_args.get("cpi_val_col", "value")),
+                base_date=tool_args.get("base_date"),
+                citations=input_citations,
+                source_series_id=source_series_id,
             )
+            rows = list(recipe_art.rows)
+            executed_sql = recipe_art.sql_query
+            input_citations = recipe_art.citations
+            input_citation = recipe_art.citation
 
         elif tool_name == "affordability_burden_ratio":
             rent_tbl = _resolve_table(

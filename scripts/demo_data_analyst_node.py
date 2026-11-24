@@ -96,13 +96,13 @@ async def main() -> None:
         {"date": ["2025"], "value": [1.4]},
         metadata={b"unit": b"Percent"},
     )
-    spread_rows, _ = percentage_point_spread(
+    spread_art = percentage_point_spread(
         tab_2025,
         tab_2023,
         series_a_name="vacancy_2025",
         series_b_name="vacancy_2023",
     )
-    s = spread_rows[0]
+    s = spread_art.rows[0]
     print(
         f"  • 2025: {s['vacancy_2025']}% | 2023: {s['vacancy_2023']}% | "
         f"Spread: +{s['spread_pp']} pp (+{s['spread_bps']} bps)"

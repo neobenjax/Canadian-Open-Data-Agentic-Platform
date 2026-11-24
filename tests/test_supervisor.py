@@ -790,9 +790,14 @@ async def test_graph_real_wage_change_m3_end_to_end(saver: AsyncSqliteSaver) -> 
         "How have average hourly wages for workers aged 15 to 24 in Alberta changed since "
         "2019 after adjusting for inflation?"
     )
-    # v2293021: Alberta youth wages (2019: 19.44, 2025: 21.40, Canadian dollars)
+    # v2293021: Alberta youth wages (all 7 years 2019-2025, Canadian dollars)
     wage_obs = (
         Observation("2019-01-01", 19.44, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2020-01-01", 19.80, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2021-01-01", 20.10, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2022-01-01", 20.40, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2023-01-01", 20.60, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2024-01-01", 20.88, 0, "2026-01-15T08:30", 0, 1, 0, 0),
         Observation("2025-01-01", 21.40, 0, "2026-01-15T08:30", 0, 1, 0, 0),
     )
     wage_series = StatCanSeriesResult(
@@ -806,9 +811,14 @@ async def test_graph_real_wage_change_m3_end_to_end(saver: AsyncSqliteSaver) -> 
         observations=wage_obs,
         fetched_at="2026-11-03T00:00:00+00:00",
     )
-    # v41694625: Alberta CPI (2019: 143.1, 2025: 172.2, 2002=100)
+    # v41694625: Alberta CPI (all 7 years 2019-2025, 2002=100)
     cpi_obs = (
         Observation("2019-01-01", 143.1, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2020-01-01", 144.5, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2021-01-01", 149.2, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2022-01-01", 158.8, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2023-01-01", 164.1, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2024-01-01", 168.9, 0, "2026-01-15T08:30", 0, 1, 0, 0),
         Observation("2025-01-01", 172.2, 0, "2026-01-15T08:30", 0, 1, 0, 0),
     )
     cpi_series_res = StatCanSeriesResult(
@@ -855,9 +865,10 @@ async def test_graph_real_wage_change_m3_end_to_end(saver: AsyncSqliteSaver) -> 
     )
     assert verified_vectors == ["v2293021", "v41694625"]
 
-    # Verify calculation output
+    # Verify calculation output (cumulative 2019 -> 2025 across all 7 years)
     artifact = first["sql_artifacts"][-1]
-    assert len(artifact.rows) == 2
+    assert len(artifact.rows) == 7
+    assert sorted(c.core.vector_id for c in artifact.citations) == ["v2293021", "v41694625"]
     r_2025 = [r for r in artifact.rows if str(r["obs_date"]).startswith("2025")][0]
     assert r_2025["wage"] == 21.40
     assert r_2025["cpi"] == 172.2
@@ -865,8 +876,9 @@ async def test_graph_real_wage_change_m3_end_to_end(saver: AsyncSqliteSaver) -> 
     assert r_2025["cpi_inflation_pct"] == pytest.approx(20.3354, rel=1e-3)
     assert r_2025["spread_pp"] == pytest.approx(-10.2531, rel=1e-3)
     assert r_2025["real_wage_change_pct"] == pytest.approx(-8.5205, rel=1e-3)
-    # Ensure raw -150.8 level subtraction NEVER happens
+    # Ensure raw -150.8 level subtraction and 1-year lag (+0.53%) NEVER happen
     assert r_2025["spread_pp"] != pytest.approx(-150.8, abs=1.0)
+    assert r_2025["real_wage_change_pct"] != pytest.approx(0.5263, abs=0.1)
 
     # Turn 2: Repeat query on same thread (Rule 26: multi-turn invocation & state retention)
     second = await app.ainvoke({"messages": (user(m3_question),)}, config)
