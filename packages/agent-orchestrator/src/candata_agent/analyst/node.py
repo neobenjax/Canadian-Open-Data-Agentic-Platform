@@ -8,13 +8,14 @@ appends verified AgentMessages, and advances QueryPlan steps.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import Any
 
 import pyarrow as pa
 
 from candata_agent.analyst import recipes
-from candata_agent.analyst.sandbox import SandboxedDuckDB
+from candata_agent.analyst.sandbox import ExecutionTimeoutError, SandboxedDuckDB
 from candata_agent.state import (
     AgentMessage,
     AgentState,
@@ -24,6 +25,9 @@ from candata_agent.state import (
     StepStatus,
 )
 from candata_mcp.citation import CitationEnvelope
+
+DEFAULT_ANALYST_TIMEOUT_SECONDS: float = 5.0
+MAX_ANALYST_TIMEOUT_SECONDS: float = 30.0
 
 KNOWN_RECIPES = {
     "annual_inflation_rate",
@@ -129,22 +133,91 @@ def _extract_series_id(
     return candidate_str
 
 
+def _optional_table_series_id(table: pa.Table | None) -> str | None:
+    """Extract optional series/vector/table identifier from PyArrow schema metadata."""
+    if table is not None and table.schema.metadata:
+        meta = table.schema.metadata
+        for key in (b"vector_id", b"series_id", b"seriesId", b"vectorId", b"table_id"):
+            if key in meta:
+                val = meta[key].decode("utf-8").strip()
+                if val and val not in ("series_primary", "v0", "0", "None"):
+                    return val
+    return None
+
+
+def _match_citation_by_id(
+    pool: Sequence[CitationEnvelope],
+    candidate_id: str | None,
+) -> CitationEnvelope | None:
+    """Find a citation envelope matching candidate_id by vector_id or table_id."""
+    if not candidate_id:
+        return None
+    for c in pool:
+        if c.core.vector_id == candidate_id or c.core.table_id == candidate_id:
+            return c
+    return None
+
+
 def _resolve_citation(
     tool_args: dict[str, Any],
     state: AgentState,
     candidate_id: str | None = None,
 ) -> CitationEnvelope | None:
-    """Resolve Two-Tier Citation Envelope from arguments or state."""
+    """Resolve Two-Tier Citation Envelope from arguments or state by ID."""
     raw_cit = tool_args.get("citation") or state.scratchpad.get("citation")
     if isinstance(raw_cit, CitationEnvelope):
         return raw_cit
     if candidate_id:
-        for c in state.citations:
-            if c.core.vector_id == candidate_id or c.core.table_id == candidate_id:
-                return c
+        return _match_citation_by_id(state.citations, candidate_id)
     if len(state.citations) == 1:
         return state.citations[0]
     return None
+
+
+def _resolve_dual_citations(
+    tool_args: dict[str, Any],
+    state: AgentState,
+    key_a: str,
+    key_b: str,
+    id_a: str | None = None,
+    id_b: str | None = None,
+    *,
+    label_a: str = "series_a",
+    label_b: str = "series_b",
+    recipe_name: str = "dual_series",
+) -> tuple[CitationEnvelope, CitationEnvelope]:
+    """Resolve both citation envelopes for multi-series recipes or fail loud."""
+    cit_a = tool_args.get(key_a) or state.scratchpad.get(key_a)
+    cit_b = tool_args.get(key_b) or state.scratchpad.get(key_b)
+
+    resolved_a = cit_a if isinstance(cit_a, CitationEnvelope) else None
+    resolved_b = cit_b if isinstance(cit_b, CitationEnvelope) else None
+
+    candidate_pool: list[CitationEnvelope] = []
+    for raw_citations in (tool_args.get("citations"), state.scratchpad.get("citations")):
+        if raw_citations and isinstance(raw_citations, (list, tuple)):
+            candidate_pool.extend(c for c in raw_citations if isinstance(c, CitationEnvelope))
+    candidate_pool.extend(state.citations)
+
+    if resolved_a is None:
+        resolved_a = _match_citation_by_id(candidate_pool, id_a)
+
+    if resolved_b is None:
+        resolved_b = _match_citation_by_id(candidate_pool, id_b)
+
+    missing: list[str] = []
+    if resolved_a is None:
+        missing.append(f"{label_a} ({id_a or 'no series ID provided'})")
+    if resolved_b is None:
+        missing.append(f"{label_b} ({id_b or 'no series ID provided'})")
+    if missing:
+        raise ValueError(
+            f"Missing Tier 1 citation(s) for '{recipe_name}': {', '.join(missing)}. "
+            "Dual-series recipes require verified provenance for both input series."
+        )
+
+    assert resolved_a is not None and resolved_b is not None
+    return (resolved_a, resolved_b)
 
 
 def _format_analyst_message(
@@ -217,8 +290,26 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
     metadata: dict[str, Any] = {}
     source_series_id: str = ""
     input_citation: CitationEnvelope | None = None
+    input_citations: tuple[CitationEnvelope, ...] = ()
+
+    timeout_seconds: float = DEFAULT_ANALYST_TIMEOUT_SECONDS
 
     try:
+        raw_timeout = tool_args.get("timeout_seconds")
+        if raw_timeout is None:
+            raw_timeout = tool_args.get("timeout")
+        if raw_timeout is not None:
+            if isinstance(raw_timeout, bool):
+                raise ValueError(
+                    f"timeout_seconds must be a positive finite number, got {raw_timeout!r}"
+                )
+            parsed_timeout = float(raw_timeout)
+            if not math.isfinite(parsed_timeout) or parsed_timeout <= 0:
+                raise ValueError(
+                    f"timeout_seconds must be a positive finite number, got {raw_timeout!r}"
+                )
+            timeout_seconds = min(parsed_timeout, MAX_ANALYST_TIMEOUT_SECONDS)
+
         if tool_name not in KNOWN_RECIPES and tool_name not in ("custom_sql", "sql_query"):
             raise ValueError(
                 f"Unknown data analyst recipe or tool '{tool_name}'. "
@@ -228,6 +319,8 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
         # Pre-resolve citation if available
         raw_id = tool_args.get("series_id") or tool_args.get("vector_id")
         input_citation = _resolve_citation(tool_args, state, str(raw_id) if raw_id else None)
+        if input_citation is not None:
+            input_citations = (input_citation,)
 
         if tool_name == "annual_inflation_rate":
             table_data = _resolve_table(tool_args, state.scratchpad, fallback_key=_slot(tool_args))
@@ -267,14 +360,39 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             warnings.extend(_inspect_data_quality(table_a))
             warnings.extend(_inspect_data_quality(table_b))
             source_series_id = _extract_series_id(tool_args, table_a, input_citation)
-            rows, executed_sql = recipes.percentage_point_spread(
+            id_b = (
+                str(tool_args.get("series_b_id") or tool_args.get("vector_id_b") or "").strip()
+                or _optional_table_series_id(table_b)
+                or str(state.scratchpad.get("table_b_source") or "").strip()
+                or None
+            )
+            dual_cits = _resolve_dual_citations(
+                tool_args,
+                state,
+                key_a="citation_a",
+                key_b="citation_b",
+                id_a=source_series_id,
+                id_b=id_b,
+                label_a=str(tool_args.get("series_a_name", "series_a")),
+                label_b=str(tool_args.get("series_b_name", "series_b")),
+                recipe_name="percentage_point_spread",
+            )
+            input_citations = dual_cits
+            input_citation = dual_cits[0]
+            recipe_art = recipes.percentage_point_spread(
                 table_a,
                 table_b,
                 date_col=str(tool_args.get("date_col", "date")),
                 value_col=str(tool_args.get("value_col", "value")),
                 series_a_name=str(tool_args.get("series_a_name", "series_a")),
                 series_b_name=str(tool_args.get("series_b_name", "series_b")),
+                citations=input_citations,
+                source_series_id=source_series_id,
             )
+            rows = list(recipe_art.rows)
+            executed_sql = recipe_art.sql_query
+            input_citations = recipe_art.citations
+            input_citation = recipe_art.citation
 
         elif tool_name == "affordability_burden_ratio":
             rent_tbl = _resolve_table(
@@ -286,14 +404,41 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             warnings.extend(_inspect_data_quality(rent_tbl))
             warnings.extend(_inspect_data_quality(inc_tbl))
             source_series_id = _extract_series_id(tool_args, rent_tbl, input_citation)
-            rows, executed_sql = recipes.affordability_burden_ratio(
+            income_id = (
+                str(
+                    tool_args.get("income_series_id") or tool_args.get("income_vector_id") or ""
+                ).strip()
+                or _optional_table_series_id(inc_tbl)
+                or str(state.scratchpad.get("income_table_source") or "").strip()
+                or None
+            )
+            dual_cits = _resolve_dual_citations(
+                tool_args,
+                state,
+                key_a="rent_citation",
+                key_b="income_citation",
+                id_a=source_series_id,
+                id_b=income_id,
+                label_a="rent",
+                label_b="income",
+                recipe_name="affordability_burden_ratio",
+            )
+            input_citations = dual_cits
+            input_citation = dual_cits[0]
+            recipe_art = recipes.affordability_burden_ratio(
                 rent_tbl,
                 inc_tbl,
                 rent_date_col=str(tool_args.get("rent_date_col", "date")),
                 rent_val_col=str(tool_args.get("rent_val_col", "value")),
                 income_date_col=str(tool_args.get("income_date_col", "date")),
                 income_val_col=str(tool_args.get("income_val_col", "value")),
+                citations=input_citations,
+                source_series_id=source_series_id,
             )
+            rows = list(recipe_art.rows)
+            executed_sql = recipe_art.sql_query
+            input_citations = recipe_art.citations
+            input_citation = recipe_art.citation
 
         elif tool_name == "multi_year_cagr":
             source_series_id = _extract_series_id(tool_args, None, input_citation)
@@ -361,7 +506,10 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             with SandboxedDuckDB() as db:
                 if table_data is not None:
                     db.register_table(table_name, table_data)
-                rows = db.execute_sync(custom_query)
+                rows = await db.execute_async(
+                    query=custom_query,
+                    timeout_seconds=timeout_seconds,
+                )
             executed_sql = custom_query
 
         # If any row in calculation contains warnings, bubble them up
@@ -369,6 +517,44 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             w = r.get("warning")
             if w and str(w) not in warnings:
                 warnings.append(str(w))
+
+    except ExecutionTimeoutError as exc:
+        timeout_msg = f"SQL execution timed out after {timeout_seconds}s: {exc}"
+        failed_message = AgentMessage(
+            role=MessageRole.ASSISTANT,
+            content=f"❌ {timeout_msg}",
+            name="data_analyst",
+        )
+
+        updated_plan = state.plan
+        warning_msg = (
+            f"Step {active_step.step_id} timed out"
+            if active_step is not None
+            else "SQL execution timed out"
+        )
+        if state.plan and active_step:
+            new_steps: list[PlanStep] = []
+            for s in state.plan.steps:
+                if s.step_id == active_step.step_id:
+                    new_steps.append(
+                        s.model_copy(
+                            update={
+                                "status": StepStatus.FAILED,
+                                "result_summary": timeout_msg,
+                                "error": timeout_msg,
+                            }
+                        )
+                    )
+                else:
+                    new_steps.append(s)
+            updated_plan = state.plan.model_copy(update={"steps": tuple(new_steps)})
+
+        return {
+            "messages": (*state.messages, failed_message),
+            "plan": updated_plan,
+            "warnings": (*state.warnings, warning_msg),
+            "scratchpad": {**state.scratchpad, "last_analyst_error": timeout_msg},
+        }
 
     except Exception as exc:
         error_msg = f"Data Analyst Execution Failed on '{tool_name}': {exc}"
@@ -388,6 +574,7 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
                             update={
                                 "status": StepStatus.FAILED,
                                 "result_summary": error_msg,
+                                "error": error_msg,
                             }
                         )
                     )
@@ -408,6 +595,7 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
         row_count=len(rows),
         rows=tuple(rows),
         citation=input_citation,
+        citations=input_citations,
         warnings=tuple(warnings),
         metadata=metadata,
     )
