@@ -12,8 +12,10 @@ from collections.abc import AsyncGenerator, Sequence
 from pathlib import Path
 from typing import Any, cast
 
+import httpx
 import pytest
 import pytest_asyncio
+import respx
 from anthropic import AsyncAnthropic
 from anthropic.types.beta import BetaMessage
 
@@ -34,12 +36,14 @@ from candata_agent.supervisor.planner import ClaudePlanner, PlannerResult, Plann
 from candata_mcp.connectors.boc_valet import Observation as ValetObservation
 from candata_mcp.connectors.boc_valet import ObservationSet, SeriesDetail
 from candata_mcp.connectors.statcan_wds import (
+    STATCAN_WDS_BASE_URL,
     CubeMetadata,
     CubeSearchResult,
     CubeSummary,
     Dimension,
     DimensionMember,
     Observation,
+    StatCanClient,
     StatCanSeriesResult,
 )
 
@@ -691,3 +695,37 @@ async def test_live_claude_plans_gt05_from_discovery() -> None:
     assert result.plan is not None, result.declined_reason
     fetched = {s.tool_args.get("vector_id") for s in result.plan.steps}
     assert fetched & {"v42127475", "v42127955"}  # monthly table or the annual one
+
+
+@respx.mock
+async def test_planner_search_reaches_archived_mortality_tables_for_h2() -> None:
+    """#103 (CAN-35 H2): the planner's search for age-standardized mortality returns the
+    archived provincial tables with their last period, through the real catalog search."""
+    from tests.connectors.test_statcan_wds import MORTALITY_CUBES
+
+    respx.get(f"{STATCAN_WDS_BASE_URL}/getAllCubesListLite").mock(
+        return_value=httpx.Response(200, json=MORTALITY_CUBES)
+    )
+    query = {"query": "age-standardized mortality"}
+    client = FakeClient(
+        message(tool_use("t1", "search_statcan_tables", query)),
+        message(tool_use("t2", "decline", {"reason": "Test stop after discovery."})),
+    )
+    async with StatCanClient(backoff=0) as statcan:
+        planner = ClaudePlanner(cast(AsyncAnthropic, client), statcan)
+        await planner.plan(
+            "Which provinces have the highest age-standardized mortality rate from heart "
+            "disease, and are any of those figures flagged as unreliable?"
+        )
+
+    search = client.messages.requests[1]["messages"][-1]["content"][0]
+    assert search["tool_use_id"] == "t1" and not search["is_error"]
+    tables = {t["table_id"]: t for t in json.loads(search["content"])["tables"]}
+    assert tables["13-10-0393-01"]["archived"] is True
+    assert tables["13-10-0393-01"]["end"] == "2013-01-01"
+    assert tables["13-10-0800-01"]["end"] == "2023-01-01"
+    assert "13-10-0392-01" not in tables
+
+    system = json.dumps(client.messages.requests[0]["system"])
+    assert "A table marked archived is official data" in system
+    assert "Search for the measure" in system
