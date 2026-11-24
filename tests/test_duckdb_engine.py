@@ -27,7 +27,12 @@ from candata_mcp.connectors.statcan_wds import (
 from candata_mcp.connectors.statcan_wds import (
     StatCanSeriesResult,
 )
-from candata_mcp.engine import MAX_PAYLOAD_BYTES, DuckDBSlicingEngine
+from candata_mcp.engine import (
+    MAX_PAYLOAD_BYTES,
+    DuckDBSecurityError,
+    DuckDBSlicingEngine,
+    validate_and_lock_connection,
+)
 
 
 @pytest.fixture
@@ -463,3 +468,219 @@ def test_table_from_ckan_and_slice_ckan(engine: DuckDBSlicingEngine) -> None:
     analytics = engine.execute_analytics(table, sql)
     assert len(analytics) == 1
     assert analytics[0]["mean_starts"] > 0
+
+
+# ==============================================================================
+# Issue #20 (CAN-TECH-DEBT): Driver-Level Sandbox Lockdown on Caller Connections
+# ==============================================================================
+
+
+def test_caller_supplied_unlocked_connection_is_automatically_locked_down(
+    sample_statcan_result: StatCanSeriesResult,
+) -> None:
+    """An unlocked in-memory DuckDB connection is automatically locked down (Rule 7)."""
+    raw_con = duckdb.connect(":memory:")
+
+    # Verify connection starts unlocked
+    before_settings = dict(
+        raw_con.execute(
+            "SELECT name, value FROM duckdb_settings() "
+            "WHERE name IN ('enable_external_access', 'lock_configuration')"
+        ).fetchall()
+    )
+    assert before_settings.get("enable_external_access") == "true"
+    assert before_settings.get("lock_configuration") == "false"
+
+    # Pass into DuckDBSlicingEngine
+    engine = DuckDBSlicingEngine(connection=raw_con)
+
+    # Verify connection is now fully locked down
+    after_settings = dict(
+        engine.connection.execute(
+            "SELECT name, value FROM duckdb_settings() "
+            "WHERE name IN ('enable_external_access', 'lock_configuration')"
+        ).fetchall()
+    )
+    assert after_settings.get("enable_external_access") == "false"
+    assert after_settings.get("lock_configuration") == "true"
+
+    table = engine.table_from_statcan(sample_statcan_result)
+
+    # Verify table functions that access filesystem are blocked
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_text('pyproject.toml')")
+
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_csv('pyproject.toml')")
+
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT file FROM glob('*')")
+
+    # Verify driver-level lock blocks runtime tampering
+    with pytest.raises(duckdb.InvalidInputException, match="the configuration has been locked"):
+        raw_con.execute("SET enable_external_access = true")
+
+    # Verify engine can still perform normal analytical slicing
+    records, summary = engine.slice_table(table, limit=3)
+    assert len(records) == 3
+    assert summary["filtered_count"] == 12
+
+
+def test_caller_supplied_prelocked_safe_connection_accepted(
+    sample_statcan_result: StatCanSeriesResult,
+) -> None:
+    """Pre-configured safe connection is accepted without re-executing locked SET statements."""
+    safe_con = duckdb.connect(
+        ":memory:",
+        config={
+            "enable_external_access": False,
+            "lock_configuration": True,
+        },
+    )
+    # Direct validate_and_lock_connection call
+    validated = validate_and_lock_connection(safe_con)
+    assert validated is safe_con
+
+    engine = DuckDBSlicingEngine(connection=safe_con)
+    assert engine.connection is safe_con
+
+    table = engine.table_from_statcan(sample_statcan_result)
+    records, _ = engine.slice_table(table, limit=2)
+    assert len(records) == 2
+
+
+def test_caller_supplied_locked_unsafe_connection_fails_loud() -> None:
+    """A connection pre-locked with enable_external_access=True cannot be secured."""
+    unsafe_locked_con = duckdb.connect(
+        ":memory:",
+        config={
+            "enable_external_access": True,
+            "lock_configuration": True,
+        },
+    )
+    with pytest.raises(
+        DuckDBSecurityError,
+        match="locked with enable_external_access=True",
+    ):
+        DuckDBSlicingEngine(connection=unsafe_locked_con)
+
+
+def test_caller_supplied_file_backed_database_fails_loud(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    """A caller-supplied connection to an on-disk database violates Rule 7 and must fail loud."""
+    db_path = str(tmp_path) + "/test_disk.duckdb"
+    disk_con = duckdb.connect(db_path)
+    try:
+        with pytest.raises(
+            DuckDBSecurityError,
+            match="file-backed database.*Rule 7 requires in-memory only",
+        ):
+            DuckDBSlicingEngine(connection=disk_con)
+    finally:
+        disk_con.close()
+
+
+def test_caller_supplied_attached_file_database_fails_loud(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    """A connection with an attached file-backed database violates Rule 7 and must fail loud."""
+    attached_path = str(tmp_path) + "/attached.duckdb"
+    con = duckdb.connect(":memory:")
+    con.execute(f"ATTACH '{attached_path}' AS external_store")
+    try:
+        with pytest.raises(
+            DuckDBSecurityError,
+            match="file-backed database.*Rule 7 requires in-memory only",
+        ):
+            DuckDBSlicingEngine(connection=con)
+    finally:
+        con.close()
+
+
+def test_caller_supplied_invalid_connection_type_rejected() -> None:
+    """Supplying non-duckdb connection objects raises TypeError."""
+    with pytest.raises(TypeError, match="expected duckdb.DuckDBPyConnection, got str"):
+        DuckDBSlicingEngine(connection="not_a_connection")  # pyright: ignore[reportArgumentType]
+
+    with pytest.raises(TypeError, match="expected duckdb.DuckDBPyConnection, got dict"):
+        DuckDBSlicingEngine(connection={"connection": True})  # pyright: ignore[reportArgumentType]
+
+
+def test_caller_supplied_closed_connection_fails_loud() -> None:
+    """Supplying a closed connection raises DuckDBSecurityError."""
+    closed_con = duckdb.connect(":memory:")
+    closed_con.close()
+    with pytest.raises(DuckDBSecurityError, match="unusable or closed"):
+        DuckDBSlicingEngine(connection=closed_con)
+
+
+def test_require_prelocked_mode() -> None:
+    """When require_prelocked=True, unlocked connections are rejected even if in-memory."""
+    unlocked_con = duckdb.connect(":memory:")
+    with pytest.raises(DuckDBSecurityError, match="not pre-locked"):
+        DuckDBSlicingEngine(connection=unlocked_con, require_prelocked=True)
+
+    prelocked_con = duckdb.connect(
+        ":memory:",
+        config={
+            "enable_external_access": False,
+            "lock_configuration": True,
+        },
+    )
+    engine = DuckDBSlicingEngine(connection=prelocked_con, require_prelocked=True)
+    assert engine.connection is prelocked_con
+
+
+def test_adversarial_queries_blocked_on_caller_supplied_connection(
+    sample_statcan_result: StatCanSeriesResult,
+) -> None:
+    """Adversarial queries (SET, PRAGMA, ATTACH, COPY, table functions) are strictly blocked."""
+    raw_con = duckdb.connect(":memory:")
+    engine = DuckDBSlicingEngine(connection=raw_con)
+    table = engine.table_from_statcan(sample_statcan_result)
+
+    # 1. Blocked via query syntax check / regex defense
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(table, "SELECT * FROM series; SET enable_external_access = true")
+
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(
+            table, "SELECT * FROM series; PRAGMA enable_external_access = true"
+        )
+
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(table, "SELECT * FROM series; ATTACH 'malicious.db'")
+
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(table, "SELECT * FROM series; EXPORT DATABASE 'out'")
+
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(table, "SELECT * FROM series; CHECKPOINT")
+
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(table, "SELECT * FROM series; VACUUM")
+
+    # 2. Blocked via driver-level lockdown on table functions
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_parquet('test.parquet')")
+
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_json('test.json')")
+
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_blob('test.bin')")
+
+    # Remote URL / httpfs access is also blocked by driver-level disabled file system operations
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_csv('http://evil.com/payload.csv')")
+
+    # 3. Direct execution on underlying connection is blocked by configuration lock
+    with pytest.raises(duckdb.InvalidInputException, match="the configuration has been locked"):
+        engine.connection.execute("SET enable_external_access = true")
+
+    with pytest.raises(duckdb.InvalidInputException, match="the configuration has been locked"):
+        engine.connection.execute("PRAGMA enable_external_access = true")
+
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.connection.execute("ATTACH 'steal.db'")
