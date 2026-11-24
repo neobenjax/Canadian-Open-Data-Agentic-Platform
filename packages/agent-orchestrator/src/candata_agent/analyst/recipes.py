@@ -168,7 +168,12 @@ def yoy_point_to_point(
         CASE
             WHEN prior.val IS NULL OR prior.val = 0 THEN NULL
             ELSE ROUND(((curr.val - prior.val) / prior.val) * 100.0, 4)
-        END AS change_pct
+        END AS change_pct,
+        CASE
+            WHEN prior.val IS NULL THEN
+                'Missing prior period value for comparison (lag_value is NULL)'
+            ELSE NULL
+        END AS warning
     FROM normalized_series curr
     LEFT JOIN normalized_series prior
         ON prior.date_norm = (

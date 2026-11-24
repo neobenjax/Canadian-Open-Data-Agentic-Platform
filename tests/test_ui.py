@@ -358,3 +358,72 @@ def test_page_shows_evidence_tabs_a_badge_per_result_and_the_flag_count() -> Non
     assert "StatCan symbol code 5" in text
     assert any("1 of 2" in e.value for e in at.error)  # banner counts the verdicts that passed
     assert at.chat_input[0].placeholder == "Ask a follow-up…"
+
+
+def test_page_flags_comparison_missing_prior_period() -> None:
+    """When a comparison recipe has no prior value (lag_value is None), the UI flags it."""
+    turn = RunResult("How many housing units started in 2025 vs 2024?")
+    turn.series.append(series("v42127955", "Units", row("2025", 26087.0)))
+    # Artifact with lag_value = None
+    yoy_single = artifact(
+        "v42127955",
+        {
+            "obs_date": "2025",
+            "current_value": 26087.0,
+            "lag_value": None,
+            "change_pct": None,
+            "warning": "Missing prior period value for comparison (lag_value is NULL)",
+        },
+    )
+    turn.analyses.append(
+        AnalysisResult("yoy_point_to_point", yoy_single, "Housing starts 2025 vs 2024")
+    )
+    turn.verification = {
+        "passed": True,
+        "verdicts": [verdict("v42127955", True)],
+    }
+    at = page_with(turn)
+
+    assert not at.exception
+    text = " ".join(m.value for m in at.markdown)
+    # The badge should not be "verified"
+    assert "⚠️ comparison missing prior period" in text
+    # The banner should show warning instead of success
+    assert not at.success
+    assert any("comparison prior period is missing" in w.value for w in at.warning)
+
+
+def test_page_valid_comparison_shows_verified_banner() -> None:
+    """When a 2-year comparison has a valid prior for the target period, it shows verified."""
+    turn = RunResult("How many housing units started in 2025 vs 2024?")
+    turn.series.append(series("v42127955", "Units", row("2025", 26087.0)))
+    yoy_valid = artifact(
+        "v42127955",
+        {
+            "obs_date": "2025",
+            "current_value": 26087.0,
+            "lag_value": 27800.0,
+            "change_pct": -6.16,
+        },
+        {
+            "obs_date": "2024",
+            "current_value": 27800.0,
+            "lag_value": None,
+            "change_pct": None,
+        },
+    )
+    turn.analyses.append(
+        AnalysisResult("yoy_point_to_point", yoy_valid, "Housing starts 2025 vs 2024")
+    )
+    turn.verification = {
+        "passed": True,
+        "verdicts": [verdict("v42127955", True)],
+    }
+    at = page_with(turn)
+
+    assert not at.exception
+    text = " ".join(m.value for m in at.markdown)
+    assert "✅ verified" in text
+    assert "⚠️ comparison missing prior period" not in text
+    assert at.success
+    assert not at.warning

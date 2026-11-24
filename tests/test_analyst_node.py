@@ -520,3 +520,87 @@ async def test_sandboxed_duckdb_timeout_interruption() -> None:
                 ),
                 timeout_seconds=0.1,
             )
+
+
+@pytest.mark.asyncio
+async def test_yoy_point_to_point_missing_prior_period_warning() -> None:
+    """A comparison recipe whose prior value (lag_value) is missing bubbles up a warning."""
+    # Table with only 1 observation (no prior period)
+    table = pa.Table.from_pydict({"date": ["2025"], "value": [26087.0]})
+    rows, _ = yoy_point_to_point(table)
+    assert len(rows) == 1
+    assert rows[0]["current_value"] == 26087.0
+    assert rows[0]["lag_value"] is None
+    assert rows[0]["change_pct"] is None
+    assert "Missing prior period value for comparison" in str(rows[0]["warning"])
+
+    # Test execution through Data Analyst node with single observation
+    step = PlanStep(
+        step_id=1,
+        description="Compare 2025 housing starts",
+        assigned_agent="data_analyst",
+        tool_name="yoy_point_to_point",
+        tool_args={
+            "series_id": "v42127955",
+            "table": [{"date": "2025", "value": 26087.0}],
+        },
+    )
+    plan = QueryPlan(objective="Compare starts", steps=(step,), active_step_id=1)
+    state = AgentState(session_id="s1", thread_id="t1", plan=plan)
+
+    delta = await data_analyst_node(state)
+    assert "sql_artifacts" in delta
+    artifact = delta["sql_artifacts"][0]
+    assert any("Missing prior period value for comparison" in w for w in artifact.warnings)
+
+
+@pytest.mark.asyncio
+async def test_yoy_point_to_point_partial_comparison_warning() -> None:
+    """A multi-row comparison where target row (rows[0]) lacks lag_value is flagged."""
+    # 2025 and 2023 present, but 2024 is missing (so 2025 has no prior year)
+    step = PlanStep(
+        step_id=1,
+        description="Compare 2025 vs 2023 housing starts with gap",
+        assigned_agent="data_analyst",
+        tool_name="yoy_point_to_point",
+        tool_args={
+            "series_id": "v42127955",
+            "table": [
+                {"date": "2025", "value": 26087.0},
+                {"date": "2023", "value": 27000.0},
+                {"date": "2022", "value": 25000.0},
+            ],
+        },
+    )
+    plan = QueryPlan(objective="Compare starts", steps=(step,), active_step_id=1)
+    state = AgentState(session_id="s1", thread_id="t1", plan=plan)
+
+    delta = await data_analyst_node(state)
+    assert "sql_artifacts" in delta
+    artifact = delta["sql_artifacts"][0]
+    # In this dataset: 2025 has no 2024 (lag_value=None), 2023 has 2022.
+    # Because rows[0] (2025) has lag_value=None, the analyst node MUST bubble up the warning!
+    assert any("Missing prior period value for comparison" in w for w in artifact.warnings)
+
+    # Conversely, a valid comparison where rows[0] (2025) HAS lag_value (from 2024),
+    # but baseline 2024 has lag_value=None, does NOT bubble up a warning.
+    valid_step = PlanStep(
+        step_id=2,
+        description="Compare 2025 vs 2024 housing starts",
+        assigned_agent="data_analyst",
+        tool_name="yoy_point_to_point",
+        tool_args={
+            "series_id": "v42127955",
+            "table": [
+                {"date": "2025", "value": 26087.0},
+                {"date": "2024", "value": 27800.0},
+            ],
+        },
+    )
+    valid_plan = QueryPlan(objective="Compare starts", steps=(valid_step,), active_step_id=2)
+    valid_state = AgentState(session_id="s2", thread_id="t2", plan=valid_plan)
+    valid_delta = await data_analyst_node(valid_state)
+    valid_artifact = valid_delta["sql_artifacts"][0]
+    assert not any(
+        "Missing prior period value for comparison" in w for w in valid_artifact.warnings
+    )

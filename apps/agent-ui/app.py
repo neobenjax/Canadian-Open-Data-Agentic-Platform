@@ -164,12 +164,36 @@ def _badge(analysis: AnalysisResult, verdicts: list[dict[str, Any]]) -> str:
     if not mine:
         return "⚪ not checked"
     if all(v["passed"] for v in mine):
+        if _analysis_has_missing_prior(analysis):
+            return "⚠️ comparison missing prior period"
         return "✅ verified"
     return (
         "⚠️ not verified ("
         + ", ".join(sorted({str(v["code"]) for v in mine if not v["passed"]}))
         + ")"
     )
+
+
+def _analysis_has_missing_prior(analysis: AnalysisResult) -> bool:
+    """Check if a comparison analysis produced rows with None lag_value for the target period."""
+    rows = analysis.artifact.rows
+    if not rows:
+        return False
+    # If the recipe produces lag_value (e.g. yoy_point_to_point)
+    has_lag_col = any("lag_value" in r for r in rows)
+    if has_lag_col:
+        # Rows are ordered DESC; rows[0] is the target/latest period being compared
+        return rows[0].get("lag_value") is None
+    return False
+
+
+def _missing_prior_comparisons(result: RunResult) -> list[str]:
+    """Return names of comparison analyses whose prior values (lag_value) are missing."""
+    flagged: list[str] = []
+    for analysis in result.analyses:
+        if _analysis_has_missing_prior(analysis):
+            flagged.append(analysis.name or analysis.recipe)
+    return flagged
 
 
 def _flagged(result: RunResult) -> list[tuple[str, str, str]]:
@@ -222,12 +246,21 @@ def _summary(result: RunResult, took: dict[str, float], index: int) -> None:
     if result.verification is not None:
         verdicts = _verdicts(result)
         passed = sum(1 for v in verdicts if v["passed"])
+        missing_priors = _missing_prior_comparisons(result)
         if result.verified:
-            st.success(
-                f"All cited series verified against the official source ({passed} of "
-                f"{len(verdicts)}).",
-                icon="✅",
-            )
+            if missing_priors:
+                missing_str = ", ".join(missing_priors)
+                st.warning(
+                    f"All cited series verified ({passed} of {len(verdicts)}), but comparison "
+                    f"prior period is missing for: {missing_str}. Change cannot be calculated.",
+                    icon="⚠️",
+                )
+            else:
+                st.success(
+                    f"All cited series verified against the official source ({passed} of "
+                    f"{len(verdicts)}).",
+                    icon="✅",
+                )
         else:
             st.error(
                 f"Citation verification failed ({passed} of {len(verdicts)} passed): treat "

@@ -684,3 +684,81 @@ def test_adversarial_queries_blocked_on_caller_supplied_connection(
 
     with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
         engine.connection.execute("ATTACH 'steal.db'")
+
+
+def test_slice_statcan_annual_series_multi_year_range(engine: DuckDBSlicingEngine) -> None:
+    """GT-05: Annual series (e.g. v42127955) sliced with 2024 to 2025 returns both years.
+
+    Verifies Rule 8 temporal boundary normalization for annual series (YYYY).
+    """
+    obs = (
+        StatCanObservation(
+            ref_per="2023",
+            value=25000.0,
+            decimals=0,
+            release_time="2024-01-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=1,  # Annual
+        ),
+        StatCanObservation(
+            ref_per="2024",
+            value=27800.0,
+            decimals=0,
+            release_time="2025-01-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=1,
+        ),
+        StatCanObservation(
+            ref_per="2025",
+            value=26087.0,
+            decimals=0,
+            release_time="2026-01-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=1,
+        ),
+    )
+    envelope = CitationEnvelope(
+        publisher="Statistics Canada",
+        core=CoreVerificationTuple(
+            table_id="34-10-0134-01",
+            vector_id="v42127955",
+            reference_period="2025",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate="1.1",
+            release_or_revision_date="2026-01-15T08:30",
+            bilingual_title=BilingualTitle(
+                en="Housing starts in selected census metropolitan areas",
+                fr="Mises en chantier dans certaines régions métropolitaines",
+            ),
+            canonical_url="https://statcan.gc.ca",
+        ),
+    )
+    res = MagicMock(spec=StatCanSeriesResult)
+    res.table_id = "34-10-0134-01"
+    res.coordinate = "1.1"
+    res.vector_id = 42127955
+    res.title_en = "Housing starts"
+    res.title_fr = "Mises en chantier"
+    res.unit = "Units"
+    res.unit_code = 1
+    res.series_title_en = "Toronto, Ontario; Housing starts; Total units"
+    res.series_title_fr = "Toronto, Ontario; Mises en chantier; Total"
+    res.observations = obs
+    res.fetched_at = "2026-02-01T10:00:00Z"
+    res.citation.return_value = envelope
+
+    # Slicing for both 2024 and 2025
+    payload_both = engine.slice_statcan(res, start_date="2024", end_date="2025")
+    assert payload_both["returned_count"] == 2
+    dates = [row["date"] for row in payload_both["data"]]
+    # Data is ordered DESC
+    assert dates == ["2025", "2024"]
+    values = [row["value"] for row in payload_both["data"]]
+    assert values == [26087.0, 27800.0]
+
+    # Slicing only 2025 (e.g. single-period fetch bug) returns only 1
+    payload_single = engine.slice_statcan(res, start_date="2025", end_date="2025")
+    assert payload_single["returned_count"] == 1
+    assert payload_single["data"][0]["date"] == "2025"
+    assert payload_single["data"][0]["value"] == 26087.0
