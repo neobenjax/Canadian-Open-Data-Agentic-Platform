@@ -59,6 +59,9 @@ RESULT_METRICS: Final = {
     ),
     "percentage_point_spread": ResultMetric("obs_date", "spread_pp", "Spread (percentage points)"),
     "real_wage_change": ResultMetric("obs_date", "real_wage_change_pct", "Real wage change (%)"),
+    "change_vs_standard_error": ResultMetric(
+        "obs_date", "change_in_se", "Change in standard errors (beyond ±1 = significant at 68%)"
+    ),
 }
 
 

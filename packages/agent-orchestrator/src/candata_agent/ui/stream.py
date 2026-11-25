@@ -17,6 +17,8 @@ the caller continues it with ``stream_question(..., resume=<member ID or name>)`
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final, cast
@@ -51,6 +53,24 @@ NODE_LABELS: Final = {
     DATA_ANALYST: "Data Analyst",
     CITATION_VERIFIER: "Citation Verifier",
 }
+SIGNIFICANCE_RECIPE: Final = "change_vs_standard_error"
+# Words that ask whether a change is statistically significant (English and French), matched
+# on accent-folded, lower-case text. A bare "meaningful" is left out: it is often not a
+# statistical question ("a meaningful drop").
+_SIGNIFICANCE_WORDS: Final = re.compile(
+    r"\b(statistically|statistical significance|significan|margin of error|margins of error"
+    r"|standard error|confidence interval|statistiquement|significati|marge d'erreur"
+    r"|erreur type|intervalle de confiance)"
+)
+
+
+def asks_for_significance(question: str) -> bool:
+    """Whether a question asks if a change is statistically significant (#109)."""
+    folded = unicodedata.normalize("NFKD", question.replace("\u2019", "'"))
+    plain = "".join(c for c in folded if not unicodedata.combining(c)).casefold()
+    return _SIGNIFICANCE_WORDS.search(plain) is not None
+
+
 _FETCH_ARGS: Final = {
     "fetch_statcan_vector": FetchStatCanArgs,
     "fetch_valet_series": FetchValetArgs,
@@ -109,6 +129,13 @@ class RunResult:
     @property
     def verified(self) -> bool:
         return bool(self.verification and self.verification.get("passed"))
+
+    @property
+    def significance_not_assessed(self) -> bool:
+        """The question asks about significance and no step compared a change with its SE."""
+        return asks_for_significance(self.question) and not any(
+            a.recipe == SIGNIFICANCE_RECIPE for a in self.analyses
+        )
 
 
 @dataclass(frozen=True, slots=True)

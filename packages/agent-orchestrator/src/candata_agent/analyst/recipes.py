@@ -10,6 +10,8 @@ the GTA Housing Ground-Truth Benchmark (gta_ground_truth_v1.md):
 6. cross_geography_ranking (ranking and gap analysis across CMAs/provinces)
 7. calendar_year_aggregation (calendar-year flow sum from monthly series)
 8. discrete_regime_change_counter (discrete policy rate change count and range)
+
+Also: real_wage_change (#101) and change_vs_standard_error (#109, significance of a change).
 """
 
 from __future__ import annotations
@@ -540,6 +542,128 @@ def real_wage_change(
             cits_list.append(citation_b)
     resolved_citations = tuple(cits_list)
 
+    return SQLArtifact(
+        source_series_id=source_series_id,
+        sql_query=query.strip(),
+        row_count=len(rows),
+        rows=tuple(rows),
+        citation=resolved_citations[0] if resolved_citations else None,
+        citations=resolved_citations,
+    )
+
+
+CHANGE_PERIOD_MONTHS: dict[str, int] = {"year_over_year": 12, "month_to_month": 1}
+
+
+def change_vs_standard_error(
+    estimate_table: pa.Table,
+    standard_error_table: pa.Table,
+    *,
+    change_period: str = "year_over_year",
+    date_col: str = "date",
+    value_col: str = "value",
+    citations: tuple[CitationEnvelope, ...] | Sequence[CitationEnvelope] | None = None,
+    source_series_id: str = "change_vs_standard_error",
+) -> SQLArtifact:
+    """Test whether a change in an estimate is statistically significant (issue #109).
+
+    StatCan publishes the change's standard error as its own series (LFS table 14-10-0287-01,
+    Statistics = "Standard error of year-over-year change" or "... of month-to-month change"),
+    but not the change itself. Following the table's footnote, the change is
+    ``estimate - estimate a period earlier``, and it is significant at the 68% level when
+    ``change +/- 1 SE`` excludes zero and at about the 95% level when ``change +/- 2 SE`` does.
+
+    Each period is matched with the standard error published for that same period. Fails loud
+    when the two series carry different units or no period has both an estimate and a standard
+    error; a non-positive standard error gives null results with a warning.
+    """
+    if change_period not in CHANGE_PERIOD_MONTHS:
+        raise ValueError(
+            f"change_period must be one of {sorted(CHANGE_PERIOD_MONTHS)}, got '{change_period}'"
+        )
+    unit_est = _get_table_unit(estimate_table)
+    unit_se = _get_table_unit(standard_error_table)
+    if unit_est and unit_se and unit_est.strip().lower() != unit_se.strip().lower():
+        raise ValueError(
+            f"change_vs_standard_error needs the estimate and its standard error in the same "
+            f"unit; got '{unit_est}' and '{unit_se}'."
+        )
+
+    months = CHANGE_PERIOD_MONTHS[change_period]
+    view_est = "estimate_series"
+    view_se = "standard_error_series"
+    clean_date = date_col.replace('"', '""')
+    clean_val = value_col.replace('"', '""')
+    normalized_date = f"""TRY_CAST(CASE
+                WHEN LENGTH("{clean_date}") = 4 THEN "{clean_date}" || '-01-01'
+                WHEN LENGTH("{clean_date}") = 7 THEN "{clean_date}" || '-01'
+                ELSE "{clean_date}"
+            END AS DATE)"""
+
+    query = f"""
+    WITH est AS (
+        SELECT "{clean_date}" AS obs_date, {normalized_date} AS date_norm, "{clean_val}" AS val
+        FROM {view_est}
+        WHERE "{clean_val}" IS NOT NULL
+    ),
+    se AS (
+        SELECT {normalized_date} AS date_norm, "{clean_val}" AS se
+        FROM {view_se}
+        WHERE "{clean_val}" IS NOT NULL
+    ),
+    paired AS (
+        SELECT
+            curr.obs_date,
+            curr.date_norm,
+            curr.val AS current_value,
+            prior.val AS lag_value,
+            -- Rounded so float noise (7.9 - 7.6 = 0.30000000000000071) can't flip a change
+            -- that equals its standard error into a significant one.
+            ROUND(curr.val - prior.val, 6) AS change,
+            ROUND(se.se, 6) AS standard_error
+        FROM est curr
+        JOIN se ON se.date_norm = curr.date_norm
+        LEFT JOIN est prior
+            ON prior.date_norm = (curr.date_norm - INTERVAL {months} MONTH)::DATE
+    )
+    SELECT
+        obs_date,
+        ROUND(current_value, 4) AS current_value,
+        ROUND(lag_value, 4) AS lag_value,
+        ROUND(change, 4) AS change_absolute,
+        ROUND(standard_error, 4) AS standard_error,
+        CASE WHEN standard_error > 0 THEN ROUND(change / standard_error, 2) END AS change_in_se,
+        CASE WHEN standard_error > 0 THEN ROUND(change - standard_error, 4) END AS ci68_low,
+        CASE WHEN standard_error > 0 THEN ROUND(change + standard_error, 4) END AS ci68_high,
+        CASE WHEN standard_error > 0 THEN ROUND(change - 2 * standard_error, 4) END AS ci95_low,
+        CASE WHEN standard_error > 0 THEN ROUND(change + 2 * standard_error, 4) END AS ci95_high,
+        CASE WHEN standard_error > 0 THEN ABS(change) > standard_error END AS significant_68,
+        CASE WHEN standard_error > 0 THEN ABS(change) > 2 * standard_error END AS significant_95,
+        CASE
+            WHEN lag_value IS NULL THEN
+                'Missing prior period value for comparison (lag_value is NULL)'
+            WHEN standard_error <= 0 THEN
+                'Standard error is not positive; significance cannot be assessed'
+            ELSE NULL
+        END AS warning
+    FROM paired
+    ORDER BY date_norm DESC
+    """
+    with SandboxedDuckDB() as db:
+        db.register_table(view_est, estimate_table)
+        db.register_table(view_se, standard_error_table)
+        rows = db.execute_sync(query)
+
+    if not rows:
+        raise ValueError(
+            "change_vs_standard_error found no period with both an estimate and a standard "
+            "error; fetch both series over the same periods."
+        )
+    # Periods without an estimate a change_period earlier can't be assessed; keep them out of
+    # the result unless none can be, then keep the latest so its warning is shown.
+    rows = [r for r in rows if r["lag_value"] is not None] or rows[:1]
+
+    resolved_citations = tuple(citations or ())
     return SQLArtifact(
         source_series_id=source_series_id,
         sql_query=query.strip(),

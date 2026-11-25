@@ -34,6 +34,7 @@ KNOWN_RECIPES = {
     "yoy_point_to_point",
     "percentage_point_spread",
     "real_wage_change",
+    "change_vs_standard_error",
     "affordability_burden_ratio",
     "multi_year_cagr",
     "cross_geography_ranking",
@@ -461,6 +462,46 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             input_citations = recipe_art.citations
             input_citation = recipe_art.citation
 
+        elif tool_name == "change_vs_standard_error":
+            est_slot = str(tool_args.get("estimate_slot", "table_a"))
+            se_slot = str(tool_args.get("standard_error_slot", "table_b"))
+            est_tbl = _resolve_table(
+                tool_args, state.scratchpad, key=est_slot, fallback_key=est_slot
+            )
+            se_tbl = _resolve_table(tool_args, state.scratchpad, key=se_slot, fallback_key=se_slot)
+            warnings.extend(_inspect_data_quality(est_tbl))
+            warnings.extend(_inspect_data_quality(se_tbl))
+            source_series_id = _extract_series_id(tool_args, est_tbl, input_citation)
+            se_id = (
+                str(tool_args.get("standard_error_series_id") or "").strip()
+                or _optional_table_series_id(se_tbl)
+                or None
+            )
+            dual_cits = _resolve_dual_citations(
+                tool_args,
+                state,
+                key_a="citation_a",
+                key_b="citation_b",
+                id_a=source_series_id,
+                id_b=se_id,
+                label_a="estimate",
+                label_b="standard_error",
+                recipe_name="change_vs_standard_error",
+            )
+            recipe_art = recipes.change_vs_standard_error(
+                est_tbl,
+                se_tbl,
+                change_period=str(tool_args.get("change_period", "year_over_year")),
+                date_col=str(tool_args.get("date_col", "date")),
+                value_col=str(tool_args.get("value_col", "value")),
+                citations=dual_cits,
+                source_series_id=source_series_id,
+            )
+            rows = list(recipe_art.rows)
+            executed_sql = recipe_art.sql_query
+            input_citations = recipe_art.citations
+            input_citation = recipe_art.citation
+
         elif tool_name == "affordability_burden_ratio":
             rent_tbl = _resolve_table(
                 tool_args, state.scratchpad, key="rent_table", fallback_key="rent_table"
@@ -583,8 +624,8 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
         # For comparison recipes (e.g. yoy_point_to_point), rows are ordered DESC by date.
         # The primary comparison is the latest/target row (rows[0]). If rows[0] lacks lag_value,
         # the comparison prior period is missing and change cannot be calculated.
-        if tool_name == "yoy_point_to_point":
-            if rows and rows[0].get("lag_value") is None:
+        if tool_name in ("yoy_point_to_point", "change_vs_standard_error"):
+            if rows and rows[0].get("warning"):
                 w = rows[0].get("warning")
                 if w and str(w) not in warnings:
                     warnings.append(str(w))
