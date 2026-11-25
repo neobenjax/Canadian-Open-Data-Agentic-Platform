@@ -58,7 +58,7 @@ Two of the traps:
   |---|---|
   | `no_tools` | none |
   | `mcp_statcan` | the community `mcp-statcan` server |
-  | `candata_mcp` | our server as it was on 22 October 2026 |
+  | `candata_mcp` | our server, run twice: on 22 October 2026, and on 25 November 2026 on `main` at `c493990` |
 
 - **What's held constant:** every arm used the same 15 questions, the same system prompt and
   the same agent loop. The model was `claude-sonnet-5-5`. The no-tools arm was also run with
@@ -79,6 +79,10 @@ Two of the traps:
 | no tools · Opus | 3 | 0 | 12 | 0 | 1 | 8 | 9.6 s | 16.3 s | 0 |
 | mcp-statcan · Sonnet | **11** | 3 | 1 | 0 | 1 | 21 | 102.0 s | 249.5 s | 12.5 |
 | CanData-MCP (22 Oct) · Sonnet | 3 | 0 | 12 | 0 | **0** | 17 | 18.2 s | 100.5 s | 4.5 |
+| CanData-MCP (25 Nov) · Sonnet | **11** | 4 | 0 | 0 | **0** | 25 | 18.1 s | 56.7 s | 9.3 |
+
+The no-tools and `mcp-statcan` arms were run on 22 October and haven't been re-run, so the
+25 November row is a month newer than the rows it's compared with.
 
 ### Findings
 
@@ -97,14 +101,29 @@ Two of the traps:
    - It took a median of 102 seconds per answer, and up to about 4 minutes.
    - Its answers named 21 table or vector IDs that aren't in the ground truth. They might be
      real alternatives or invented, and they have to be checked by hand.
-3. **Our server, as measured on 22 October, was honest but couldn't find the data.**
-   - CanData-MCP gave no wrong figures and made no false claims, but declined 12 questions.
-     The reason was that it had no way to discover tables and dimension members. The model
-     had to guess coordinates, and it declined when the guesses failed.
-   - Its answers still named 17 IDs that aren't in the ground truth, so loose citations
-     weren't only a problem for the other server.
-   - Discovery tools and clearer errors were added later (CAN-17, CAN-26), but the arm hasn't
-     been re-run on `main` since (BEN-58), so no newer score is reported here.
+3. **Our server answered as many questions as `mcp-statcan`, faster, and without false claims,
+   once it could discover tables.**
+   - On 22 October, CanData-MCP gave no wrong figures, but declined 12 questions. It had no way
+     to discover tables and dimension members, so the model guessed coordinates and declined
+     when the guesses failed.
+   - Discovery tools and clearer errors were added after that (CAN-17, CAN-26). On 25 November,
+     on `main`, it got 11 correct and 4 partial, with no hallucinations, no false claims and no
+     declines.
+   - Its median time was 18.1 seconds per answer, against 102 seconds for `mcp-statcan`. Its
+     slowest was under a minute, against about 4 minutes. It made 9.3 tool calls per answer,
+     against 12.5.
+   - All 4 partials were checked by hand against StatCan, and none had an invented figure.
+     Each came from choosing a different series or method: apartments of six units and over
+     instead of three (GT-04), individuals' income instead of families' (GT-07), and
+     December-to-December changes instead of annual averages (GT-11, GT-14). `mcp-statcan`
+     made the same GT-07 and GT-11 choices.
+   - On GT-14, the trap, it declined the Toronto figure, but said it "couldn't find" a Toronto
+     series rather than that none is published. `mcp-statcan` said the same, and added that
+     the series seemed not to be published at city level. Neither server can say for certain
+     that a series doesn't exist.
+   - **Citations are still loose.** Its answers named 25 IDs that aren't in the ground truth,
+     more than `mcp-statcan`'s 21. They have to be checked by hand, as for the other server.
+     That's the gap the agent harness below is built to close.
 
 ## 4. Agent harness (CAN-41)
 
@@ -153,6 +172,8 @@ skipped.
 |---|---|
 | Assistants without data access make confident false claims about what official data contains | **Yes:** 4 false claims, including the GT-14 trap for all three models |
 | A general data server answers most questions but takes minutes and leaves unverified IDs | **Yes:** median 102 s, 21 unverified IDs |
+| Our server answers as many questions as the general one, faster, with no false claims | **Yes, with a caveat:** 11 correct and 4 partial, median 18.1 s, 0 false claims (25 November). The other arm's run is a month older, and each arm was run once |
+| Our server's citations can be trusted without checking | **No:** 25 unverified IDs. Only the agent's citation verifier checks them |
 | Our agent cites exactly the right official series and verifies them | **Yes, for 3 questions with fixed plans**; not yet for the full benchmark with a live planner |
 | "12 seconds" for the agent end to end | **Not measured.** The 0.3–0.9 s above excludes planning. A planned run needs `ANTHROPIC_API_KEY`. |
 | "4 hours" of manual research | **Not measured.** No manual research has been timed. |
@@ -175,7 +196,7 @@ Until both are done, the case study should give the measured values above instea
 
 ```bash
 # Baseline: grade the committed runs
-python collaboration/benchmarks/run_baseline.py grade
+uv run python collaboration/benchmarks/run_baseline.py grade
 
 # Agent harness: grade the committed live run offline (no key needed)
 uv run python collaboration/benchmarks/run_agent_evals.py grade collaboration/benchmarks/agent_evals/runs/agent_demo_live_20261104.jsonl
@@ -186,9 +207,12 @@ uv run python collaboration/benchmarks/run_agent_evals.py grade collaboration/be
 - **Ground truth:** `collaboration/benchmarks/gta_ground_truth_v1.json` (CAN-14).
 - **Baseline:**
   - `collaboration/benchmarks/baseline/baseline_results_v1.md` and `.json`
-  - the run files in `collaboration/benchmarks/baseline/runs/` (2026-10-22). Times are each
-    file's `duration_s`.
+  - the run files in `collaboration/benchmarks/baseline/runs/`: five from 2026-10-22, and
+    `2026-11-25_candata_mcp_claude-sonnet-5-5.jsonl` (#54, PR #114, not merged yet). Times
+    are each answer's `duration_s`.
+  - the hand grades in `collaboration/benchmarks/baseline/manual_overrides.json`.
 - **Agent harness:**
   - `collaboration/benchmarks/agent_evals/runs/agent_demo_live_20261104.jsonl` and its report
     (CAN-41, PR #64, not merged yet). Times are each run's `seconds`.
-- **Why CanData-MCP scored 3 of 15:** `collaboration/benchmarks/baseline/README.md`.
+- **Why CanData-MCP scored 3 of 15 on 22 October, and the 25 November re-run:**
+  `collaboration/benchmarks/baseline/README.md`.
