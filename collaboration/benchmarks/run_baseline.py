@@ -12,8 +12,9 @@ API, the run time (UTC), every tool call and the full answer. `grade` then score
 file offline against `gta_ground_truth_v1.json` and writes `baseline/baseline_results_v1.*`.
 
 Automatic grades are a first pass. Anything you re-grade by hand goes in
-`baseline/manual_overrides.json` as {"<arm>/<model>/<question id>": {"outcome", "reason"}};
-overrides win and are listed in the report.
+`baseline/manual_overrides.json` as
+{"<arm>/<model>/<run date>/<question id>": {"outcome", "reason"}}; overrides win and are
+listed in the report. Each run file (one arm, model and date) is its own row in the report.
 
 Usage (standard library only, Python 3.12+; needs a logged-in `claude` CLI to run):
     python collaboration/benchmarks/run_baseline.py run --arm no_tools --model claude-sonnet-5-5
@@ -47,6 +48,9 @@ MD_OUT = OUT_DIR / "baseline_results_v1.md"
 
 TIMEOUT = 600
 MAX_TURNS = 25
+# Tool-call arguments are recorded so a failed call can be diagnosed from the run file (#54).
+# Long strings (SQL, for example) are cut to this many characters; results are never stored.
+MAX_ARG_CHARS = 300
 
 Arm = Literal["no_tools", "mcp_statcan", "candata_mcp"]
 Outcome = Literal["correct", "partial", "abstained", "hallucinated"]
@@ -96,6 +100,45 @@ class Answer:
     tool_calls: list[str]
     is_error: bool
     response: str
+    # One entry per tool call, in order: {"name", "input", "is_error"}. Runs before #54 lack it.
+    tool_call_details: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+
+
+def compact_input(value: Any, limit: int = MAX_ARG_CHARS) -> Any:
+    """A tool call's arguments with every long string shortened, so a run file stays small."""
+    if isinstance(value, str):
+        return value if len(value) <= limit else value[:limit] + f"... [{len(value)} chars]"
+    if isinstance(value, dict):
+        return {k: compact_input(v, limit) for k, v in value.items()}
+    if isinstance(value, list):
+        return [compact_input(v, limit) for v in value]
+    return value
+
+
+def tool_call_details(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each tool call's name, compacted arguments and whether its result was an error."""
+    calls: list[dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    for event in events:
+        content = event.get("message", {}).get("content", [])
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if event.get("type") == "assistant" and block.get("type") == "tool_use":
+                call = {
+                    "name": block.get("name", "unknown"),
+                    "input": compact_input(block.get("input", {})),
+                    "is_error": None,  # stays None if no result came back
+                }
+                calls.append(call)
+                by_id[str(block.get("id"))] = call
+            elif event.get("type") == "user" and block.get("type") == "tool_result":
+                call = by_id.get(str(block.get("tool_use_id")))
+                if call is not None:
+                    call["is_error"] = bool(block.get("is_error", False))
+    return calls
 
 
 def _claude_command(arm: Arm, model: str, run_date: str, mcp_file: Path | None) -> list[str]:
@@ -147,11 +190,15 @@ def ask(arm: Arm, model: str, question: dict[str, Any], mcp_file: Path | None) -
     model_ids: set[str] = set()
     tools_available: list[str] = []
     result: dict[str, Any] = {}
+    events: list[dict[str, Any]] = []
     for line in proc.stdout.splitlines():
         try:
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if not isinstance(event, dict):
+            continue
+        events.append(event)
         if event.get("type") == "system" and event.get("subtype") == "init":
             tools_available = sorted(event.get("tools", []))
         elif event.get("type") == "assistant":
@@ -180,6 +227,7 @@ def ask(arm: Arm, model: str, question: dict[str, Any], mcp_file: Path | None) -
         tool_calls=tool_calls,
         is_error=is_error,
         response=response,
+        tool_call_details=tool_call_details(events),
     )
 
 
@@ -446,11 +494,24 @@ def grade_answer(question: dict[str, Any], text: str) -> Grade:
     )
 
 
+def run_key(row: dict[str, Any]) -> str:
+    """Which run an answer belongs to: arm, model and the run file's date (#54).
+
+    An arm re-run on a later commit (CanData-MCP after #33) is a separate row in the report,
+    and its hand grades don't carry over to, or from, the earlier run.
+    """
+    return f"{row['arm']}/{row['requested_model']}/{row['run_date']}"
+
+
 def load_runs(paths: Iterable[Path]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for path in sorted(paths):
+        # Run files are named <YYYY-MM-DD>_<arm>_<model>[_partial].jsonl by `run`.
+        run_date = path.name[:10]
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", run_date):
+            raise ValueError(f"run file {path.name} does not start with its run date")
         rows += [
-            json.loads(line)
+            {**json.loads(line), "run_date": run_date}
             for line in path.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
@@ -468,8 +529,7 @@ def grade(run_paths: Iterable[Path]) -> dict[str, Any]:
         g = grade_answer(questions[row["question_id"]], row["response"])
         if row["is_error"]:
             g.outcome, g.reason = "abstained", "run error: " + row["response"][:120]
-        key = f"{row['arm']}/{row['requested_model']}/{row['question_id']}"
-        override = overrides.get(key, {})
+        override = overrides.get(f"{run_key(row)}/{row['question_id']}", {})
         if "outcome" in override:
             g.outcome = override["outcome"]  # type: ignore[assignment]
             g.reason, g.overridden = override["reason"], True
@@ -493,11 +553,13 @@ def grade(run_paths: Iterable[Path]) -> dict[str, Any]:
 
 
 def summarise(graded: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     for item in graded:
-        groups.setdefault((item["run"]["arm"], item["run"]["requested_model"]), []).append(item)
+        run = item["run"]
+        groups.setdefault((run["arm"], run["requested_model"], run["run_date"]), []).append(item)
     rows: list[dict[str, Any]] = []
-    for (arm, model), items in sorted(groups.items(), key=lambda kv: ARMS.index(kv[0][0])):
+    ordered = sorted(groups.items(), key=lambda kv: (ARMS.index(kv[0][0]), kv[0][2]))
+    for (arm, model, run_date), items in ordered:
         counts = {
             o: sum(i["grade"]["outcome"] == o for i in items)
             for o in ("correct", "partial", "abstained", "hallucinated")
@@ -506,6 +568,7 @@ def summarise(graded: list[dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 "arm": arm,
                 "requested_model": model,
+                "run_date": run_date,
                 "model_ids": sorted({m for i in items for m in i["run"]["model_ids"]}),
                 "run_dates": sorted({i["run"]["started_at"][:10] for i in items}),
                 "questions": len(items),
@@ -574,17 +637,15 @@ def render_markdown(report: dict[str, Any]) -> str:
         "## Per question",
         "",
     ]
-    arms = [(s["arm"], s["requested_model"]) for s in report["summary"]]
-    lines.append("| Question | " + " | ".join(f"{a} · {m}" for a, m in arms) + " |")
-    lines.append("| :-- |" + " :-: |" * len(arms))
-    by_key = {
-        (i["run"]["arm"], i["run"]["requested_model"], i["run"]["question_id"]): i
-        for i in report["answers"]
-    }
+    runs = [f"{s['arm']}/{s['requested_model']}/{s['run_date']}" for s in report["summary"]]
+    header = [r.replace("/", " · ") for r in runs]
+    lines.append("| Question | " + " | ".join(header) + " |")
+    lines.append("| :-- |" + " :-: |" * len(runs))
+    by_key = {(run_key(i["run"]), i["run"]["question_id"]): i for i in report["answers"]}
     for qid in sorted({i["run"]["question_id"] for i in report["answers"]}):
         cells = []
-        for a, m in arms:
-            item = by_key.get((a, m, qid))
+        for r in runs:
+            item = by_key.get((r, qid))
             cells.append(
                 item["grade"]["outcome"] + ("*" if item["grade"]["overridden"] else "")
                 if item
@@ -604,7 +665,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     for i in logged:
         excerpt = " ".join(i["response"].split())[:400]
         lines += [
-            f"### {i['run']['question_id']} · {i['run']['arm']} · {i['run']['requested_model']}",
+            f"### {i['run']['question_id']} · {run_key(i['run']).replace('/', ' · ')}",
             "",
             f"- **Why:** {i['grade']['reason']}",
             f"- **Unverified IDs:** {', '.join(i['grade']['citations']['unverified_ids']) or '-'}",
@@ -617,8 +678,8 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append("None.")
     for i in claims:
         lines.append(
-            f"- **{i['run']['question_id']} · {i['run']['arm']} · "
-            f"{i['run']['requested_model']}** ({i['grade']['outcome']}): "
+            f"- **{i['run']['question_id']} · {run_key(i['run']).replace('/', ' · ')}** "
+            f"({i['grade']['outcome']}): "
             f"{i['grade']['false_claim']}"
         )
     return "\n".join(lines).rstrip() + "\n"
