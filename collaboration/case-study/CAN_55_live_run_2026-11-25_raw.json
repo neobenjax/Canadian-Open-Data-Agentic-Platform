@@ -1,0 +1,956 @@
+{
+  "schema": "CAN-55 live run raw data, version 1",
+  "date": "2026-11-25",
+  "main_commit": "c493990",
+  "notes": [
+    "Manual entries are the participant's timer log as recorded. Outcomes are the participant's own labels; no figure was entered for any of them.",
+    "Agent node times are the durations shown by the page. Values and citations come from the agent's saved thread state.",
+    "Ground truth fields are copied from collaboration/benchmarks/gta_ground_truth_v1.json for convenience.",
+    "No API key, name or personal data is included."
+  ],
+  "manual": {
+    "entries": [
+      {
+        "question": "GT-02",
+        "startedAtIso": "2026-11-25T20:49:09.514Z",
+        "stoppedAtIso": "2026-11-25T20:49:42.228Z",
+        "durationMs": 32714,
+        "outcome": "gave up",
+        "figure": "",
+        "table": "",
+        "vector": "",
+        "period": "",
+        "difficulty": "Pasted the full question into the site search on statcan.gc.ca; it returned no results. Gave up. (Note added by Claude on the participant's behalf.)",
+        "steps": [],
+        "participant": "A (project team member)"
+      },
+      {
+        "question": "GT-06",
+        "startedAtIso": "2026-11-25T20:51:26.369Z",
+        "stoppedAtIso": "2026-11-25T20:52:43.020Z",
+        "durationMs": 76651,
+        "outcome": "cited figure",
+        "figure": "",
+        "table": "",
+        "vector": "",
+        "period": "",
+        "difficulty": "",
+        "steps": [],
+        "participant": "A (project team member)"
+      },
+      {
+        "question": "GT-06",
+        "startedAtIso": "2026-11-25T21:06:08.268Z",
+        "stoppedAtIso": "2026-11-25T21:07:45.628Z",
+        "durationMs": 97360,
+        "outcome": "cited figure",
+        "figure": "",
+        "table": "16-001-M2025003",
+        "vector": "",
+        "period": "",
+        "difficulty": "Searching statcan.gc.ca returned a list of articles, not data tables; I could not tell which to open. Cited a technical paper (16-001-M2025003), which turned out not to contain the figure.",
+        "steps": [],
+        "participant": "A (project team member)"
+      },
+      {
+        "question": "GT-10",
+        "startedAtIso": "2026-11-25T21:12:47.244Z",
+        "stoppedAtIso": "2026-11-25T21:16:39.398Z",
+        "durationMs": 232154,
+        "outcome": "cited figure",
+        "figure": "",
+        "table": "",
+        "vector": "",
+        "period": "",
+        "difficulty": "I did not find a direct answer to the question, the closest i found was the consumer Price index, in which i would have had to go through different reports to and compare figures to identify the increase",
+        "steps": [],
+        "participant": "A (project team member)"
+      }
+    ],
+    "excluded_entries": [
+      {
+        "who": "Claude (AI assistant), not the participant",
+        "question": "GT-02",
+        "startedAtIso": "2026-11-25T20:41:45.950Z",
+        "stoppedAtIso": "2026-11-25T20:42:22.622Z",
+        "durationMs": 36671,
+        "outcome": "invalid: blocked by bot check (no figure)",
+        "reason": "The AI's browser received a bot check (HTTP 403) from the Statistics Canada data site and cannot complete it. The entry was first mislabelled with the participant's name; it is excluded from every count."
+      }
+    ]
+  },
+  "agent": {
+    "setup": "Live agent in the Streamlit page, real planner, personal API key, new conversation per question, questions typed by an AI assistant.",
+    "questions": [
+      {
+        "id": "GT-01",
+        "eval_type": "numeric",
+        "question": "What was the average monthly rent for a two-bedroom unit in the Toronto CMA in the October 2025 CMHC Rental Market Survey, and how much did it change from 2024?",
+        "node_times_s": {
+          "supervisor": 28.9,
+          "data_fetcher": 1.2,
+          "data_analyst": 2.6,
+          "citation_verifier": 0.1
+        },
+        "total_s": 32.8,
+        "page_ended": "verified",
+        "analyses": [
+          {
+            "source_series": "v3823103",
+            "latest_row": {
+              "obs_date": "2025-01-01",
+              "current_value": 2045.0,
+              "lag_value": 1972.0,
+              "change_absolute": 73.0,
+              "change_pct": 3.7018,
+              "warning": null
+            },
+            "warnings": []
+          }
+        ],
+        "cited_series": [
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2024/2025"
+          }
+        ],
+        "verification_passed": true,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2024"
+          },
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2025"
+          }
+        ],
+        "ground_truth_expected": {
+          "rent_2025": 2045.0,
+          "rent_2024": 1972.0,
+          "change_dollars": 73.0,
+          "change_pct": 3.7
+        }
+      },
+      {
+        "id": "GT-02",
+        "eval_type": "numeric",
+        "question": "What was the purpose-built rental vacancy rate in the Toronto CMA in 2025, and how does it compare to 2023?",
+        "node_times_s": {
+          "supervisor": 14.0,
+          "data_fetcher": 1.0,
+          "data_analyst": 0.0,
+          "citation_verifier": 0.6
+        },
+        "total_s": 15.6,
+        "page_ended": "verified",
+        "analyses": [
+          {
+            "source_series": "v733349",
+            "latest_row": {
+              "obs_date": "2025-01-01",
+              "current_value": 3.0,
+              "lag_value": 1.4,
+              "change_absolute": 1.6,
+              "change_pct": 114.2857,
+              "warning": null
+            },
+            "warnings": []
+          }
+        ],
+        "cited_series": [
+          {
+            "table": "34-10-0127-01",
+            "vector": "v733349",
+            "period": "2023/2025"
+          }
+        ],
+        "verification_passed": true,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "34-10-0130-01",
+            "vector": "v1930324",
+            "period": "2023"
+          },
+          {
+            "table": "34-10-0130-01",
+            "vector": "v1930324",
+            "period": "2024"
+          },
+          {
+            "table": "34-10-0130-01",
+            "vector": "v1930324",
+            "period": "2025"
+          }
+        ],
+        "ground_truth_expected": {
+          "vacancy_2025_pct": 3.0,
+          "vacancy_2024_pct": 2.5,
+          "vacancy_2023_pct": 1.4,
+          "change_2023_2025_pp": 1.6
+        }
+      },
+      {
+        "id": "GT-03",
+        "eval_type": "numeric",
+        "question": "In 2025, how did the average two-bedroom rent in the Oshawa CMA (Durham) compare with the Toronto CMA?",
+        "node_times_s": {
+          "supervisor": 28.9,
+          "data_fetcher": 3.7,
+          "data_analyst": null,
+          "citation_verifier": 1.5
+        },
+        "total_s": 34.1,
+        "page_ended": "verified, no computed result",
+        "analyses": [],
+        "cited_series": [
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823091",
+            "period": "2025"
+          },
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2025"
+          }
+        ],
+        "verification_passed": true,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823091",
+            "period": "2025"
+          },
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2025"
+          }
+        ],
+        "ground_truth_expected": {
+          "oshawa_2025": 1762.0,
+          "toronto_2025": 2045.0,
+          "gap_dollars": 283.0,
+          "toronto_premium_pct": 16.1
+        }
+      },
+      {
+        "id": "GT-04",
+        "eval_type": "comparison",
+        "question": "Among the Toronto, Oshawa and Hamilton CMAs, which had the highest rental vacancy rate in 2025?",
+        "node_times_s": {
+          "supervisor": 22.5,
+          "data_fetcher": 4.6,
+          "data_analyst": null,
+          "citation_verifier": 2.7
+        },
+        "total_s": 29.8,
+        "page_ended": "verified, no computed result",
+        "analyses": [],
+        "cited_series": [
+          {
+            "table": "34-10-0127-01",
+            "vector": "v733349",
+            "period": "2025"
+          },
+          {
+            "table": "34-10-0127-01",
+            "vector": "v733362",
+            "period": "2025"
+          },
+          {
+            "table": "34-10-0127-01",
+            "vector": "v733358",
+            "period": "2025"
+          }
+        ],
+        "verification_passed": true,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "34-10-0130-01",
+            "vector": "v1930324",
+            "period": "2025"
+          },
+          {
+            "table": "34-10-0130-01",
+            "vector": "v1930312",
+            "period": "2025"
+          },
+          {
+            "table": "34-10-0130-01",
+            "vector": "v1930306",
+            "period": "2025"
+          }
+        ],
+        "ground_truth_expected": {
+          "answer": "Oshawa",
+          "vacancy_2025_pct": {
+            "toronto": 3.0,
+            "oshawa": 3.6,
+            "hamilton": 3.5
+          }
+        }
+      },
+      {
+        "id": "GT-05",
+        "eval_type": "numeric",
+        "question": "How many housing units were started in the Toronto CMA in calendar year 2025, and how does that compare with 2024?",
+        "node_times_s": {
+          "supervisor": 14.2,
+          "data_fetcher": 0.6,
+          "data_analyst": 0.0,
+          "citation_verifier": 0.7
+        },
+        "total_s": 15.5,
+        "page_ended": "verified with warning: comparison prior period is missing",
+        "analyses": [
+          {
+            "source_series": "v42127955",
+            "latest_row": {
+              "obs_date": "2025-01-01",
+              "current_value": 26087.0,
+              "lag_value": null,
+              "change_absolute": null,
+              "change_pct": null,
+              "warning": "Missing prior period value for comparison (lag_value is NULL)"
+            },
+            "warnings": [
+              "Missing prior period value for comparison (lag_value is NULL)"
+            ]
+          }
+        ],
+        "cited_series": [
+          {
+            "table": "34-10-0134-01",
+            "vector": "v42127955",
+            "period": "2025"
+          }
+        ],
+        "verification_passed": true,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "34-10-0154-01",
+            "vector": "v42127475",
+            "period": "2024-01/2025-12"
+          }
+        ],
+        "ground_truth_expected": {
+          "starts_2025": 26087,
+          "starts_2024": 37718,
+          "change_pct": -30.8
+        }
+      },
+      {
+        "id": "GT-06",
+        "eval_type": "numeric",
+        "question": "How did new home prices in the Toronto CMA change between December 2024 and December 2025?",
+        "node_times_s": {
+          "supervisor": 12.6,
+          "data_fetcher": 0.6,
+          "data_analyst": 0.0,
+          "citation_verifier": 0.3
+        },
+        "total_s": 13.5,
+        "page_ended": "verified",
+        "analyses": [
+          {
+            "source_series": "v111955499",
+            "latest_row": {
+              "obs_date": "2025-12-01",
+              "current_value": 109.3,
+              "lag_value": 113.1,
+              "change_absolute": -3.8,
+              "change_pct": -3.3599,
+              "warning": null
+            },
+            "warnings": []
+          }
+        ],
+        "cited_series": [
+          {
+            "table": "18-10-0205-01",
+            "vector": "v111955499",
+            "period": "2024-12/2025-12"
+          }
+        ],
+        "verification_passed": true,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "18-10-0205-01",
+            "vector": "v111955499",
+            "period": "2024-12"
+          },
+          {
+            "table": "18-10-0205-01",
+            "vector": "v111955499",
+            "period": "2025-12"
+          }
+        ],
+        "ground_truth_expected": {
+          "nhpi_dec_2024": 113.1,
+          "nhpi_dec_2025": 109.3,
+          "change_pct": -3.4
+        }
+      },
+      {
+        "id": "GT-07",
+        "eval_type": "numeric",
+        "question": "In 2024, what share of the Toronto CMA's median after-tax income would a year of average two-bedroom rent take?",
+        "node_times_s": {
+          "supervisor": 25.2,
+          "data_fetcher": 1.4,
+          "data_analyst": 0.0,
+          "citation_verifier": 1.2
+        },
+        "total_s": 27.8,
+        "page_ended": "verified",
+        "analyses": [
+          {
+            "source_series": "v3823103",
+            "latest_row": {
+              "ref_period": "2024-01-01",
+              "monthly_rent": 1972.0,
+              "annual_rent": 23664.0,
+              "annual_income": 82500.0,
+              "rent_to_income_pct": 28.68
+            },
+            "warnings": []
+          }
+        ],
+        "cited_series": [
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2024"
+          },
+          {
+            "table": "11-10-0237-01",
+            "vector": "v107655746",
+            "period": "2024"
+          }
+        ],
+        "verification_passed": true,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2024"
+          },
+          {
+            "table": "11-10-0190-01",
+            "vector": "v96415851",
+            "period": "2024"
+          }
+        ],
+        "ground_truth_expected": {
+          "annual_rent_2024": 23664.0,
+          "median_aftertax_income_2024": 82500.0,
+          "rent_share_pct": 28.7
+        }
+      },
+      {
+        "id": "GT-08",
+        "eval_type": "numeric",
+        "question": "Between 2019 and 2024, how did average two-bedroom rent growth in the Toronto CMA compare with growth in median after-tax income?",
+        "node_times_s": {
+          "supervisor": 39.8,
+          "data_fetcher": 1.6,
+          "data_analyst": 0.0,
+          "citation_verifier": null
+        },
+        "total_s": 41.4,
+        "page_ended": "failed step (percentage_point_spread), not verified",
+        "analyses": [
+          {
+            "source_series": "v3823103",
+            "latest_row": {
+              "obs_date": "2024-01-01",
+              "current_value": 1972.0,
+              "lag_value": 1563.0,
+              "change_absolute": 409.0,
+              "change_pct": 26.1676,
+              "warning": null
+            },
+            "warnings": []
+          },
+          {
+            "source_series": "v96415851",
+            "latest_row": {
+              "obs_date": "2024-01-01",
+              "current_value": 82500.0,
+              "lag_value": 80800.0,
+              "change_absolute": 1700.0,
+              "change_pct": 2.104,
+              "warning": null
+            },
+            "warnings": []
+          }
+        ],
+        "cited_series": [
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2019/2024"
+          },
+          {
+            "table": "11-10-0190-01",
+            "vector": "v96415851",
+            "period": "2019/2024"
+          }
+        ],
+        "verification_passed": null,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2019"
+          },
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2024"
+          },
+          {
+            "table": "11-10-0190-01",
+            "vector": "v96415851",
+            "period": "2019"
+          },
+          {
+            "table": "11-10-0190-01",
+            "vector": "v96415851",
+            "period": "2024"
+          }
+        ],
+        "ground_truth_expected": {
+          "rent_2019": 1563.0,
+          "rent_2024": 1972.0,
+          "rent_growth_pct": 26.2,
+          "income_2019": 80800.0,
+          "income_2024": 82500.0,
+          "income_growth_pct": 2.1,
+          "rent_dollars": "Dollars",
+          "income_dollars": "2024 constant dollars"
+        }
+      },
+      {
+        "id": "GT-09",
+        "eval_type": "flag",
+        "question": "Using median household income from the 2021 Census, what share of income does the 2025 average two-bedroom rent in Toronto represent?",
+        "node_times_s": {
+          "supervisor": 31.5,
+          "data_fetcher": null,
+          "data_analyst": null,
+          "citation_verifier": null
+        },
+        "total_s": 31.5,
+        "page_ended": "planning failed: no valid plan within 12 turns",
+        "analyses": [],
+        "cited_series": [],
+        "verification_passed": null,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "11-10-0190-01",
+            "vector": "v96415851",
+            "period": "2024"
+          },
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "2025"
+          }
+        ],
+        "ground_truth_expected": {
+          "behaviour": "Flag the vintage mismatch before (or instead of) computing.",
+          "must_mention": [
+            "2021 Census income refers to calendar year 2020, five years before the 2025 rent figure.",
+            "A same-year comparison is available: 2024 Canadian Income Survey (see GT-07)."
+          ]
+        }
+      },
+      {
+        "id": "GT-10",
+        "eval_type": "comparison",
+        "question": "In 2025, did the cost of rented accommodation in Toronto rise faster or slower than overall consumer prices? Give both annual inflation rates.",
+        "node_times_s": {
+          "supervisor": 24.4,
+          "data_fetcher": 1.5,
+          "data_analyst": 0.0,
+          "citation_verifier": null
+        },
+        "total_s": 25.9,
+        "page_ended": "failed step (percentage_point_spread), not verified",
+        "analyses": [
+          {
+            "source_series": "v41695188",
+            "latest_row": {
+              "obs_date": "2025-01-01",
+              "current_value": 163.5,
+              "lag_value": 158.6,
+              "change_absolute": 4.9,
+              "change_pct": 3.0895,
+              "warning": null
+            },
+            "warnings": []
+          },
+          {
+            "source_series": "v41695186",
+            "latest_row": {
+              "obs_date": "2025-01-01",
+              "current_value": 167.7,
+              "lag_value": 164.7,
+              "change_absolute": 3.0,
+              "change_pct": 1.8215,
+              "warning": null
+            },
+            "warnings": []
+          }
+        ],
+        "cited_series": [
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41695188",
+            "period": "2024/2025"
+          },
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41695186",
+            "period": "2024/2025"
+          }
+        ],
+        "verification_passed": null,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41695188",
+            "period": "2024"
+          },
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41695188",
+            "period": "2025"
+          },
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41695186",
+            "period": "2024"
+          },
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41695186",
+            "period": "2025"
+          }
+        ],
+        "ground_truth_expected": {
+          "rented_accommodation_pct": 3.1,
+          "all_items_pct": 1.8,
+          "answer": "Faster"
+        }
+      },
+      {
+        "id": "GT-11",
+        "eval_type": "comparison",
+        "question": "How did shelter inflation in Toronto in 2025 compare with shelter inflation for Canada as a whole?",
+        "node_times_s": {
+          "supervisor": 18.8,
+          "data_fetcher": 17.8,
+          "data_analyst": 0.0,
+          "citation_verifier": null
+        },
+        "total_s": 36.6,
+        "page_ended": "failed step (percentage_point_spread), not verified",
+        "analyses": [
+          {
+            "source_series": "v41695187",
+            "latest_row": {
+              "obs_date": "2025-01-01",
+              "current_value": 191.3,
+              "lag_value": 187.3,
+              "change_absolute": 4.0,
+              "change_pct": 2.1356,
+              "warning": null
+            },
+            "warnings": []
+          },
+          {
+            "source_series": "v41693348",
+            "latest_row": {
+              "obs_date": "2025-01-01",
+              "current_value": 187.8,
+              "lag_value": 182.3,
+              "change_absolute": 5.5,
+              "change_pct": 3.017,
+              "warning": null
+            },
+            "warnings": []
+          }
+        ],
+        "cited_series": [
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41695187",
+            "period": "2024/2025"
+          },
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41693348",
+            "period": "2024/2025"
+          }
+        ],
+        "verification_passed": null,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41695187",
+            "period": "2024"
+          },
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41695187",
+            "period": "2025"
+          },
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41693348",
+            "period": "2024"
+          },
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41693348",
+            "period": "2025"
+          }
+        ],
+        "ground_truth_expected": {
+          "toronto_shelter_pct": 2.1,
+          "canada_shelter_pct": 3.0,
+          "answer": "Toronto was lower than Canada"
+        }
+      },
+      {
+        "id": "GT-12",
+        "eval_type": "comparison",
+        "question": "In August 2026, how did shelter prices in Toronto change year over year, compared with overall consumer prices?",
+        "node_times_s": {
+          "supervisor": 20.2,
+          "data_fetcher": 1.7,
+          "data_analyst": 0.0,
+          "citation_verifier": null
+        },
+        "total_s": 21.9,
+        "page_ended": "failed step (percentage_point_spread), not verified",
+        "analyses": [
+          {
+            "source_series": "v41692889",
+            "latest_row": {
+              "obs_date": "2026-08-01",
+              "current_value": 190.5,
+              "lag_value": 191.4,
+              "change_absolute": -0.9,
+              "change_pct": -0.4702,
+              "warning": null
+            },
+            "warnings": []
+          },
+          {
+            "source_series": "v41692888",
+            "latest_row": {
+              "obs_date": "2026-08-01",
+              "current_value": 171.7,
+              "lag_value": 168.1,
+              "change_absolute": 3.6,
+              "change_pct": 2.1416,
+              "warning": null
+            },
+            "warnings": []
+          }
+        ],
+        "cited_series": [
+          {
+            "table": "18-10-0004-01",
+            "vector": "v41692889",
+            "period": "2025-08/2026-08"
+          },
+          {
+            "table": "18-10-0004-01",
+            "vector": "v41692888",
+            "period": "2025-08/2026-08"
+          }
+        ],
+        "verification_passed": null,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "18-10-0004-01",
+            "vector": "v41692889",
+            "period": "2025-08"
+          },
+          {
+            "table": "18-10-0004-01",
+            "vector": "v41692889",
+            "period": "2026-08"
+          },
+          {
+            "table": "18-10-0004-01",
+            "vector": "v41692888",
+            "period": "2025-08"
+          },
+          {
+            "table": "18-10-0004-01",
+            "vector": "v41692888",
+            "period": "2026-08"
+          }
+        ],
+        "ground_truth_expected": {
+          "shelter_yoy_pct": -0.5,
+          "all_items_yoy_pct": 2.1,
+          "answer": "Shelter prices fell while overall prices rose"
+        }
+      },
+      {
+        "id": "GT-13",
+        "eval_type": "numeric",
+        "question": "How many times did the Bank of Canada change its policy interest rate in 2025, and where did the rate start and end the year?",
+        "node_times_s": {
+          "supervisor": 9.4,
+          "data_fetcher": 1.2,
+          "data_analyst": 0.1,
+          "citation_verifier": 0.6
+        },
+        "total_s": 11.3,
+        "page_ended": "verified",
+        "analyses": [
+          {
+            "source_series": "V39079",
+            "latest_row": {
+              "calendar_year": "2025",
+              "rate_change_count": 4,
+              "year_start_rate": 3.25,
+              "year_end_rate": 2.25,
+              "min_rate": 2.25,
+              "max_rate": 3.25
+            },
+            "warnings": []
+          }
+        ],
+        "cited_series": [
+          {
+            "table": "Valet",
+            "vector": "V39079",
+            "period": "2024-12-02/2025-12-31"
+          }
+        ],
+        "verification_passed": true,
+        "decline_text": null,
+        "ground_truth_series": [
+          {
+            "table": "Valet",
+            "vector": "V39079",
+            "period": "2025-01-01/2025-12-31"
+          }
+        ],
+        "ground_truth_expected": {
+          "number_of_changes": 4,
+          "rate_start_2025_pct": 3.25,
+          "rate_end_2025_pct": 2.25,
+          "changes": [
+            {
+              "effective_date": "2025-01-30",
+              "from": 3.25,
+              "to": 3.0
+            },
+            {
+              "effective_date": "2025-03-13",
+              "from": 3.0,
+              "to": 2.75
+            },
+            {
+              "effective_date": "2025-09-18",
+              "from": 2.75,
+              "to": 2.5
+            },
+            {
+              "effective_date": "2025-10-30",
+              "from": 2.5,
+              "to": 2.25
+            }
+          ]
+        }
+      },
+      {
+        "id": "GT-14",
+        "eval_type": "refusal",
+        "question": "What was mortgage interest cost inflation in Toronto in 2025?",
+        "node_times_s": {
+          "supervisor": 23.4,
+          "data_fetcher": null,
+          "data_analyst": null,
+          "citation_verifier": null
+        },
+        "total_s": 23.4,
+        "page_ended": "declined",
+        "analyses": [],
+        "cited_series": [],
+        "verification_passed": null,
+        "decline_text": "Declined: Statistics Canada does not publish a mortgage interest cost CPI series for Toronto in either the annual (18-10-0005-01) or monthly (18-10-0004-01) CPI table, so Toronto mortgage interest cost inflation for 2025 cannot be calculated from official data. Possible alternatives: the Canada-wide mortgage interest cost series, or all-items CPI for Toronto.",
+        "ground_truth_series": [
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41693354",
+            "period": "2024"
+          },
+          {
+            "table": "18-10-0005-01",
+            "vector": "v41693354",
+            "period": "2025"
+          }
+        ],
+        "ground_truth_expected": {
+          "behaviour": "State that StatCan does not publish a Toronto mortgage interest cost index; offer the national figure instead.",
+          "canada_mortgage_interest_cost_pct": 5.3
+        }
+      },
+      {
+        "id": "GT-15",
+        "eval_type": "refusal",
+        "question": "What was the average two-bedroom rent in the Toronto CMA in 1985?",
+        "node_times_s": {
+          "supervisor": 11.1,
+          "data_fetcher": null,
+          "data_analyst": null,
+          "citation_verifier": null
+        },
+        "total_s": 11.1,
+        "page_ended": "declined",
+        "analyses": [],
+        "cited_series": [],
+        "verification_passed": null,
+        "decline_text": "Declined: The official average rents series for Toronto (the Canada Mortgage and Housing Corporation average rents table published by Statistics Canada) starts in 1987. No official average two-bedroom rent for the Toronto census metropolitan area is published for 1985.",
+        "ground_truth_series": [
+          {
+            "table": "34-10-0133-01",
+            "vector": "v3823103",
+            "period": "1992"
+          }
+        ],
+        "ground_truth_expected": {
+          "behaviour": "Decline: the official CMHC series for Toronto does not cover 1985.",
+          "earliest_available_period": "1992"
+        }
+      }
+    ]
+  }
+}
