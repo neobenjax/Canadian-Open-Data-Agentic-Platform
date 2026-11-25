@@ -33,6 +33,7 @@ KNOWN_RECIPES = {
     "annual_inflation_rate",
     "yoy_point_to_point",
     "percentage_point_spread",
+    "real_wage_change",
     "affordability_burden_ratio",
     "multi_year_cagr",
     "cross_geography_ranking",
@@ -60,11 +61,28 @@ def _resolve_table(
 ) -> pa.Table:
     """Resolve and convert table argument with explicit None checks."""
     raw = tool_args.get(key)
+    slot_used = fallback_key
     if raw is None:
         raw = scratchpad.get(fallback_key)
+    else:
+        slot_used = key
     if raw is None:
         raise ValueError(f"Required data table '{key}' (or fallback '{fallback_key}') not found.")
-    return _convert_to_arrow_table(raw)
+    tbl = _convert_to_arrow_table(raw)
+    # Enrich table metadata with slot source and unit if present in scratchpad
+    unit = scratchpad.get(f"{slot_used}_unit")
+    source = scratchpad.get(f"{slot_used}_source")
+    meta = dict(tbl.schema.metadata or {})
+    changed = False
+    if unit is not None and b"unit" not in meta:
+        meta[b"unit"] = str(unit).encode("utf-8")
+        changed = True
+    if source is not None and b"vector_id" not in meta and b"series_id" not in meta:
+        meta[b"vector_id"] = str(source).encode("utf-8")
+        changed = True
+    if changed:
+        tbl = tbl.replace_schema_metadata(meta)
+    return tbl
 
 
 def _slot(tool_args: dict[str, Any]) -> str:
@@ -386,6 +404,55 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
                 value_col=str(tool_args.get("value_col", "value")),
                 series_a_name=str(tool_args.get("series_a_name", "series_a")),
                 series_b_name=str(tool_args.get("series_b_name", "series_b")),
+                citations=input_citations,
+                source_series_id=source_series_id,
+            )
+            rows = list(recipe_art.rows)
+            executed_sql = recipe_art.sql_query
+            input_citations = recipe_art.citations
+            input_citation = recipe_art.citation
+
+        elif tool_name == "real_wage_change":
+            wage_tbl = _resolve_table(
+                tool_args, state.scratchpad, key="wage_table", fallback_key="table_a"
+            )
+            cpi_tbl = _resolve_table(
+                tool_args, state.scratchpad, key="cpi_table", fallback_key="table_b"
+            )
+            warnings.extend(_inspect_data_quality(wage_tbl))
+            warnings.extend(_inspect_data_quality(cpi_tbl))
+            source_series_id = _extract_series_id(tool_args, wage_tbl, input_citation)
+            cpi_id = (
+                str(
+                    tool_args.get("cpi_series_id")
+                    or tool_args.get("series_b_id")
+                    or tool_args.get("vector_id_b")
+                    or ""
+                ).strip()
+                or _optional_table_series_id(cpi_tbl)
+                or str(state.scratchpad.get("table_b_source") or "").strip()
+                or None
+            )
+            dual_cits = _resolve_dual_citations(
+                tool_args,
+                state,
+                key_a="citation_a",
+                key_b="citation_b",
+                id_a=source_series_id,
+                id_b=cpi_id,
+                label_a="wage",
+                label_b="cpi",
+                recipe_name="real_wage_change",
+            )
+            input_citations = dual_cits
+            input_citation = dual_cits[0]
+            recipe_art = recipes.real_wage_change(
+                wage_tbl,
+                cpi_tbl,
+                date_col=str(tool_args.get("date_col", "date")),
+                wage_val_col=str(tool_args.get("wage_val_col", "value")),
+                cpi_val_col=str(tool_args.get("cpi_val_col", "value")),
+                base_date=tool_args.get("base_date"),
                 citations=input_citations,
                 source_series_id=source_series_id,
             )

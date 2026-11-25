@@ -190,6 +190,76 @@ def yoy_point_to_point(
     return rows, query.strip()
 
 
+NON_RATE_UNITS = {
+    "dollars",
+    "canadian dollars",
+    "constant dollars",
+    "units",
+    "persons",
+    "tonnes",
+    "index",
+}
+
+
+def _get_table_unit(table: pa.Table) -> str:
+    """Extract unit string from table metadata if available."""
+    if table.schema.metadata:
+        for k, v in table.schema.metadata.items():
+            k_str = k.decode("utf-8")
+            if k_str.lower() in ("unit", "unit_name", "uom", "uom_name"):
+                return v.decode("utf-8").strip()
+    return ""
+
+
+def _is_rate_or_percentage(unit_str: str, col_name: str) -> bool:
+    """Determine whether a column or unit represents a rate or percentage."""
+    col_lower = col_name.lower()
+    if col_lower in ("change_pct", "spread_pp", "rate", "annual_inflation_pct", "cagr_pct"):
+        return True
+    if col_lower.endswith(("_pct", "_rate", "_pp", "_bps")):
+        return True
+
+    unit_clean = unit_str.strip().lower()
+    if not unit_clean:
+        return False
+
+    if any(r in unit_clean for r in ("%", "percent", "percentage", "rate", "basis point", "bps")):
+        return True
+
+    return False
+
+
+def _is_explicitly_incompatible(unit_str: str, col_name: str) -> bool:
+    """Check if the unit explicitly indicates a raw level (dollar, index, count, unit)."""
+    col_lower = col_name.lower()
+    # A column computed as a percentage or spread is never incompatible
+    if col_lower in (
+        "change_pct",
+        "spread_pp",
+        "rate",
+        "annual_inflation_pct",
+        "cagr_pct",
+    ) or col_lower.endswith(("_pct", "_rate", "_pp", "_bps")):
+        return False
+
+    unit_clean = unit_str.strip().lower()
+    if not unit_clean:
+        return False
+
+    # Check for index (e.g. '2002=100', '1986=100', 'canada=100', 'index')
+    if "=100" in unit_clean or "index" in unit_clean:
+        return True
+
+    # Check for dollars, currency, counts (careful: 'cent' is a substring of 'percent'!)
+    if any(
+        w in unit_clean
+        for w in ("dollar", "cents", "units", "persons", "tonnes", "metres", "litres", "barrels")
+    ):
+        return True
+
+    return False
+
+
 def percentage_point_spread(
     table_a: pa.Table,
     table_b: pa.Table,
@@ -202,25 +272,72 @@ def percentage_point_spread(
     citation_b: CitationEnvelope | None = None,
     citations: tuple[CitationEnvelope, ...] | Sequence[CitationEnvelope] | None = None,
     source_series_id: str = "rate_spread",
+    validate_units: bool = True,
 ) -> SQLArtifact:
     """Calculate rate spread in percentage points (pp) and basis points (bps).
 
     Directly powers GTA Ground-Truth GT-02 and BoC policy rate spreads.
+    Fails loud if inputs are not rates or percentages (e.g. raw levels like wage $ or CPI index).
+    Supports computing the spread from rate levels or from 'change_pct' change values.
     """
+    col_a = (
+        value_col
+        if value_col in table_a.column_names
+        else ("change_pct" if "change_pct" in table_a.column_names else value_col)
+    )
+    col_b = (
+        value_col
+        if value_col in table_b.column_names
+        else ("change_pct" if "change_pct" in table_b.column_names else value_col)
+    )
+
+    if validate_units:
+        unit_a = _get_table_unit(table_a)
+        unit_b = _get_table_unit(table_b)
+
+        # 1. Fail loud if either input is explicitly incompatible (e.g. wage dollars or CPI index)
+        if _is_explicitly_incompatible(unit_a, col_a):
+            raise ValueError(
+                f"percentage_point_spread requires rate or percentage inputs; table_a has "
+                f"incompatible unit '{unit_a}' (column '{col_a}'). "
+                "Do not subtract raw levels (e.g. wage level minus CPI index)."
+            )
+        if _is_explicitly_incompatible(unit_b, col_b):
+            raise ValueError(
+                f"percentage_point_spread requires rate or percentage inputs; table_b has "
+                f"incompatible unit '{unit_b}' (column '{col_b}'). "
+                "Do not subtract raw levels (e.g. wage level minus CPI index)."
+            )
+
+        # 2. Both inputs must be valid rates or percentages.
+        # If either input is not a rate/percentage (unit given or raw level column), fail loud.
+        is_rate_a = _is_rate_or_percentage(unit_a, col_a)
+        is_rate_b = _is_rate_or_percentage(unit_b, col_b)
+
+        if not is_rate_a or not is_rate_b:
+            unit_a_desc = f"'{unit_a}'" if unit_a else f"column '{col_a}'"
+            unit_b_desc = f"'{unit_b}'" if unit_b else f"column '{col_b}'"
+            raise ValueError(
+                f"percentage_point_spread requires rate or percentage inputs; got {unit_a_desc} "
+                f"and {unit_b_desc}. "
+                "Do not subtract raw levels (e.g. wage level minus CPI index)."
+            )
+
     name_a = "tab_a"
     name_b = "tab_b"
     clean_date = date_col.replace('"', '""')
-    clean_val = value_col.replace('"', '""')
+    clean_val_a = col_a.replace('"', '""')
+    clean_val_b = col_b.replace('"', '""')
     clean_a_name = series_a_name.replace('"', '""')
     clean_b_name = series_b_name.replace('"', '""')
 
     query = f"""
     SELECT
         a."{clean_date}" AS obs_date,
-        ROUND(a."{clean_val}", 4) AS "{clean_a_name}",
-        ROUND(b."{clean_val}", 4) AS "{clean_b_name}",
-        ROUND(a."{clean_val}" - b."{clean_val}", 4) AS spread_pp,
-        ROUND((a."{clean_val}" - b."{clean_val}") * 100.0, 1) AS spread_bps
+        ROUND(a."{clean_val_a}", 4) AS "{clean_a_name}",
+        ROUND(b."{clean_val_b}", 4) AS "{clean_b_name}",
+        ROUND(a."{clean_val_a}" - b."{clean_val_b}", 4) AS spread_pp,
+        ROUND((a."{clean_val_a}" - b."{clean_val_b}") * 100.0, 1) AS spread_bps
     FROM {name_a} a
     JOIN {name_b} b ON a."{clean_date}" = b."{clean_date}"
     ORDER BY obs_date DESC
@@ -229,6 +346,189 @@ def percentage_point_spread(
         db.register_table(name_a, table_a)
         db.register_table(name_b, table_b)
         rows = db.execute_sync(query)
+
+    cits_list: list[CitationEnvelope] = []
+    if citations:
+        cits_list.extend(citations)
+    else:
+        if citation_a is not None:
+            cits_list.append(citation_a)
+        if citation_b is not None:
+            cits_list.append(citation_b)
+    resolved_citations = tuple(cits_list)
+
+    return SQLArtifact(
+        source_series_id=source_series_id,
+        sql_query=query.strip(),
+        row_count=len(rows),
+        rows=tuple(rows),
+        citation=resolved_citations[0] if resolved_citations else None,
+        citations=resolved_citations,
+    )
+
+
+def real_wage_change(
+    wage_table: pa.Table,
+    cpi_table: pa.Table,
+    *,
+    date_col: str = "date",
+    wage_val_col: str = "value",
+    cpi_val_col: str = "value",
+    base_date: str | None = None,
+    citation_a: CitationEnvelope | None = None,
+    citation_b: CitationEnvelope | None = None,
+    citations: tuple[CitationEnvelope, ...] | Sequence[CitationEnvelope] | None = None,
+    source_series_id: str = "real_wage_change",
+) -> SQLArtifact:
+    """Calculate cumulative real (inflation-adjusted) wage change and spread against CPI inflation.
+
+    Directly addresses user testing M3 (Alberta youth wages vs CPI).
+    Anchors every period against the base period (explicit ``base_date`` if provided,
+    otherwise the earliest overlapping period in the fetched range) so multi-year
+    queries like "since 2019" compute the cumulative change rather than a 1-period lag.
+    Calculates:
+      - nominal_wage_change_pct: cumulative percentage change in nominal wages from base
+      - cpi_inflation_pct: cumulative percentage change in CPI index from base
+      - spread_pp: nominal_wage_change_pct - cpi_inflation_pct
+      - real_wage_change_pct: ((wage/cpi) - (base_wage/base_cpi)) / (base_wage/base_cpi) * 100
+    """
+    view_wage = "wage_series"
+    view_cpi = "cpi_series"
+    clean_date = date_col.replace('"', '""')
+    clean_w_val = wage_val_col.replace('"', '""')
+    clean_c_val = cpi_val_col.replace('"', '""')
+
+    base_norm_str: str | None = None
+    if base_date is not None:
+        raw_base = str(base_date).strip()
+        if len(raw_base) == 4:
+            base_norm_str = f"{raw_base}-01-01"
+        elif len(raw_base) == 7:
+            base_norm_str = f"{raw_base}-01"
+        else:
+            base_norm_str = raw_base
+
+    if base_norm_str is not None:
+        anchor_cte = """
+    base_row AS (
+        SELECT
+            obs_date AS base_obs_date,
+            date_norm AS base_date_norm,
+            wage AS base_wage,
+            cpi AS base_cpi
+        FROM combined
+        WHERE date_norm = TRY_CAST(? AS DATE)
+        LIMIT 1
+    ),
+    ordered AS (
+        SELECT
+            c.obs_date,
+            c.date_norm,
+            ROUND(c.wage, 4) AS wage,
+            ROUND(c.cpi, 4) AS cpi,
+            b.base_obs_date,
+            ROUND(b.base_wage, 4) AS base_wage,
+            ROUND(b.base_cpi, 4) AS base_cpi
+        FROM combined c
+        CROSS JOIN base_row b
+        WHERE c.date_norm >= b.base_date_norm
+    )"""
+        params: list[Any] | None = [base_norm_str]
+    else:
+        anchor_cte = """
+    ordered AS (
+        SELECT
+            obs_date,
+            date_norm,
+            ROUND(wage, 4) AS wage,
+            ROUND(cpi, 4) AS cpi,
+            FIRST_VALUE(obs_date) OVER (ORDER BY date_norm ASC) AS base_obs_date,
+            ROUND(FIRST_VALUE(wage) OVER (ORDER BY date_norm ASC), 4) AS base_wage,
+            ROUND(FIRST_VALUE(cpi) OVER (ORDER BY date_norm ASC), 4) AS base_cpi
+        FROM combined
+    )"""
+        params = None
+
+    query = f"""
+    WITH wage_norm AS (
+        SELECT
+            "{clean_date}" AS obs_date,
+            TRY_CAST(CASE
+                WHEN LENGTH("{clean_date}") = 4 THEN "{clean_date}" || '-01-01'
+                WHEN LENGTH("{clean_date}") = 7 THEN "{clean_date}" || '-01'
+                ELSE "{clean_date}"
+            END AS DATE) AS date_norm,
+            "{clean_w_val}" AS wage
+        FROM {view_wage}
+        WHERE "{clean_w_val}" IS NOT NULL
+    ),
+    cpi_norm AS (
+        SELECT
+            "{clean_date}" AS obs_date,
+            TRY_CAST(CASE
+                WHEN LENGTH("{clean_date}") = 4 THEN "{clean_date}" || '-01-01'
+                WHEN LENGTH("{clean_date}") = 7 THEN "{clean_date}" || '-01'
+                ELSE "{clean_date}"
+            END AS DATE) AS date_norm,
+            "{clean_c_val}" AS cpi
+        FROM {view_cpi}
+        WHERE "{clean_c_val}" IS NOT NULL
+    ),
+    combined AS (
+        SELECT
+            w.obs_date AS obs_date,
+            w.date_norm AS date_norm,
+            w.wage AS wage,
+            c.cpi AS cpi
+        FROM wage_norm w
+        JOIN cpi_norm c ON w.date_norm = c.date_norm
+        WHERE w.date_norm IS NOT NULL
+    ),{anchor_cte}
+    SELECT
+        obs_date,
+        base_obs_date,
+        wage,
+        cpi,
+        base_wage,
+        base_cpi,
+        CASE
+            WHEN base_wage IS NULL OR base_wage <= 0 THEN NULL
+            ELSE ROUND(((wage - base_wage) / base_wage) * 100.0, 4)
+        END AS nominal_wage_change_pct,
+        CASE
+            WHEN base_cpi IS NULL OR base_cpi <= 0 THEN NULL
+            ELSE ROUND(((cpi - base_cpi) / base_cpi) * 100.0, 4)
+        END AS cpi_inflation_pct,
+        CASE
+            WHEN base_wage IS NULL OR base_wage <= 0 OR base_cpi IS NULL OR base_cpi <= 0
+            THEN NULL
+            ELSE ROUND(
+                (((wage - base_wage) / base_wage) * 100.0)
+                - (((cpi - base_cpi) / base_cpi) * 100.0),
+                4
+            )
+        END AS spread_pp,
+        CASE
+            WHEN base_wage IS NULL OR base_wage <= 0 OR base_cpi IS NULL OR base_cpi <= 0
+                 OR cpi <= 0
+            THEN NULL
+            ELSE ROUND(
+                (((wage / cpi) - (base_wage / base_cpi)) / (base_wage / base_cpi)) * 100.0,
+                4
+            )
+        END AS real_wage_change_pct
+    FROM ordered
+    ORDER BY date_norm DESC
+    """
+    with SandboxedDuckDB() as db:
+        db.register_table(view_wage, wage_table)
+        db.register_table(view_cpi, cpi_table)
+        rows = db.execute_sync(query, params)
+
+    if base_norm_str is not None and not rows:
+        raise ValueError(
+            f"Base period '{base_date}' not found in overlapping wage and CPI observations."
+        )
 
     cits_list: list[CitationEnvelope] = []
     if citations:

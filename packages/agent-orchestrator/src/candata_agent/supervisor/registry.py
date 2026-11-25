@@ -116,6 +116,7 @@ class RegimeChangeArgs(_SingleSeriesArgs):
 _SECOND_SLOT_ID_KEY: Final[Mapping[str, str]] = {
     "percentage_point_spread": "series_b_id",
     "affordability_burden_ratio": "income_series_id",
+    "real_wage_change": "cpi_series_id",
 }
 
 
@@ -160,6 +161,13 @@ TOOLS: Final[Mapping[str, ToolSpec]] = {
             DATA_ANALYST,
             "Difference in percentage points and basis points between table_a and table_b.",
             SpreadArgs,
+            ("table_a", "table_b"),
+        ),
+        ToolSpec(
+            "real_wage_change",
+            DATA_ANALYST,
+            "Real wage change and inflation spread between wages (table_a) and CPI (table_b).",
+            NoArgs,
             ("table_a", "table_b"),
         ),
         ToolSpec(

@@ -58,6 +58,7 @@ RESULT_METRICS: Final = {
         "cal_year", "aggregated_total", "Calendar-year total"
     ),
     "percentage_point_spread": ResultMetric("obs_date", "spread_pp", "Spread (percentage points)"),
+    "real_wage_change": ResultMetric("obs_date", "real_wage_change_pct", "Real wage change (%)"),
 }
 
 
