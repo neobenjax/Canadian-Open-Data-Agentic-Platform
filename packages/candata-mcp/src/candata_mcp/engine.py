@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import copy
 import datetime
-import json
 import re
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
 import duckdb
 import pyarrow as pa
+import pydantic_core
 
 from candata_mcp.bilingual import Language, localize_title
 from candata_mcp.connectors.boc_valet import FRENCH_TITLES, VALET_BASE_URL
@@ -33,7 +33,7 @@ _DATE_REGEX = re.compile(r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$")
 
 # Forbidden SQL statements for read-only security guardrails
 _FORBIDDEN_SQL_KEYWORDS = re.compile(
-    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|ATTACH|DETACH|COPY|PRAGMA|CALL|INSTALL|LOAD)\b",
+    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|ATTACH|DETACH|COPY|PRAGMA|CALL|INSTALL|LOAD|SET|EXPORT|CHECKPOINT|VACUUM)\b",
     re.IGNORECASE,
 )
 
@@ -92,13 +92,144 @@ def normalize_date_bound(date_str: str, *, is_end: bool) -> tuple[str, str]:
             return "<=", clean_date
 
 
+class DuckDBSecurityError(ValueError):
+    """Raised when a DuckDB connection violates zero-trust driver-level sandboxing (Rule 7)."""
+
+    pass
+
+
+def validate_and_lock_connection(
+    connection: Any,
+    *,
+    require_prelocked: bool = False,
+) -> duckdb.DuckDBPyConnection:
+    """Validate and enforce driver-level sandbox lockdown on a DuckDB connection (Rule 7).
+
+    Guarantees that:
+    1. The connection is a valid, open `duckdb.DuckDBPyConnection`.
+    2. No external file-backed databases are attached (strictly in-memory `:memory:`).
+    3. `enable_external_access` is `False` (blocking all filesystem and network IO).
+    4. `lock_configuration` is `True` (preventing runtime configuration alteration).
+
+    If the connection has `lock_configuration=False`, lockdown is automatically applied
+    via driver-level SQL (`SET enable_external_access = false; SET lock_configuration = true`)
+    unless `require_prelocked=True`, in which case a `DuckDBSecurityError` is raised.
+    If the connection is already locked in an unsafe state (`enable_external_access=True`),
+    lockdown is impossible and a `DuckDBSecurityError` is raised immediately.
+
+    Args:
+        connection: The DuckDB connection to inspect and secure.
+        require_prelocked: If True, rejects connections that were not pre-configured
+            with lockdown at connect time.
+
+    Returns:
+        The validated and secured `duckdb.DuckDBPyConnection`.
+
+    Raises:
+        TypeError: If connection is not a duckdb.DuckDBPyConnection instance.
+        DuckDBSecurityError: If the connection is closed, attached to external files,
+            locked in an unsafe configuration, or fails post-lockdown verification.
+    """
+    if not isinstance(connection, duckdb.DuckDBPyConnection):
+        conn_type = type(connection).__name__
+        msg = f"Invalid connection type: expected duckdb.DuckDBPyConnection, got {conn_type}"
+        raise TypeError(msg)
+
+    # Verify connection is open and inspect attached databases
+    try:
+        db_rows = connection.execute(
+            "SELECT database_name, path FROM duckdb_databases()"
+        ).fetchall()
+    except Exception as exc:
+        raise DuckDBSecurityError(
+            f"Caller-supplied DuckDB connection is unusable or closed: {exc}"
+        ) from exc
+
+    # Enforce strictly in-memory databases (no external file-backed databases)
+    for db_name, db_path in db_rows:
+        if db_path is not None and str(db_path).strip() != "":
+            raise DuckDBSecurityError(
+                f"Caller-supplied DuckDB connection has file-backed database '{db_name}' "
+                f"at '{db_path}'. Rule 7 requires in-memory only (:memory:)."
+            )
+
+    # Inspect current sandbox configuration
+    try:
+        settings_rows = connection.execute(
+            "SELECT name, value FROM duckdb_settings() "
+            "WHERE name IN ('enable_external_access', 'lock_configuration')"
+        ).fetchall()
+    except Exception as exc:
+        raise DuckDBSecurityError(
+            f"Failed to inspect DuckDB configuration settings: {exc}"
+        ) from exc
+
+    settings = {str(name): str(value).strip().lower() for name, value in settings_rows}
+    ext_access = settings.get("enable_external_access")
+    lock_config = settings.get("lock_configuration")
+
+    if lock_config == "true":
+        if ext_access != "false":
+            raise DuckDBSecurityError(
+                "Caller-supplied DuckDB connection is locked with enable_external_access=True. "
+                "Driver-level sandbox lockdown cannot be enforced."
+            )
+        # Already pre-locked with enable_external_access=False and lock_configuration=True
+        return connection
+
+    # Connection is configurable (lock_configuration=False)
+    if require_prelocked:
+        raise DuckDBSecurityError(
+            "Caller-supplied DuckDB connection is not pre-locked. "
+            "Rule 7 requires driver-level lockdown "
+            "(enable_external_access=False, lock_configuration=True)."
+        )
+
+    try:
+        connection.execute("SET enable_external_access = false")
+        connection.execute("SET lock_configuration = true")
+    except Exception as exc:
+        raise DuckDBSecurityError(
+            f"Failed to apply driver-level sandbox lockdown to DuckDB connection: {exc}"
+        ) from exc
+
+    # Verify post-lockdown settings
+    try:
+        post_rows = connection.execute(
+            "SELECT name, value FROM duckdb_settings() "
+            "WHERE name IN ('enable_external_access', 'lock_configuration')"
+        ).fetchall()
+    except Exception as exc:
+        raise DuckDBSecurityError(f"Failed to verify post-lockdown settings: {exc}") from exc
+
+    post_settings = {str(name): str(value).strip().lower() for name, value in post_rows}
+    if post_settings.get("enable_external_access") != "false":
+        raise DuckDBSecurityError(
+            f"Failed to disable external access on DuckDB connection: {post_settings}"
+        )
+    if post_settings.get("lock_configuration") != "true":
+        raise DuckDBSecurityError(
+            f"Failed to lock configuration on DuckDB connection: {post_settings}"
+        )
+
+    return connection
+
+
 class DuckDBSlicingEngine:
     """In-memory DuckDB engine with Arrow streaming for zero-copy analytical queries."""
 
-    def __init__(self, connection: duckdb.DuckDBPyConnection | None = None) -> None:
+    def __init__(
+        self,
+        connection: duckdb.DuckDBPyConnection | None = None,
+        *,
+        require_prelocked: bool = False,
+    ) -> None:
         """Initialize in-memory DuckDB connection locked down against filesystem/network access."""
         if connection is not None:
-            self._con: duckdb.DuckDBPyConnection = connection
+            self._con: duckdb.DuckDBPyConnection = validate_and_lock_connection(
+                connection,
+                require_prelocked=require_prelocked,
+            )
         else:
             self._con: duckdb.DuckDBPyConnection = duckdb.connect(
                 ":memory:",
@@ -503,17 +634,35 @@ class DuckDBSlicingEngine:
         payload: dict[str, Any],
         max_bytes: int = MAX_PAYLOAD_BYTES,
     ) -> dict[str, Any]:
-        """Guarantee payload strictly complies with the <3KB budget immutably.
+        """Guarantee payload strictly complies with the wire byte budget immutably.
 
-        If payload exceeds max_bytes, progressively pops data rows while
-        preserving summary statistics and the Two-Tier Citation Envelope.
+        If payload exceeds max_bytes:
+        1. Progressively pops data rows while preserving summary statistics
+           and the Two-Tier Citation Envelope.
+        2. Progressively truncates long string fields in non-core metadata dictionaries.
+        3. Applies recursive hard byte-budget truncation fallback on non-core string values.
+        4. Prunes optional/enrichment keys while keeping ``citation.core`` and
+           ``citation.publisher`` intact.
+        5. If the payload still cannot fit with Tier 1 citation intact, fails loud
+           with ``error_code: "PAYLOAD_TOO_LARGE"`` while preserving ``citation.core``.
         """
+        if max_bytes < 2:
+            msg = (
+                f"max_bytes={max_bytes} is smaller than minimum valid "
+                "JSON payload (2 bytes for '{}')"
+            )
+            raise ValueError(msg)
+
         clamped = copy.deepcopy(payload)
-        encoded_len = len(json.dumps(clamped, default=str).encode("utf-8"))
+
+        def _measure(val: Any) -> int:
+            return len(pydantic_core.to_json(val, indent=2, fallback=str))
+
+        encoded_len = _measure(clamped)
         if encoded_len <= max_bytes:
             return clamped
 
-        # Payload exceeds budget; truncate data rows
+        # Step 1: Payload exceeds budget; truncate data rows
         data = clamped.get("data")
         if isinstance(data, list) and data:
             lineage = clamped.get("lineage")
@@ -526,18 +675,121 @@ class DuckDBSlicingEngine:
                 clamped["data"] = truncated_data
                 clamped["returned_count"] = len(truncated_data)
                 clamped["truncated"] = True
-                encoded_len = len(json.dumps(clamped, default=str).encode("utf-8"))
+                encoded_len = _measure(clamped)
 
-        # If metadata alone still exceeds max_bytes, clamp metadata strings deterministically
+        # Step 2: If metadata alone still exceeds max_bytes, clamp non-core metadata strings
         if encoded_len > max_bytes:
             clamped["data"] = []
             clamped["returned_count"] = 0
             clamped["truncated"] = True
-            for field in ["title", "citation", "summary"]:
+            for field in ["title", "summary"]:
                 if field in clamped and isinstance(clamped[field], dict):
                     for subk, subv in clamped[field].items():
                         if isinstance(subv, str) and len(subv) > 80:
                             clamped[field][subk] = subv[:80] + "..."
-            encoded_len = len(json.dumps(clamped, default=str).encode("utf-8"))
+            citation_obj = clamped.get("citation")
+            if isinstance(citation_obj, dict) and isinstance(citation_obj.get("enrichment"), dict):
+                for subk, subv in citation_obj["enrichment"].items():
+                    if isinstance(subv, str) and len(subv) > 80:
+                        citation_obj["enrichment"][subk] = subv[:80] + "..."
+            encoded_len = _measure(clamped)
+
+        # Step 3: Hard byte truncation fallback for oversized strings anywhere outside Tier 1 core
+        if encoded_len > max_bytes:
+
+            def _truncate_utf8_string(s: str, target_bytes: int) -> str:
+                """Truncate string so its UTF-8 encoding is at most target_bytes with suffix."""
+                suffix = "..."
+                suffix_len = len(suffix.encode("utf-8"))
+                if target_bytes <= suffix_len:
+                    return suffix[:target_bytes]
+                avail = target_bytes - suffix_len
+                b = s.encode("utf-8")[:avail]
+                return b.decode("utf-8", errors="ignore") + suffix
+
+            def _recursively_trim_strings(val: Any, limit_bytes: int, path: str = "") -> Any:
+                if isinstance(val, str):
+                    b_len = len(val.encode("utf-8"))
+                    if b_len > limit_bytes:
+                        return _truncate_utf8_string(val, limit_bytes)
+                    return val
+                elif isinstance(val, dict):
+                    out: dict[str, Any] = {}
+                    for k, v in val.items():
+                        child_path = f"{path}.{k}" if path else str(k)
+                        # Never mutate Tier 1 citation identifiers, publisher, or error_code
+                        if child_path in ("citation.core", "citation.publisher", "error_code"):
+                            out[k] = v
+                        else:
+                            out[k] = _recursively_trim_strings(v, limit_bytes, child_path)
+                    return out
+                elif isinstance(val, list | tuple):
+                    return [_recursively_trim_strings(v, limit_bytes, path) for v in val]
+                return val
+
+            for max_str_bytes in [500, 200, 80, 40, 20, 10, 5, 0]:
+                if encoded_len <= max_bytes:
+                    break
+
+                clamped = _recursively_trim_strings(clamped, max_str_bytes)
+                encoded_len = _measure(clamped)
+
+        # Step 4: Prune optional keys while keeping citation.core and citation.publisher intact
+        if encoded_len > max_bytes:
+            prune_candidates = [
+                "display",
+                "series_title",
+                "summary",
+                "title",
+            ]
+            for key in prune_candidates:
+                if encoded_len <= max_bytes:
+                    break
+                if key in clamped:
+                    clamped.pop(key, None)
+                    encoded_len = _measure(clamped)
+
+            # Prune remaining non-essential top-level keys (keep citation, lineage, status/errors)
+            if encoded_len > max_bytes:
+                protected_top = ("citation", "lineage", "truncated", "error", "error_code")
+                for key in list(clamped.keys()):
+                    if encoded_len <= max_bytes:
+                        break
+                    if key not in protected_top:
+                        clamped.pop(key, None)
+                        encoded_len = _measure(clamped)
+
+            # Prune non-core fields inside citation (e.g. enrichment) while keeping core/publisher
+            if encoded_len > max_bytes and isinstance(clamped.get("citation"), dict):
+                cit = clamped["citation"]
+                for subk in list(cit.keys()):
+                    if encoded_len <= max_bytes:
+                        break
+                    if subk not in ("core", "publisher"):
+                        cit.pop(subk, None)
+                        encoded_len = _measure(clamped)
+
+            # Finally prune lineage if still over budget
+            if encoded_len > max_bytes and "lineage" in clamped:
+                clamped.pop("lineage", None)
+                encoded_len = _measure(clamped)
+
+        # Step 5: Fail loud if payload still cannot fit with Tier 1 citation intact
+        if encoded_len > max_bytes:
+            preserved_citation: dict[str, Any] | None = None
+            raw_citation = clamped.get("citation")
+            if isinstance(raw_citation, dict):
+                preserved_citation = {
+                    k: raw_citation[k] for k in ("publisher", "core") if k in raw_citation
+                }
+
+            error_payload: dict[str, Any] = {
+                "error": "Payload exceeds max_bytes budget while preserving Tier 1 citation.",
+                "error_code": "PAYLOAD_TOO_LARGE",
+                "truncated": True,
+            }
+            if preserved_citation:
+                error_payload["citation"] = preserved_citation
+            return error_payload
 
         return clamped

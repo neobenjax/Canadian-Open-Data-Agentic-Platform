@@ -6,6 +6,7 @@ import json
 from unittest.mock import MagicMock
 
 import duckdb
+import pydantic_core
 import pytest
 
 from candata_mcp.citation import (
@@ -27,7 +28,12 @@ from candata_mcp.connectors.statcan_wds import (
 from candata_mcp.connectors.statcan_wds import (
     StatCanSeriesResult,
 )
-from candata_mcp.engine import MAX_PAYLOAD_BYTES, DuckDBSlicingEngine
+from candata_mcp.engine import (
+    MAX_PAYLOAD_BYTES,
+    DuckDBSecurityError,
+    DuckDBSlicingEngine,
+    validate_and_lock_connection,
+)
 
 
 @pytest.fixture
@@ -204,6 +210,153 @@ def test_payload_clamp_immutability(engine: DuckDBSlicingEngine) -> None:
     clamped = engine.clamp_payload(payload, max_bytes=50)
     assert clamped is not payload
     assert len(payload["data"]) == 2  # Original remains unmutated
+
+
+def test_payload_clamp_hard_fallback_oversized_title(engine: DuckDBSlicingEngine) -> None:
+    """Oversized 5KB+ title string triggers hard byte truncation fallback."""
+    oversized_title = "Rapport économique sur l'inflation et le logement au Canada: " + (
+        "éàçôù " * 1000
+    )
+    payload = {
+        "source": "Statistics Canada",
+        "title": {"en": "Short Title", "fr": oversized_title},
+        "returned_count": 0,
+        "data": [],
+        "citation": {"publisher": "Statistics Canada"},
+        "summary": {"count": 0},
+    }
+    raw_bytes = len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    assert raw_bytes > 5000
+
+    clamped = engine.clamp_payload(payload, max_bytes=MAX_PAYLOAD_BYTES)
+    clamped_bytes = len(json.dumps(clamped, ensure_ascii=False).encode("utf-8"))
+    assert clamped_bytes <= MAX_PAYLOAD_BYTES
+    assert clamped.get("truncated") is True
+    # Ensure UTF-8 multi-byte decoding is clean and valid
+    json_str = json.dumps(clamped, ensure_ascii=False)
+    assert isinstance(json_str, str)
+
+
+def test_payload_clamp_nested_metadata_and_escaping_expansion(
+    engine: DuckDBSlicingEngine,
+) -> None:
+    """Test deeply nested metadata and JSON escaping expansion (quotes, slashes, newlines)."""
+    tricky_string = '\\"\\\n\t\r\\/' * 300
+    payload = {
+        "source": "Bank of Canada",
+        "nested": {
+            "level1": {
+                "level2": {
+                    "heavy_text": tricky_string,
+                    "french_unicode": "Élévation de l'indice des prix à la consommation " * 50,
+                }
+            }
+        },
+        "citation": {"publisher": "Bank of Canada"},
+        "data": [{"date": "2024-01-01", "value": 1.5}],
+    }
+    clamped = engine.clamp_payload(payload, max_bytes=1000)
+    clamped_bytes = len(json.dumps(clamped, ensure_ascii=False).encode("utf-8"))
+    assert clamped_bytes <= 1000
+    assert clamped.get("truncated") is True
+
+
+def test_payload_clamp_sub_minimum_and_tiny_budgets(engine: DuckDBSlicingEngine) -> None:
+    """Sub-minimum budgets fail loud with PAYLOAD_TOO_LARGE while preserving citation."""
+    payload = {
+        "source": "Statistics Canada",
+        "title": "A" * 200,
+        "citation": {
+            "publisher": "StatCan",
+            "core": {
+                "table_id": "18-10-0004-01",
+                "vector_id": "v41690973",
+                "reference_period": "2025-10",
+            },
+        },
+        "data": [{"a": 1}],
+    }
+
+    for tiny_budget in [100, 50, 25, 10, 2]:
+        clamped = engine.clamp_payload(payload, max_bytes=tiny_budget)
+        assert clamped.get("error_code") == "PAYLOAD_TOO_LARGE"
+        assert clamped.get("truncated") is True
+        assert "error" in clamped
+        assert clamped["citation"]["core"] == payload["citation"]["core"]
+        assert clamped["citation"]["publisher"] == payload["citation"]["publisher"]
+
+    # Budgets under 2 bytes cannot hold valid JSON ({}) and must fail deterministically
+    for invalid_budget in [1, 0, -1]:
+        with pytest.raises(ValueError, match="smaller than minimum valid JSON payload"):
+            engine.clamp_payload(payload, max_bytes=invalid_budget)
+
+
+def test_payload_clamp_preserves_tier1_citation_core_and_publisher_worst_case(
+    engine: DuckDBSlicingEngine,
+) -> None:
+    """Worst-case metadata payload never mutates citation.core or publisher and fits wire size."""
+    payload = {
+        "source": "Statistics Canada",
+        "series_title": "X" * 5000,
+        "metadata_fr": {f"k{i}": f"Valeur française numéro {i} avec texte" for i in range(120)},
+        "citation": {
+            "publisher": "Statistics Canada",
+            "core": {
+                "table_id": "18-10-0004-01",
+                "vector_id": "v41690973",
+                "reference_period": "2025-10",
+            },
+            "enrichment": {
+                "bilingual_title": {
+                    "en": "Consumer Price Index",
+                    "fr": "Indice des prix à la consommation",
+                },
+                "canonical_url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401",
+            },
+        },
+        "lineage": {"publisher": "Statistics Canada", "steps": ["fetched 12 rows"]},
+        "data": [{"date": f"2025-{m:02d}-01", "value": 100.0 + m} for m in range(1, 13)],
+    }
+
+    clamped = engine.clamp_payload(payload, max_bytes=3000)
+
+    # Wire size (pydantic_core indent=2, matching FastMCP) and compact size must both fit
+    wire_bytes = len(pydantic_core.to_json(clamped, indent=2, fallback=str))
+    compact_bytes = len(json.dumps(clamped, ensure_ascii=False).encode("utf-8"))
+    assert wire_bytes <= 3000
+    assert compact_bytes <= 3000
+    assert clamped.get("truncated") is True
+
+    # Tier 1 citation.core must be byte-identical before and after clamping
+    assert json.dumps(clamped["citation"]["core"], sort_keys=True) == json.dumps(
+        payload["citation"]["core"], sort_keys=True
+    )
+    assert clamped["citation"]["publisher"] == payload["citation"]["publisher"]
+
+
+def test_payload_clamp_stage2_does_not_truncate_long_publisher(
+    engine: DuckDBSlicingEngine,
+) -> None:
+    """Long citation.publisher (>80 chars) is never truncated in Stage 2 or Stage 3."""
+    long_publisher = "Official Canadian Statistical Agency " * 3  # > 80 chars
+    payload = {
+        "source": "Statistics Canada",
+        "series_title": "Y" * 5000,
+        "citation": {
+            "publisher": long_publisher,
+            "core": {
+                "table_id": "18-10-0004-01",
+                "vector_id": "v41690973",
+                "reference_period": "2025-10",
+            },
+            "enrichment": {"canonical_url": "https://example.com/" + "z" * 200},
+        },
+    }
+
+    clamped = engine.clamp_payload(payload, max_bytes=3000)
+    assert len(pydantic_core.to_json(clamped, indent=2, fallback=str)) <= 3000
+    assert clamped["citation"]["publisher"] == long_publisher
+    assert clamped["citation"]["core"] == payload["citation"]["core"]
 
 
 def test_invalid_date_format_rejection(
@@ -463,3 +616,297 @@ def test_table_from_ckan_and_slice_ckan(engine: DuckDBSlicingEngine) -> None:
     analytics = engine.execute_analytics(table, sql)
     assert len(analytics) == 1
     assert analytics[0]["mean_starts"] > 0
+
+
+# ==============================================================================
+# Issue #20 (CAN-TECH-DEBT): Driver-Level Sandbox Lockdown on Caller Connections
+# ==============================================================================
+
+
+def test_caller_supplied_unlocked_connection_is_automatically_locked_down(
+    sample_statcan_result: StatCanSeriesResult,
+) -> None:
+    """An unlocked in-memory DuckDB connection is automatically locked down (Rule 7)."""
+    raw_con = duckdb.connect(":memory:")
+
+    # Verify connection starts unlocked
+    before_settings = dict(
+        raw_con.execute(
+            "SELECT name, value FROM duckdb_settings() "
+            "WHERE name IN ('enable_external_access', 'lock_configuration')"
+        ).fetchall()
+    )
+    assert before_settings.get("enable_external_access") == "true"
+    assert before_settings.get("lock_configuration") == "false"
+
+    # Pass into DuckDBSlicingEngine
+    engine = DuckDBSlicingEngine(connection=raw_con)
+
+    # Verify connection is now fully locked down
+    after_settings = dict(
+        engine.connection.execute(
+            "SELECT name, value FROM duckdb_settings() "
+            "WHERE name IN ('enable_external_access', 'lock_configuration')"
+        ).fetchall()
+    )
+    assert after_settings.get("enable_external_access") == "false"
+    assert after_settings.get("lock_configuration") == "true"
+
+    table = engine.table_from_statcan(sample_statcan_result)
+
+    # Verify table functions that access filesystem are blocked
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_text('pyproject.toml')")
+
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_csv('pyproject.toml')")
+
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT file FROM glob('*')")
+
+    # Verify driver-level lock blocks runtime tampering
+    with pytest.raises(duckdb.InvalidInputException, match="the configuration has been locked"):
+        raw_con.execute("SET enable_external_access = true")
+
+    # Verify engine can still perform normal analytical slicing
+    records, summary = engine.slice_table(table, limit=3)
+    assert len(records) == 3
+    assert summary["filtered_count"] == 12
+
+
+def test_caller_supplied_prelocked_safe_connection_accepted(
+    sample_statcan_result: StatCanSeriesResult,
+) -> None:
+    """Pre-configured safe connection is accepted without re-executing locked SET statements."""
+    safe_con = duckdb.connect(
+        ":memory:",
+        config={
+            "enable_external_access": False,
+            "lock_configuration": True,
+        },
+    )
+    # Direct validate_and_lock_connection call
+    validated = validate_and_lock_connection(safe_con)
+    assert validated is safe_con
+
+    engine = DuckDBSlicingEngine(connection=safe_con)
+    assert engine.connection is safe_con
+
+    table = engine.table_from_statcan(sample_statcan_result)
+    records, _ = engine.slice_table(table, limit=2)
+    assert len(records) == 2
+
+
+def test_caller_supplied_locked_unsafe_connection_fails_loud() -> None:
+    """A connection pre-locked with enable_external_access=True cannot be secured."""
+    unsafe_locked_con = duckdb.connect(
+        ":memory:",
+        config={
+            "enable_external_access": True,
+            "lock_configuration": True,
+        },
+    )
+    with pytest.raises(
+        DuckDBSecurityError,
+        match="locked with enable_external_access=True",
+    ):
+        DuckDBSlicingEngine(connection=unsafe_locked_con)
+
+
+def test_caller_supplied_file_backed_database_fails_loud(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    """A caller-supplied connection to an on-disk database violates Rule 7 and must fail loud."""
+    db_path = str(tmp_path) + "/test_disk.duckdb"
+    disk_con = duckdb.connect(db_path)
+    try:
+        with pytest.raises(
+            DuckDBSecurityError,
+            match="file-backed database.*Rule 7 requires in-memory only",
+        ):
+            DuckDBSlicingEngine(connection=disk_con)
+    finally:
+        disk_con.close()
+
+
+def test_caller_supplied_attached_file_database_fails_loud(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    """A connection with an attached file-backed database violates Rule 7 and must fail loud."""
+    attached_path = str(tmp_path) + "/attached.duckdb"
+    con = duckdb.connect(":memory:")
+    con.execute(f"ATTACH '{attached_path}' AS external_store")
+    try:
+        with pytest.raises(
+            DuckDBSecurityError,
+            match="file-backed database.*Rule 7 requires in-memory only",
+        ):
+            DuckDBSlicingEngine(connection=con)
+    finally:
+        con.close()
+
+
+def test_caller_supplied_invalid_connection_type_rejected() -> None:
+    """Supplying non-duckdb connection objects raises TypeError."""
+    with pytest.raises(TypeError, match="expected duckdb.DuckDBPyConnection, got str"):
+        DuckDBSlicingEngine(connection="not_a_connection")  # pyright: ignore[reportArgumentType]
+
+    with pytest.raises(TypeError, match="expected duckdb.DuckDBPyConnection, got dict"):
+        DuckDBSlicingEngine(connection={"connection": True})  # pyright: ignore[reportArgumentType]
+
+
+def test_caller_supplied_closed_connection_fails_loud() -> None:
+    """Supplying a closed connection raises DuckDBSecurityError."""
+    closed_con = duckdb.connect(":memory:")
+    closed_con.close()
+    with pytest.raises(DuckDBSecurityError, match="unusable or closed"):
+        DuckDBSlicingEngine(connection=closed_con)
+
+
+def test_require_prelocked_mode() -> None:
+    """When require_prelocked=True, unlocked connections are rejected even if in-memory."""
+    unlocked_con = duckdb.connect(":memory:")
+    with pytest.raises(DuckDBSecurityError, match="not pre-locked"):
+        DuckDBSlicingEngine(connection=unlocked_con, require_prelocked=True)
+
+    prelocked_con = duckdb.connect(
+        ":memory:",
+        config={
+            "enable_external_access": False,
+            "lock_configuration": True,
+        },
+    )
+    engine = DuckDBSlicingEngine(connection=prelocked_con, require_prelocked=True)
+    assert engine.connection is prelocked_con
+
+
+def test_adversarial_queries_blocked_on_caller_supplied_connection(
+    sample_statcan_result: StatCanSeriesResult,
+) -> None:
+    """Adversarial queries (SET, PRAGMA, ATTACH, COPY, table functions) are strictly blocked."""
+    raw_con = duckdb.connect(":memory:")
+    engine = DuckDBSlicingEngine(connection=raw_con)
+    table = engine.table_from_statcan(sample_statcan_result)
+
+    # 1. Blocked via query syntax check / regex defense
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(table, "SELECT * FROM series; SET enable_external_access = true")
+
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(
+            table, "SELECT * FROM series; PRAGMA enable_external_access = true"
+        )
+
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(table, "SELECT * FROM series; ATTACH 'malicious.db'")
+
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(table, "SELECT * FROM series; EXPORT DATABASE 'out'")
+
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(table, "SELECT * FROM series; CHECKPOINT")
+
+    with pytest.raises(ValueError, match="forbidden SQL statements or keywords"):
+        engine.execute_analytics(table, "SELECT * FROM series; VACUUM")
+
+    # 2. Blocked via driver-level lockdown on table functions
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_parquet('test.parquet')")
+
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_json('test.json')")
+
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_blob('test.bin')")
+
+    # Remote URL / httpfs access is also blocked by driver-level disabled file system operations
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.execute_analytics(table, "SELECT * FROM read_csv('http://evil.com/payload.csv')")
+
+    # 3. Direct execution on underlying connection is blocked by configuration lock
+    with pytest.raises(duckdb.InvalidInputException, match="the configuration has been locked"):
+        engine.connection.execute("SET enable_external_access = true")
+
+    with pytest.raises(duckdb.InvalidInputException, match="the configuration has been locked"):
+        engine.connection.execute("PRAGMA enable_external_access = true")
+
+    with pytest.raises(duckdb.PermissionException, match="file system operations are disabled"):
+        engine.connection.execute("ATTACH 'steal.db'")
+
+
+def test_slice_statcan_annual_series_multi_year_range(engine: DuckDBSlicingEngine) -> None:
+    """GT-05: Annual series (e.g. v42127955) sliced with 2024 to 2025 returns both years.
+
+    Verifies Rule 8 temporal boundary normalization for annual series (YYYY).
+    """
+    obs = (
+        StatCanObservation(
+            ref_per="2023",
+            value=25000.0,
+            decimals=0,
+            release_time="2024-01-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=1,  # Annual
+        ),
+        StatCanObservation(
+            ref_per="2024",
+            value=27800.0,
+            decimals=0,
+            release_time="2025-01-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=1,
+        ),
+        StatCanObservation(
+            ref_per="2025",
+            value=26087.0,
+            decimals=0,
+            release_time="2026-01-15T08:30",
+            scalar_factor_code=0,
+            frequency_code=1,
+        ),
+    )
+    envelope = CitationEnvelope(
+        publisher="Statistics Canada",
+        core=CoreVerificationTuple(
+            table_id="34-10-0134-01",
+            vector_id="v42127955",
+            reference_period="2025",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate="1.1",
+            release_or_revision_date="2026-01-15T08:30",
+            bilingual_title=BilingualTitle(
+                en="Housing starts in selected census metropolitan areas",
+                fr="Mises en chantier dans certaines régions métropolitaines",
+            ),
+            canonical_url="https://statcan.gc.ca",
+        ),
+    )
+    res = MagicMock(spec=StatCanSeriesResult)
+    res.table_id = "34-10-0134-01"
+    res.coordinate = "1.1"
+    res.vector_id = 42127955
+    res.title_en = "Housing starts"
+    res.title_fr = "Mises en chantier"
+    res.unit = "Units"
+    res.unit_code = 1
+    res.series_title_en = "Toronto, Ontario; Housing starts; Total units"
+    res.series_title_fr = "Toronto, Ontario; Mises en chantier; Total"
+    res.observations = obs
+    res.fetched_at = "2026-02-01T10:00:00Z"
+    res.citation.return_value = envelope
+
+    # Slicing for both 2024 and 2025
+    payload_both = engine.slice_statcan(res, start_date="2024", end_date="2025")
+    assert payload_both["returned_count"] == 2
+    dates = [row["date"] for row in payload_both["data"]]
+    # Data is ordered DESC
+    assert dates == ["2025", "2024"]
+    values = [row["value"] for row in payload_both["data"]]
+    assert values == [26087.0, 27800.0]
+
+    # Slicing only 2025 (e.g. single-period fetch bug) returns only 1
+    payload_single = engine.slice_statcan(res, start_date="2025", end_date="2025")
+    assert payload_single["returned_count"] == 1
+    assert payload_single["data"][0]["date"] == "2025"
+    assert payload_single["data"][0]["value"] == 26087.0

@@ -607,6 +607,110 @@ async def test_graph_compares_two_series_and_verifies_both(saver: AsyncSqliteSav
         assert len(planner.questions) == turn
 
 
+def annual_starts_series(include_prior: bool = True) -> StatCanSeriesResult:
+    """Annual housing starts for Toronto CMA (v42127955).
+
+    Table 34-10-0134-01 publishes annual totals directly (26,087 for 2025; 37,718 for 2024).
+    """
+    obs = [Observation("2025-01-01", 26087.0, 0, "2026-01-21T08:30", 0, 12, 0, 0)]
+    if include_prior:
+        obs.insert(0, Observation("2024-01-01", 37718.0, 0, "2025-01-22T08:30", 0, 12, 0, 0))
+    return StatCanSeriesResult(
+        product_id=34100134,
+        coordinate="23.1.0.0.0.0.0.0.0.0",
+        vector_id=42127955,
+        title_en="CMHC housing starts, under construction and completions, annual",
+        title_fr=None,
+        frequency_code=12,
+        unit="Units",
+        observations=tuple(obs),
+        fetched_at="2026-11-02T00:00:00+00:00",
+    )
+
+
+async def test_graph_executes_gt05_comparison_both_years_and_flags_missing_prior(
+    saver: AsyncSqliteSaver,
+) -> None:
+    """Full-lifecycle execution of GT-05 live-shaped plan per Rule 26.
+
+    1. Multi-turn invocation: Turn 1 executes live plan loading both 2024 and 2025;
+       Turn 2 executes plan with missing 2024 prior year and asserts warning flag.
+    2. Checkpointer roundtrip: State, messages, and SQLArtifacts persist accurately.
+    3. History replay: Checkpoint state history can be retrieved chronologically.
+    """
+    # Series with both years present
+    statcan_both = FakeStatCan(annual_starts_series(include_prior=True))
+    plan_both = draft(
+        ("fetch_statcan_vector", {"vector_id": "v42127955", "start": "2024", "end": "2025"}),
+        ("yoy_point_to_point", {"lag": 1, "interval_years": 1}),
+        objective="Toronto CMA housing starts, 2025 vs 2024",
+    )
+
+    # Series with only 2025 (missing prior year)
+    statcan_missing = FakeStatCan(annual_starts_series(include_prior=False))
+    plan_missing = draft(
+        ("fetch_statcan_vector", {"vector_id": "v42127955", "start": "2025", "end": "2025"}),
+        ("yoy_point_to_point", {"lag": 1, "interval_years": 1}),
+        objective="Toronto CMA housing starts, 2025 vs 2024 (missing prior)",
+    )
+
+    planner = ScriptedPlanner(planned(plan_both), planned(plan_missing))
+
+    # We create a composite statcan dispatcher to answer both calls
+    class MultiStatCan:
+        def __init__(self) -> None:
+            self.turn = 0
+            self.calls: list[tuple[str, str, str | None]] = []
+
+        async def get_data_by_reference_period(
+            self, vector_id: int | str, start: str, end: str | None = None
+        ) -> StatCanSeriesResult:
+            self.calls.append((str(vector_id), start, end))
+            if start.startswith("2024"):
+                return await statcan_both.get_data_by_reference_period(vector_id, start, end)
+            return await statcan_missing.get_data_by_reference_period(vector_id, start, end)
+
+    statcan = MultiStatCan()
+    app = build_agent_graph(planner=planner, statcan=statcan, valet=FakeValet(), checkpointer=saver)
+    config = {"configurable": {"thread_id": "gt05_live"}}
+
+    # Turn 1: Live-shaped plan loading both 2024 and 2025
+    turn1 = await app.ainvoke(
+        {"session_id": "s_gt05", "thread_id": "gt05_live", "messages": (user(GT05_QUESTION),)},
+        config,
+    )
+    artifact1 = turn1["sql_artifacts"][-1]
+    rows1 = artifact1.rows
+    assert len(rows1) == 2
+    row_2025 = rows1[0]
+    assert row_2025["obs_date"] == "2025-01-01"
+    assert row_2025["current_value"] == 26087.0
+    assert row_2025["lag_value"] == 37718.0
+    assert row_2025["change_pct"] == pytest.approx(-30.8367, abs=0.01)
+    assert row_2025.get("warning") is None
+    assert artifact1.warnings == ()
+    assert turn1["verification"]["passed"] is True
+
+    # Turn 2: Question with missing prior year on the same thread (asserting reducer merge)
+    turn2 = await app.ainvoke({"messages": (user(GT05_QUESTION),)}, config)
+    artifact2 = turn2["sql_artifacts"][-1]
+    rows2 = artifact2.rows
+    assert len(rows2) == 1
+    assert rows2[0]["current_value"] == 26087.0
+    assert rows2[0]["lag_value"] is None
+    assert rows2[0]["change_pct"] is None
+    # Verifies that recipe row contains the warning and bubbled up to artifact
+    assert "Missing prior period value for comparison" in str(rows2[0]["warning"])
+    assert any("Missing prior period value for comparison" in w for w in artifact2.warnings)
+    # Checkpointer state roundtrip check
+    assert len(turn2["sql_artifacts"]) == 2
+    assert len([m for m in turn2["messages"] if m.role is MessageRole.USER]) == 2
+
+    # Verify state history per Rule 26
+    history = [s async for s in app.aget_state_history(config)]
+    assert len(history) >= 2
+
+
 def _august_2026_change(rows: tuple[dict[str, Any], ...]) -> float:
     (row,) = [r for r in rows if str(r["obs_date"]).startswith("2026-08")]
     return float(row["change_pct"])
@@ -678,6 +782,114 @@ async def test_forked_thread_continues_with_the_graph(saver: AsyncSqliteSaver) -
 
     original = (await app.aget_state(t1)).values
     assert len([m for m in original["messages"] if m.role is MessageRole.USER]) == 2
+
+
+async def test_graph_real_wage_change_m3_end_to_end(saver: AsyncSqliteSaver) -> None:
+    """Issue 101 / M3 / Rule 26: Full graph lifecycle executing real wage change & spread.
+
+    Tests multi-turn invocation on the same thread, checkpointer state roundtrip,
+    Two-Tier Citation Envelope verification, and prevention of bogus -150.8 pp spread.
+    """
+    m3_question = (
+        "How have average hourly wages for workers aged 15 to 24 in Alberta changed since "
+        "2019 after adjusting for inflation?"
+    )
+    # v2293021: Alberta youth wages (all 7 years 2019-2025, Canadian dollars)
+    wage_obs = (
+        Observation("2019-01-01", 19.44, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2020-01-01", 19.80, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2021-01-01", 20.10, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2022-01-01", 20.40, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2023-01-01", 20.60, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2024-01-01", 20.88, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2025-01-01", 21.40, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+    )
+    wage_series = StatCanSeriesResult(
+        product_id=14100064,
+        coordinate="1.1.1.1.0.0.0.0.0.0",
+        vector_id=2293021,
+        title_en="Alberta average hourly wage rate, 15 to 24 years",
+        title_fr=None,
+        frequency_code=1,
+        unit="Canadian dollars",
+        observations=wage_obs,
+        fetched_at="2026-11-03T00:00:00+00:00",
+    )
+    # v41694625: Alberta CPI (all 7 years 2019-2025, 2002=100)
+    cpi_obs = (
+        Observation("2019-01-01", 143.1, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2020-01-01", 144.5, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2021-01-01", 149.2, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2022-01-01", 158.8, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2023-01-01", 164.1, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2024-01-01", 168.9, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+        Observation("2025-01-01", 172.2, 0, "2026-01-15T08:30", 0, 1, 0, 0),
+    )
+    cpi_series_res = StatCanSeriesResult(
+        product_id=18100005,
+        coordinate="1.1.0.0.0.0.0.0.0.0",
+        vector_id=41694625,
+        title_en="Consumer Price Index, Alberta",
+        title_fr=None,
+        frequency_code=1,
+        unit="2002=100",
+        observations=cpi_obs,
+        fetched_at="2026-11-03T00:00:00+00:00",
+    )
+
+    statcan = FakeStatCan(wage_series, cpi_series_res)
+
+    # Valid plan using real_wage_change recipe
+    m3_plan = draft(
+        (
+            "fetch_statcan_vector",
+            {"vector_id": "v2293021", "start": "2019", "end": "2025", "into": "table_a"},
+        ),
+        (
+            "fetch_statcan_vector",
+            {"vector_id": "v41694625", "start": "2019", "end": "2025", "into": "table_b"},
+        ),
+        ("real_wage_change", {}),
+    )
+
+    planner = ScriptedPlanner(planned(m3_plan), planned(m3_plan))
+    app = build_agent_graph(planner=planner, statcan=statcan, valet=FakeValet(), checkpointer=saver)
+    config = {"configurable": {"thread_id": "m3_real_wage"}}
+
+    # Turn 1: Execute graph
+    first = await app.ainvoke(
+        {"session_id": "s_m3", "thread_id": "m3_real_wage", "messages": (user(m3_question),)},
+        config,
+    )
+    assert first["plan"].completed
+    assert first["verification"]["passed"] is True
+    # Assert both vectors verified
+    verified_vectors = sorted(
+        v["claim"]["citation"]["core"]["vector_id"] for v in first["verification"]["verdicts"]
+    )
+    assert verified_vectors == ["v2293021", "v41694625"]
+
+    # Verify calculation output (cumulative 2019 -> 2025 across all 7 years)
+    artifact = first["sql_artifacts"][-1]
+    assert len(artifact.rows) == 7
+    assert sorted(c.core.vector_id for c in artifact.citations) == ["v2293021", "v41694625"]
+    r_2025 = [r for r in artifact.rows if str(r["obs_date"]).startswith("2025")][0]
+    assert r_2025["wage"] == 21.40
+    assert r_2025["cpi"] == 172.2
+    assert r_2025["nominal_wage_change_pct"] == pytest.approx(10.0823, rel=1e-3)
+    assert r_2025["cpi_inflation_pct"] == pytest.approx(20.3354, rel=1e-3)
+    assert r_2025["spread_pp"] == pytest.approx(-10.2531, rel=1e-3)
+    assert r_2025["real_wage_change_pct"] == pytest.approx(-8.5205, rel=1e-3)
+    # Ensure raw -150.8 level subtraction and 1-year lag (+0.53%) NEVER happen
+    assert r_2025["spread_pp"] != pytest.approx(-150.8, abs=1.0)
+    assert r_2025["real_wage_change_pct"] != pytest.approx(0.5263, abs=0.1)
+
+    # Turn 2: Repeat query on same thread (Rule 26: multi-turn invocation & state retention)
+    second = await app.ainvoke({"messages": (user(m3_question),)}, config)
+    assert second["plan"].completed
+    assert second["verification"]["passed"] is True
+    assert len(second["sql_artifacts"]) >= 2
+    assert len(planner.questions) == 2
 
 
 # ---------------------------------------------------------------------------------------------

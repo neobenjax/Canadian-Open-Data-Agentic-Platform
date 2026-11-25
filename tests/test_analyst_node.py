@@ -18,6 +18,7 @@ from candata_agent.analyst import (
     discrete_regime_change_counter,
     multi_year_cagr,
     percentage_point_spread,
+    real_wage_change,
     validate_sql_security,
     yoy_point_to_point,
 )
@@ -151,19 +152,176 @@ def test_yoy_point_to_point_recipe() -> None:
 
 def test_percentage_point_spread_recipe() -> None:
     """Rate spread calculates difference in percentage points and basis points (GT-02)."""
-    table_a = pa.Table.from_pydict({"date": ["2025", "2023"], "value": [3.0, 1.4]})
-    table_b = pa.Table.from_pydict({"date": ["2025", "2023"], "value": [1.4, 1.4]})
+    table_a = pa.Table.from_pydict(
+        {"date": ["2025", "2023"], "value": [3.0, 1.4]},
+        metadata={b"unit": b"Percent"},
+    )
+    table_b = pa.Table.from_pydict(
+        {"date": ["2025", "2023"], "value": [1.4, 1.4]},
+        metadata={b"unit": b"Percent"},
+    )
 
-    rows, _ = percentage_point_spread(
+    artifact = percentage_point_spread(
         table_a,
         table_b,
         series_a_name="rate_2025",
         series_b_name="rate_2023",
     )
+    rows = artifact.rows
     assert len(rows) == 2
     row_2025 = rows[0]
     assert row_2025["spread_pp"] == 1.6
     assert row_2025["spread_bps"] == 160.0
+
+
+def test_percentage_point_spread_fails_loud_on_raw_levels() -> None:
+    """Issue 101: percentage_point_spread fails loud when inputs are raw levels (wage $ vs CPI)."""
+    # Alberta youth wages: $21.40 (dollars)
+    wage_tbl = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [21.40]},
+        metadata={b"unit": b"Canadian dollars", b"vector_id": b"v2293021"},
+    )
+    # Alberta CPI: 172.2 (2002=100)
+    cpi_tbl = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [172.2]},
+        metadata={b"unit": b"2002=100", b"vector_id": b"v41694625"},
+    )
+
+    with pytest.raises(ValueError, match="requires rate or percentage inputs"):
+        percentage_point_spread(wage_tbl, cpi_tbl)
+
+    # Even if only one is incompatible (e.g. rate minus index)
+    rate_tbl = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [5.0]},
+        metadata={b"unit": b"Percent", b"vector_id": b"v111"},
+    )
+    with pytest.raises(ValueError, match="requires rate or percentage inputs"):
+        percentage_point_spread(rate_tbl, cpi_tbl)
+
+    # One input is 'Percent' and the other is an unknown non-rate unit (e.g. 'CustomUnit')
+    custom_tbl = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [10.0]},
+        metadata={b"unit": b"CustomUnit", b"vector_id": b"v999"},
+    )
+    with pytest.raises(ValueError, match="requires rate or percentage inputs"):
+        percentage_point_spread(rate_tbl, custom_tbl)
+
+    # Unlabeled table with raw level column 'value' fails loud against Percent
+    unlabeled_raw_tbl = pa.Table.from_pydict(
+        {"date": ["2025"], "value": [100.0]},
+    )
+    with pytest.raises(ValueError, match="requires rate or percentage inputs"):
+        percentage_point_spread(rate_tbl, unlabeled_raw_tbl)
+
+
+def test_percentage_point_spread_supports_change_pct_columns() -> None:
+    """Issue 101: percentage_point_spread computes spread from two change_pct series."""
+    # Wage growth: +10.0823%
+    wage_chg = pa.Table.from_pydict(
+        {"date": ["2025"], "change_pct": [10.0823]},
+        metadata={b"unit": b"Canadian dollars", b"vector_id": b"v2293021"},
+    )
+    # CPI inflation: +20.3354%
+    cpi_chg = pa.Table.from_pydict(
+        {"date": ["2025"], "change_pct": [20.3354]},
+        metadata={b"unit": b"2002=100", b"vector_id": b"v41694625"},
+    )
+
+    artifact = percentage_point_spread(
+        wage_chg,
+        cpi_chg,
+        series_a_name="wage_growth",
+        series_b_name="cpi_inflation",
+    )
+    rows = artifact.rows
+    assert len(rows) == 1
+    # Spread should be 10.0823 - 20.3354 = -10.2531 pp
+    assert rows[0]["spread_pp"] == pytest.approx(-10.2531, rel=1e-3)
+    assert rows[0]["spread_bps"] == pytest.approx(-1025.3, rel=1e-2)
+
+
+def test_real_wage_change_recipe() -> None:
+    """Issue 101: real_wage_change computes wage growth, inflation, spread, and real change."""
+    # 2019 to 2025 Alberta youth wages: $19.44 -> $21.40 (+10.0823%)
+    wage_tbl = pa.Table.from_pydict(
+        {"date": ["2019", "2025"], "value": [19.44, 21.40]},
+        metadata={b"unit": b"Canadian dollars", b"vector_id": b"v2293021"},
+    )
+    # 2019 to 2025 Alberta CPI: 143.1 -> 172.2 (+20.3354%)
+    cpi_tbl = pa.Table.from_pydict(
+        {"date": ["2019", "2025"], "value": [143.1, 172.2]},
+        metadata={b"unit": b"2002=100", b"vector_id": b"v41694625"},
+    )
+
+    artifact = real_wage_change(wage_tbl, cpi_tbl)
+    rows = artifact.rows
+    assert len(rows) == 2
+    r_2025 = [r for r in rows if r["obs_date"] == "2025"][0]
+    assert r_2025["nominal_wage_change_pct"] == pytest.approx(10.0823, rel=1e-3)
+    assert r_2025["cpi_inflation_pct"] == pytest.approx(20.3354, rel=1e-3)
+    assert r_2025["spread_pp"] == pytest.approx(-10.2531, rel=1e-3)
+    assert r_2025["real_wage_change_pct"] == pytest.approx(-8.5205, rel=1e-3)
+
+
+def test_real_wage_change_seven_years_cumulative() -> None:
+    """PR #107 review: 7-year series computes cumulative change since 2019, not 1-year lag."""
+    dates = [f"{y}-01-01" for y in range(2019, 2026)]
+    wages = [19.44, 19.80, 20.10, 20.40, 20.60, 20.88, 21.40]
+    cpis = [143.1, 144.5, 149.2, 158.8, 164.1, 168.9, 172.2]
+
+    wage_tbl = pa.Table.from_pydict({"date": dates, "value": wages})
+    cpi_tbl = pa.Table.from_pydict({"date": dates, "value": cpis})
+
+    artifact = real_wage_change(wage_tbl, cpi_tbl)
+    assert artifact.row_count == 7
+    r_2025 = artifact.rows[0]
+    assert r_2025["obs_date"] == "2025-01-01"
+    assert r_2025["base_obs_date"] == "2019-01-01"
+    # Cumulative 2019 -> 2025, NOT 2024 -> 2025 (+0.5263%)
+    assert r_2025["nominal_wage_change_pct"] == pytest.approx(10.0823, rel=1e-3)
+    assert r_2025["cpi_inflation_pct"] == pytest.approx(20.3354, rel=1e-3)
+    assert r_2025["spread_pp"] == pytest.approx(-10.2531, rel=1e-3)
+    assert r_2025["real_wage_change_pct"] == pytest.approx(-8.5205, rel=1e-3)
+
+    # Base period row has 0.0 cumulative change
+    r_2019 = artifact.rows[-1]
+    assert r_2019["obs_date"] == "2019-01-01"
+    assert r_2019["real_wage_change_pct"] == 0.0
+
+
+def test_real_wage_change_explicit_base_date_and_edge_cases() -> None:
+    """Test explicit base_date, missing base_date, mixed date formats, zero base, empty overlap."""
+    dates_w = ["2019", "2020", "2025"]
+    dates_c = ["2019-01-01", "2020-01-01", "2025-01-01"]
+    wage_tbl = pa.Table.from_pydict({"date": dates_w, "value": [19.44, 20.00, 21.40]})
+    cpi_tbl = pa.Table.from_pydict({"date": dates_c, "value": [143.1, 150.0, 172.2]})
+
+    # Mixed date formats ('2019' vs '2019-01-01') + explicit base_date='2020'
+    art = real_wage_change(wage_tbl, cpi_tbl, base_date="2020")
+    assert art.row_count == 2  # 2025 and 2020 (>= base_date)
+    r_2025 = art.rows[0]
+    assert r_2025["obs_date"] == "2025"
+    assert r_2025["base_obs_date"] == "2020"
+    assert r_2025["nominal_wage_change_pct"] == pytest.approx(7.0, rel=1e-3)
+
+    # Missing base_date raises ValueError
+    with pytest.raises(ValueError, match="Base period '2018' not found"):
+        real_wage_change(wage_tbl, cpi_tbl, base_date="2018")
+
+    # Zero base value yields None instead of division-by-zero
+    zero_wage = pa.Table.from_pydict({"date": ["2019", "2025"], "value": [0.0, 21.40]})
+    zero_cpi = pa.Table.from_pydict({"date": ["2019", "2025"], "value": [143.1, 172.2]})
+    zero_art = real_wage_change(zero_wage, zero_cpi)
+    assert zero_art.rows[0]["nominal_wage_change_pct"] is None
+    assert zero_art.rows[0]["real_wage_change_pct"] is None
+
+    # Empty overlap yields 0 rows cleanly
+    empty_art = real_wage_change(
+        pa.Table.from_pydict({"date": ["2019"], "value": [19.44]}),
+        pa.Table.from_pydict({"date": ["2025"], "value": [172.2]}),
+    )
+    assert empty_art.row_count == 0
+    assert empty_art.rows == ()
 
 
 def test_affordability_burden_ratio_recipe() -> None:
@@ -520,3 +678,169 @@ async def test_sandboxed_duckdb_timeout_interruption() -> None:
                 ),
                 timeout_seconds=0.1,
             )
+
+
+@pytest.mark.asyncio
+async def test_yoy_point_to_point_missing_prior_period_warning() -> None:
+    """A comparison recipe whose prior value (lag_value) is missing bubbles up a warning."""
+    # Table with only 1 observation (no prior period)
+    table = pa.Table.from_pydict({"date": ["2025"], "value": [26087.0]})
+    rows, _ = yoy_point_to_point(table)
+    assert len(rows) == 1
+    assert rows[0]["current_value"] == 26087.0
+    assert rows[0]["lag_value"] is None
+    assert rows[0]["change_pct"] is None
+    assert "Missing prior period value for comparison" in str(rows[0]["warning"])
+
+    # Test execution through Data Analyst node with single observation
+    step = PlanStep(
+        step_id=1,
+        description="Compare 2025 housing starts",
+        assigned_agent="data_analyst",
+        tool_name="yoy_point_to_point",
+        tool_args={
+            "series_id": "v42127955",
+            "table": [{"date": "2025", "value": 26087.0}],
+        },
+    )
+    plan = QueryPlan(objective="Compare starts", steps=(step,), active_step_id=1)
+    state = AgentState(session_id="s1", thread_id="t1", plan=plan)
+
+    delta = await data_analyst_node(state)
+    assert "sql_artifacts" in delta
+    artifact = delta["sql_artifacts"][0]
+    assert any("Missing prior period value for comparison" in w for w in artifact.warnings)
+
+
+@pytest.mark.asyncio
+async def test_yoy_point_to_point_partial_comparison_warning() -> None:
+    """A multi-row comparison where target row (rows[0]) lacks lag_value is flagged."""
+    # 2025 and 2023 present, but 2024 is missing (so 2025 has no prior year)
+    step = PlanStep(
+        step_id=1,
+        description="Compare 2025 vs 2023 housing starts with gap",
+        assigned_agent="data_analyst",
+        tool_name="yoy_point_to_point",
+        tool_args={
+            "series_id": "v42127955",
+            "table": [
+                {"date": "2025", "value": 26087.0},
+                {"date": "2023", "value": 27000.0},
+                {"date": "2022", "value": 25000.0},
+            ],
+        },
+    )
+    plan = QueryPlan(objective="Compare starts", steps=(step,), active_step_id=1)
+    state = AgentState(session_id="s1", thread_id="t1", plan=plan)
+
+    delta = await data_analyst_node(state)
+    assert "sql_artifacts" in delta
+    artifact = delta["sql_artifacts"][0]
+    # In this dataset: 2025 has no 2024 (lag_value=None), 2023 has 2022.
+    # Because rows[0] (2025) has lag_value=None, the analyst node MUST bubble up the warning!
+    assert any("Missing prior period value for comparison" in w for w in artifact.warnings)
+
+    # Conversely, a valid comparison where rows[0] (2025) HAS lag_value (from 2024),
+    # but baseline 2024 has lag_value=None, does NOT bubble up a warning.
+    valid_step = PlanStep(
+        step_id=2,
+        description="Compare 2025 vs 2024 housing starts",
+        assigned_agent="data_analyst",
+        tool_name="yoy_point_to_point",
+        tool_args={
+            "series_id": "v42127955",
+            "table": [
+                {"date": "2025", "value": 26087.0},
+                {"date": "2024", "value": 27800.0},
+            ],
+        },
+    )
+    valid_plan = QueryPlan(objective="Compare starts", steps=(valid_step,), active_step_id=2)
+    valid_state = AgentState(session_id="s2", thread_id="t2", plan=valid_plan)
+    valid_delta = await data_analyst_node(valid_state)
+    valid_artifact = valid_delta["sql_artifacts"][0]
+    assert not any(
+        "Missing prior period value for comparison" in w for w in valid_artifact.warnings
+    )
+
+
+@pytest.mark.asyncio
+async def test_real_wage_change_validate_plan_dual_citations() -> None:
+    """PR #107 review: validate_plan binds cpi_series_id and node resolves both Tier 1 citations."""
+    import json
+
+    from candata_agent.supervisor.registry import DraftStep, PlanDraft, validate_plan
+
+    wage_cit = CitationEnvelope(
+        publisher="StatCan",
+        core=CoreVerificationTuple(
+            table_id="14-10-0064-01",
+            vector_id="v2293021",
+            reference_period="2025",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate="1.1.1.1.0.0.0.0.0.0",
+            release_or_revision_date="2026-01-15",
+            bilingual_title=BilingualTitle(en="Alberta youth wages", fr=None),
+            canonical_url="https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1410006401",
+        ),
+    )
+    cpi_cit = CitationEnvelope(
+        publisher="StatCan",
+        core=CoreVerificationTuple(
+            table_id="18-10-0005-01",
+            vector_id="v41694625",
+            reference_period="2025",
+        ),
+        enrichment=MetadataEnrichment(
+            coordinate="1.1.0.0.0.0.0.0.0.0",
+            release_or_revision_date="2026-01-15",
+            bilingual_title=BilingualTitle(en="Alberta CPI", fr=None),
+            canonical_url="https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000501",
+        ),
+    )
+
+    draft = PlanDraft(
+        objective="Real wage change since 2019",
+        steps=(
+            DraftStep(
+                tool="fetch_statcan_vector",
+                args_json=json.dumps(
+                    {"vector_id": "v2293021", "start": "2019", "end": "2025", "into": "table_a"}
+                ),
+                description="Fetch wages",
+            ),
+            DraftStep(
+                tool="fetch_statcan_vector",
+                args_json=json.dumps(
+                    {"vector_id": "v41694625", "start": "2019", "end": "2025", "into": "table_b"}
+                ),
+                description="Fetch CPI",
+            ),
+            DraftStep(
+                tool="real_wage_change",
+                args_json="{}",
+                description="Compute real wage change",
+            ),
+        ),
+    )
+    plan = validate_plan(draft)
+    step = plan.steps[2]
+    assert step.tool_args["series_id"] == "v2293021"
+    assert step.tool_args["cpi_series_id"] == "v41694625"
+
+    state = AgentState(
+        session_id="s_rw",
+        thread_id="t_rw",
+        plan=plan.model_copy(update={"active_step_id": step.step_id}),
+        scratchpad={
+            "table_a": [{"date": "2019", "value": 19.44}, {"date": "2025", "value": 21.40}],
+            "table_a_source": "v2293021",
+            "table_b": [{"date": "2019", "value": 143.1}, {"date": "2025", "value": 172.2}],
+            "table_b_source": "v41694625",
+        },
+        citations=(wage_cit, cpi_cit),
+    )
+    delta = await data_analyst_node(state)
+    assert delta["plan"].steps[2].status == StepStatus.COMPLETED
+    assert delta["sql_artifacts"][0].citations == (wage_cit, cpi_cit)
