@@ -6,6 +6,7 @@ import json
 from unittest.mock import MagicMock
 
 import duckdb
+import pydantic_core
 import pytest
 
 from candata_mcp.citation import (
@@ -209,6 +210,153 @@ def test_payload_clamp_immutability(engine: DuckDBSlicingEngine) -> None:
     clamped = engine.clamp_payload(payload, max_bytes=50)
     assert clamped is not payload
     assert len(payload["data"]) == 2  # Original remains unmutated
+
+
+def test_payload_clamp_hard_fallback_oversized_title(engine: DuckDBSlicingEngine) -> None:
+    """Oversized 5KB+ title string triggers hard byte truncation fallback."""
+    oversized_title = "Rapport économique sur l'inflation et le logement au Canada: " + (
+        "éàçôù " * 1000
+    )
+    payload = {
+        "source": "Statistics Canada",
+        "title": {"en": "Short Title", "fr": oversized_title},
+        "returned_count": 0,
+        "data": [],
+        "citation": {"publisher": "Statistics Canada"},
+        "summary": {"count": 0},
+    }
+    raw_bytes = len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    assert raw_bytes > 5000
+
+    clamped = engine.clamp_payload(payload, max_bytes=MAX_PAYLOAD_BYTES)
+    clamped_bytes = len(json.dumps(clamped, ensure_ascii=False).encode("utf-8"))
+    assert clamped_bytes <= MAX_PAYLOAD_BYTES
+    assert clamped.get("truncated") is True
+    # Ensure UTF-8 multi-byte decoding is clean and valid
+    json_str = json.dumps(clamped, ensure_ascii=False)
+    assert isinstance(json_str, str)
+
+
+def test_payload_clamp_nested_metadata_and_escaping_expansion(
+    engine: DuckDBSlicingEngine,
+) -> None:
+    """Test deeply nested metadata and JSON escaping expansion (quotes, slashes, newlines)."""
+    tricky_string = '\\"\\\n\t\r\\/' * 300
+    payload = {
+        "source": "Bank of Canada",
+        "nested": {
+            "level1": {
+                "level2": {
+                    "heavy_text": tricky_string,
+                    "french_unicode": "Élévation de l'indice des prix à la consommation " * 50,
+                }
+            }
+        },
+        "citation": {"publisher": "Bank of Canada"},
+        "data": [{"date": "2024-01-01", "value": 1.5}],
+    }
+    clamped = engine.clamp_payload(payload, max_bytes=1000)
+    clamped_bytes = len(json.dumps(clamped, ensure_ascii=False).encode("utf-8"))
+    assert clamped_bytes <= 1000
+    assert clamped.get("truncated") is True
+
+
+def test_payload_clamp_sub_minimum_and_tiny_budgets(engine: DuckDBSlicingEngine) -> None:
+    """Sub-minimum budgets fail loud with PAYLOAD_TOO_LARGE while preserving citation."""
+    payload = {
+        "source": "Statistics Canada",
+        "title": "A" * 200,
+        "citation": {
+            "publisher": "StatCan",
+            "core": {
+                "table_id": "18-10-0004-01",
+                "vector_id": "v41690973",
+                "reference_period": "2025-10",
+            },
+        },
+        "data": [{"a": 1}],
+    }
+
+    for tiny_budget in [100, 50, 25, 10, 2]:
+        clamped = engine.clamp_payload(payload, max_bytes=tiny_budget)
+        assert clamped.get("error_code") == "PAYLOAD_TOO_LARGE"
+        assert clamped.get("truncated") is True
+        assert "error" in clamped
+        assert clamped["citation"]["core"] == payload["citation"]["core"]
+        assert clamped["citation"]["publisher"] == payload["citation"]["publisher"]
+
+    # Budgets under 2 bytes cannot hold valid JSON ({}) and must fail deterministically
+    for invalid_budget in [1, 0, -1]:
+        with pytest.raises(ValueError, match="smaller than minimum valid JSON payload"):
+            engine.clamp_payload(payload, max_bytes=invalid_budget)
+
+
+def test_payload_clamp_preserves_tier1_citation_core_and_publisher_worst_case(
+    engine: DuckDBSlicingEngine,
+) -> None:
+    """Worst-case metadata payload never mutates citation.core or publisher and fits wire size."""
+    payload = {
+        "source": "Statistics Canada",
+        "series_title": "X" * 5000,
+        "metadata_fr": {f"k{i}": f"Valeur française numéro {i} avec texte" for i in range(120)},
+        "citation": {
+            "publisher": "Statistics Canada",
+            "core": {
+                "table_id": "18-10-0004-01",
+                "vector_id": "v41690973",
+                "reference_period": "2025-10",
+            },
+            "enrichment": {
+                "bilingual_title": {
+                    "en": "Consumer Price Index",
+                    "fr": "Indice des prix à la consommation",
+                },
+                "canonical_url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000401",
+            },
+        },
+        "lineage": {"publisher": "Statistics Canada", "steps": ["fetched 12 rows"]},
+        "data": [{"date": f"2025-{m:02d}-01", "value": 100.0 + m} for m in range(1, 13)],
+    }
+
+    clamped = engine.clamp_payload(payload, max_bytes=3000)
+
+    # Wire size (pydantic_core indent=2, matching FastMCP) and compact size must both fit
+    wire_bytes = len(pydantic_core.to_json(clamped, indent=2, fallback=str))
+    compact_bytes = len(json.dumps(clamped, ensure_ascii=False).encode("utf-8"))
+    assert wire_bytes <= 3000
+    assert compact_bytes <= 3000
+    assert clamped.get("truncated") is True
+
+    # Tier 1 citation.core must be byte-identical before and after clamping
+    assert json.dumps(clamped["citation"]["core"], sort_keys=True) == json.dumps(
+        payload["citation"]["core"], sort_keys=True
+    )
+    assert clamped["citation"]["publisher"] == payload["citation"]["publisher"]
+
+
+def test_payload_clamp_stage2_does_not_truncate_long_publisher(
+    engine: DuckDBSlicingEngine,
+) -> None:
+    """Long citation.publisher (>80 chars) is never truncated in Stage 2 or Stage 3."""
+    long_publisher = "Official Canadian Statistical Agency " * 3  # > 80 chars
+    payload = {
+        "source": "Statistics Canada",
+        "series_title": "Y" * 5000,
+        "citation": {
+            "publisher": long_publisher,
+            "core": {
+                "table_id": "18-10-0004-01",
+                "vector_id": "v41690973",
+                "reference_period": "2025-10",
+            },
+            "enrichment": {"canonical_url": "https://example.com/" + "z" * 200},
+        },
+    }
+
+    clamped = engine.clamp_payload(payload, max_bytes=3000)
+    assert len(pydantic_core.to_json(clamped, indent=2, fallback=str)) <= 3000
+    assert clamped["citation"]["publisher"] == long_publisher
+    assert clamped["citation"]["core"] == payload["citation"]["core"]
 
 
 def test_invalid_date_format_rejection(
