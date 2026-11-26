@@ -88,6 +88,34 @@ A follow-up such as "What about Oshawa?" needs the question before it. When the 
 
 A turn that ended in a decline, a failed step or a cancelled clarification leaves no plan, so the next question gets no context. When a follow-up needs a clarification, the context is kept in the scratchpad and used again when the planner plans after the user's choice. A planner that does not take `context` still works until a second question is asked on the same thread.
 
+## Finding archived tables (#103)
+
+In the CAN-35 sessions (question H2), the planner declined to give age-standardized heart disease mortality by province, saying no table publishes it. Three tables do: 13-10-0393-01 (to 2013), 13-10-0396-01 (to 2013) and 13-10-0800-01 (to 2023). All three have every province and "Diseases of heart". The search missed them for two reasons:
+
+- **Word forms.** The question says "age-standardized". The titles say "age standardizing" and "age standardization". The search matched each word as a prefix, so `\bage-standardized` matched neither.
+- **The cause is not in the title.** "Heart" is a member of the cause dimension, so no title search for it can succeed. The planner has to search for the measure and then call `find_members`.
+
+The fix:
+
+- **`search_cubes`** (`statcan_wds.py`) splits terms on hyphens and slashes, and matches -ize/-ise forms by stem and a plural "s". So "age-standardized mortality", "age-standardised mortality rates" and "age standardized mortality rate" all return 13-10-0393-01 and 13-10-0800-01 first. Matching still starts at a word, so "rent" doesn't match "current". Tables whose titles contain the query's exact words rank first, which keeps precise queries ("deaths causes") from being pushed down by the looser match. Each result carries `archived` from the WDS cube list ("1" archived, "2" current). The MCP tool `search_statcan_cubes` returns it too.
+- **The planner** sees `"archived": true` on archived tables. Its prompt now says:
+  - search for the measure, because titles don't name every breakdown;
+  - an archived table is still official data;
+  - when an archived table is the only one with the figure, plan from it and name its last period instead of declining.
+
+Checked against the live catalog (8,263 tables, 2026-11-24):
+
+- "age-standardized mortality" returns 5 tables, with 13-10-0393-01 and 13-10-0800-01 in them. Before the fix it returned 2 tables, neither of them.
+- "deaths causes" has both tables in its first eight.
+- Across 11 common queries (CPI, unemployment rate, housing starts, labour force, GDP and others), the match counts are the same, apart from "population estimates" at 100 instead of 98.
+- Eight of the 11 queries show the same first eight tables. In the other three, exact-word titles moved up. "Consumer price index" now shows 18-10-0010-01 (CPI, seasonally adjusted) instead of 18-10-0003-01 (inter-city indexes).
+
+Tests:
+- `tests/connectors/test_statcan_wds.py` uses the real catalog entries for these tables.
+- `test_planner_search_reaches_archived_mortality_tables_for_h2` in `tests/test_supervisor.py` runs the planner's search tool through the real `search_cubes`.
+
+**Not checked:** a live planner run of H2. Claude may still decline, or choose 13-10-0393-01 over the newer 13-10-0800-01. A rerun of the CAN-35 question with an API key would confirm the change in behaviour.
+
 ## Using it
 
 ```python
