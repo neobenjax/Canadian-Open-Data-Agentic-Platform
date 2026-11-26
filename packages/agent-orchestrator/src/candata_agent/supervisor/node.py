@@ -4,7 +4,7 @@
 Flow for one question:
 
     supervisor --plan--> data_fetcher / data_analyst (one step each, back to supervisor)
-              --plan complete--> citation_verifier --> END
+              --plan complete, or a step failed--> citation_verifier --> END
               --ambiguous term--> human_clarification --interrupt(), resumed--> supervisor
 
 The Supervisor plans once per user message (keyed on the message ID, so asking the same text
@@ -21,7 +21,7 @@ repeats the model call. A new question asked instead of answering replaces the p
 
 Every executor
 marks its step COMPLETED or FAILED and moves ``active_step_id`` on; a FAILED step ends the run
-with the failure in the messages.
+with the failure in the messages, after the series loaded so far are verified (#112).
 """
 
 from __future__ import annotations
@@ -324,9 +324,11 @@ def route_from_supervisor(state: AgentState) -> str:
     if pending is not None and not pending.resolved:
         return HUMAN_CLARIFICATION
     plan = state.plan
-    if plan is None or _failed(plan):
+    if plan is None:
         return END
-    if plan.completed:
+    if plan.completed or _failed(plan):
+        # #112: after a failed step, the series the finished steps used are still verified, so
+        # their results can be shown with a verdict; the failure itself stays in the messages.
         return CITATION_VERIFIER if state.scratchpad.get(RUN_CITATIONS) else END
     step = _active_step(plan)
     if step is None:

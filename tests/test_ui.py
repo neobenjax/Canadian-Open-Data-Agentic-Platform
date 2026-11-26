@@ -13,7 +13,7 @@ import pytest_asyncio
 from streamlit.testing.v1 import AppTest
 
 from candata_agent.checkpoint import AsyncSqliteSaver
-from candata_agent.state import SQLArtifact
+from candata_agent.state import PlanStep, QueryPlan, SQLArtifact, StepStatus
 from candata_agent.supervisor import build_agent_graph
 from candata_agent.ui import (
     AnalysisResult,
@@ -428,6 +428,41 @@ def test_page_valid_comparison_shows_verified_banner() -> None:
     assert "⚠️ comparison missing prior period" not in text
     assert at.success
     assert not at.warning
+
+
+# Issue #112: a run whose last step failed still verifies the series the finished steps used.
+def test_page_warns_that_the_answer_is_incomplete_when_a_step_failed() -> None:
+    failure = (
+        "Data Analyst Execution Failed on 'percentage_point_spread': percentage_point_spread "
+        "requires rate or percentage inputs"
+    )
+    steps = [
+        PlanStep(step_id=i, description="", assigned_agent="data_analyst", tool_name="x",
+                 status=StepStatus.COMPLETED)
+        for i in (1, 2)
+    ] + [
+        PlanStep(step_id=3, description="", assigned_agent="data_analyst",
+                 tool_name="percentage_point_spread", status=StepStatus.FAILED,
+                 result_summary=failure)
+    ]  # fmt: skip
+    turn = RunResult("How did Toronto shelter prices change, compared with all items?")
+    turn.plan = QueryPlan(objective="GT-12", steps=tuple(steps), active_step_id=3)
+    for vector, change in (("v41692889", -0.47), ("v41692888", 2.14)):
+        rows = {"obs_date": "2026-08-01", "lag_value": 1.0, "change_pct": change}
+        turn.analyses.append(AnalysisResult("yoy_point_to_point", artifact(vector, rows)))
+    turn.verification = {
+        "passed": True,
+        "verdicts": [verdict("v41692889", True), verdict("v41692888", True)],
+    }
+    at = page_with(turn)
+
+    assert not at.exception
+    assert [e.value for e in at.error] == [failure]
+    assert not at.success
+    (banner,) = at.warning
+    assert banner.value.startswith("All cited series verified (2 of 2), but a step failed")
+    assert "the answer is incomplete" in banner.value
+    assert " ".join(m.value for m in at.markdown).count("✅ verified") == 2
 
 
 # Issue #109: a significance question that no step answered must not show a plain green banner.

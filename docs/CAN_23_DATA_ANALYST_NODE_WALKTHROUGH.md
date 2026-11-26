@@ -40,7 +40,7 @@ Directly verified against the 15 GTA Housing Ground-Truth benchmark questions (`
 |:---|:---|:---|:---|
 | `annual_inflation_rate` | Calendar-year average index YoY growth | `GT-10`, `GT-11` | `%` |
 | `yoy_point_to_point` | 12-month lagged index or rent change | `GT-01`, `GT-06`, `GT-12` | `$`, `%` |
-| `percentage_point_spread` | Rate differential (vacancy / policy rates) | `GT-02`, `GT-13` | `pp`, `bps` |
+| `percentage_point_spread` | Rate differential (vacancy / policy rates); with `compare="change"`, the gap between two series' changes (#112) | `GT-02`, `GT-13`, `GT-08`, `GT-10`, `GT-11`, `GT-12` | `pp`, `bps` |
 | `change_vs_standard_error` | Change in an estimate against its published standard error: 68% and 95% intervals and significance (#109) | CAN-35 M2 follow-up | same unit as the estimate |
 | `affordability_burden_ratio`| Annual shelter rent vs median annual income | `GT-07` | `%` |
 | `multi_year_cagr` | Compound annual growth rate over $N$ years | `GT-08` | `%` |
