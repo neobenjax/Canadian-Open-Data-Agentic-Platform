@@ -50,9 +50,11 @@ how real researchers would use it. CAN-35 was amended to cover these AI-played s
 3. **A decline built on a wrong premise (H2).** The page said no table publishes
    age-standardized heart disease mortality for each province. Table 13-10-0393-01 does, for
    Canada and every province, through 2013 on the 1991 standard population ("Diseases of
-   heart"). Its other claims (13-10-0833-01 groups provinces by income quintile; 13-10-0007-01
-   ends in 1996) are accurate. I did not test whether the planner's search could surface the
-   2013 table.
+   heart"). Table 13-10-0396-01 also has it. A third table, 13-10-0800-01 (inactive, 2011
+   standard population), runs from 2000 to 2023 with every province and "Diseases of heart"; it
+   was found later in #108. The decline's other claims (13-10-0833-01 groups provinces by income
+   quintile; 13-10-0007-01 ends in 1996) are accurate. I did not test whether the planner's
+   search could surface these tables.
 4. **The agent stays inside Statistics Canada and Bank of Canada data (E1, E3), as intended.**
    The E1 decline correctly said the two Statistics Canada emissions tables do not overlap
    (2009 to 2023 and 1990 to 2008) and pointed to Environment and Climate Change Canada. The
@@ -147,7 +149,7 @@ Times are the durations the page showed. "Series" means vector IDs.
 ### H2 - Amara
 - **Question as asked:** Which provinces have the highest age-standardized mortality rate from heart disease, and are any of those figures flagged as unreliable?
 - **Mode:** live. **Outcome:** declined after 23.0 s ("No available table publishes age-standardized heart disease mortality for each province...").
-- **Baseline and match:** 13-10-0833-01 and 13-10-0007-01 described accurately. 13-10-0393-01 (2000 to 2013, all provinces, "Diseases of heart") contradicts the headline claim (finding 3).
+- **Baseline and match:** 13-10-0833-01 and 13-10-0007-01 described accurately. 13-10-0393-01 (2000 to 2013) and 13-10-0800-01 (2000 to 2023), all provinces, "Diseases of heart", contradict the headline claim (finding 3).
 - **Severity:** medium-high. **Suggested fix:** surface the older tables and state the vintage.
 
 ### H3 - Amara
