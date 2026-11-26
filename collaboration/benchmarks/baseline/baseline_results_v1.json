@@ -1,10 +1,11 @@
 {
   "benchmark": "gta_ground_truth_v1",
-  "graded_on": "2026-10-22",
+  "graded_on": "2026-11-25",
   "summary": [
     {
       "arm": "no_tools",
       "requested_model": "claude-haiku-5-5",
+      "run_date": "2026-10-22",
       "model_ids": [
         "claude-haiku-5-5"
       ],
@@ -26,6 +27,7 @@
     {
       "arm": "no_tools",
       "requested_model": "claude-opus-5-5",
+      "run_date": "2026-10-22",
       "model_ids": [
         "claude-opus-5-5"
       ],
@@ -47,6 +49,7 @@
     {
       "arm": "no_tools",
       "requested_model": "claude-sonnet-5-5",
+      "run_date": "2026-10-22",
       "model_ids": [
         "claude-sonnet-5-5"
       ],
@@ -68,6 +71,7 @@
     {
       "arm": "mcp_statcan",
       "requested_model": "claude-sonnet-5-5",
+      "run_date": "2026-10-22",
       "model_ids": [
         "claude-sonnet-5-5"
       ],
@@ -89,6 +93,7 @@
     {
       "arm": "candata_mcp",
       "requested_model": "claude-sonnet-5-5",
+      "run_date": "2026-10-22",
       "model_ids": [
         "claude-sonnet-5-5"
       ],
@@ -105,6 +110,28 @@
       "unverified_ids": 17,
       "false_claims": 0,
       "mean_tool_calls": 4.5,
+      "errors": 0
+    },
+    {
+      "arm": "candata_mcp",
+      "requested_model": "claude-sonnet-5-5",
+      "run_date": "2026-11-25",
+      "model_ids": [
+        "claude-sonnet-5-5"
+      ],
+      "run_dates": [
+        "2026-11-25"
+      ],
+      "questions": 15,
+      "correct": 11,
+      "partial": 4,
+      "abstained": 0,
+      "hallucinated": 0,
+      "table_coverage": 0.63,
+      "vector_coverage": 0.57,
+      "unverified_ids": 25,
+      "false_claims": 0,
+      "mean_tool_calls": 9.3,
       "errors": 0
     }
   ],
@@ -132,7 +159,8 @@
           "mcp__candata__query_statcan_coordinate",
           "mcp__candata__query_statcan_coordinate"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified figure for this. I tried to pull the Toronto CMA two-bedroom average rent from the CMHC Rental Market Survey. The Statistics Canada table is 34-10-0133-01 (average rents for areas with a population of 10,000 and over). Both of my queries to that table returned errors, and I don't know the vector ID for the Toronto two-bedroom series. I'd have to guess it, so I haven't given you a number for October 2025, a number for 2024, or a change between them.\n\nTo get the figure yourself, open table 34-10-0133-01 on Statistics Canada's website. Filter for Toronto CMA, two-bedroom units, and reference years 2024 and 2025. You can also use CMHC's Rental Market Report data tables. If you send me the vector ID shown in the table's \"Add/Remove data\" view, I can query it and calculate the change.",
       "grade": {
@@ -183,7 +211,8 @@
           "mcp__candata__query_statcan_coordinate",
           "mcp__candata__query_statcan_coordinate"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I couldn't verify the Toronto purpose-built rental vacancy rate for 2025 or 2023, so I won't give figures.\n\nThe data should be in Statistics Canada table 34-10-0127-01. That table holds the CMHC Rental Market Survey vacancy rates by census metropolitan area. I tried to pull the Toronto CMA series from it with two coordinate queries, and both returned errors. I also don't have a confirmed vector ID for the Toronto series, and I won't guess one.\n\nI'd rather not quote the rates from memory, because I can't cite a vector ID or confirm the reference periods for them.\n\nIf you can give me the vector ID, I can retrieve both years right away. You can also open table 34-10-0127-01 on the Statistics Canada site and filter to Toronto, apartment structures of six units and over, for the 2023 and 2025 survey years (CMHC runs the survey each October).",
       "grade": {
@@ -237,7 +266,8 @@
           "mcp__candata__query_statcan_coordinate",
           "mcp__candata__query_statcan_coordinate"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified comparison. The tools I have return values but not the geography labels, so I couldn't confirm which series is Oshawa and which is Toronto.\n\n- The source is CMHC average rents, table 34-10-0133-01, which has 2025 as its latest reference period.\n- One series I pulled is v3823103, coordinate 125.3.3.0.0.0.0.0.0.0. It shows $2,045 for 2025, up from $1,972 in 2024 and $1,958 in 2023. I think it is a two-bedroom series, but the response doesn't confirm that, and it doesn't say which area it covers. The area code (125) could be Toronto, but that is only a guess.\n- I found no series I could match to the Oshawa CMA.\n\nI'd rather not name either rent as \"Toronto\" or \"Oshawa\" on a guess. You can check the geography and unit type directly in the table at https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3410013301. Select Oshawa and Toronto, two-bedroom units, and 2025. If you send me the vector IDs, I can pull both series and compare them.",
       "grade": {
@@ -291,7 +321,8 @@
           "mcp__candata__query_statcan_coordinate",
           "mcp__candata__execute_sql_analytics"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't answer this one. I couldn't verify the 2025 vacancy rates for Toronto, Oshawa and Hamilton.\n\nThe relevant source is probably Statistics Canada table 34-10-0127-01, which carries CMHC's Rental Market Survey vacancy rates by census metropolitan area. I tried to query it twice, once by coordinate and once through the SQL tool. Both calls returned errors. I also don't have the vector IDs for these three CMAs, so I couldn't look them up another way.\n\nI haven't given you a ranking, because that would be a guess. You can check the table directly on the Statistics Canada site. The CMHC Rental Market Report is the original source.",
       "grade": {
@@ -356,7 +387,8 @@
           "mcp__candata__query_statcan_coordinate",
           "mcp__candata__query_statcan_coordinate"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "Status: I'm still looking for a Toronto CMA housing starts series. The table I found (34-10-0135-01) only has Canada and province-level geographies, and my guesses at the CMA-level tables returned errors.\n\nI can't give you a verified figure for housing starts in the Toronto CMA in 2025 or 2024, so I won't estimate one.\n\n- **What I confirmed:** Table 34-10-0135-01 (CMHC housing starts, quarterly, \"all areas\") is reachable. Its geographies at the coordinates I tried were national and provincial. For example, vector v730416 is a national series, with 63,641 in 2026-Q3 (the quarter starting 2026-07-01). I found no Toronto CMA member.\n- **What failed:** Every query I made against 34-10-0126-01, 34-10-0143-01, 34-10-0154-01 and 34-10-0156-01 returned an error. I don't know whether those tables exist as I guessed them or whether the tool couldn't reach them. I also have no verified vector ID for Toronto CMA starts.\n\nTo get the answer, give me the vector ID for Toronto CMA total housing starts, or the table ID and coordinate. CMHC's Housing Market Information Portal also publishes this directly. With a vector ID I can sum 2025 and 2024 and compare them.",
       "grade": {
@@ -415,7 +447,8 @@
           "mcp__candata__query_statcan_vector",
           "mcp__candata__query_statcan_vector"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you the change in Toronto new home prices from December 2024 to December 2025. I couldn't retrieve the data.\n\nEvery query I ran against Statistics Canada's New Housing Price Index (table 18-10-0205-01) returned an error. I tried a coordinate lookup and a vector lookup, and neither returned any observations.\n\nI also couldn't confirm which vector ID is the Toronto series. The one I tried, v111955442, is from memory and may not be the right one. I'd rather not guess a percentage change.\n\nYou can get the answer directly from table 18-10-0205-01. Select \"Toronto, Ontario\" and \"Total (house and land)\", then compare December 2024 with December 2025. I can retry the query if you'd like.",
       "grade": {
@@ -470,7 +503,8 @@
           "mcp__candata__query_statcan_coordinate",
           "mcp__candata__query_statcan_coordinate"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you this share. The data tools failed, so I have no verified figures for either input.\n\nI queried two Statistics Canada tables, 34-10-0133-01 (CMHC average rent by bedroom count) and 11-10-0190-01 (income). I also tried 11-10-0237-01. Every query returned an error. I also don't have the vector IDs for the Toronto CMA series, so I couldn't query by vector. I won't estimate either number from memory.\n\nTo get the answer, I need two inputs:\n1. The 2024 average two-bedroom rent in the Toronto CMA. This is probably in table 34-10-0133-01, but I haven't confirmed that.\n2. The 2024 median after-tax income for the Toronto CMA. I haven't confirmed which table has it, and 2024 values may not be published yet.\n\nThe share is then (monthly rent × 12) ÷ median after-tax income.\n\nIf you send me the vector IDs for those two series, I'll retry. I can also retry the coordinate queries if you can give me the correct coordinates.",
       "grade": {
@@ -528,7 +562,8 @@
           "mcp__candata__query_statcan_coordinate",
           "mcp__candata__query_statcan_coordinate"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you this comparison. I couldn't verify any figures for it.\n\n- **What I tried:** I queried Statistics Canada tables 34-10-0133-01 (rents) and 11-10-0009-01 and 11-10-0190-01 (income). Every call returned an error and no data.\n- **Why I'm not estimating:** I don't have confirmed vector IDs for the Toronto CMA two-bedroom average rent series or the median after-tax income series. I won't guess at values or growth rates without a source and reference period.\n- **Possible mismatch:** I'm also not sure Toronto CMA median after-tax income is published in the tables I tried. The right income table may be a different one.\n\nTo get this done, you could send me the vector IDs for those two series. You could also ask me to retry once the data service is working. Either way I'd calculate the 2019–2024 percentage change for each series and compare them.",
       "grade": {
@@ -586,7 +621,8 @@
           "mcp__candata__query_statcan_coordinate",
           "mcp__candata__query_statcan_coordinate"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you this figure. I couldn't retrieve either input from the data tools, so I haven't calculated a share.\n\n- **Rent:** I queried Statistics Canada table 34-10-0133-01, which I believe holds the CMHC average rent by bedroom type for Toronto, for the 2025 two-bedroom average. The query returned an error.\n- **Income:** I queried table 98-10-0057-01 (2021 Census household income) and table 11-10-0009-01, for Toronto's median household income. Both returned errors too.\n- **Vector IDs:** I also couldn't confirm the vector IDs for these series.\n\nI haven't filled the gap with remembered numbers, because I can't verify them or give you a citation.\n\nIf you give me the vector IDs, or the two values with their sources, I can run the calculation. The formula is (average monthly two-bedroom rent × 12) ÷ median annual household income. The 2021 Census income is for 2020, so this compares 2025 rent with 2020 income. That mismatch will overstate the burden.",
       "grade": {
@@ -645,7 +681,8 @@
           "mcp__candata__query_statcan_vector",
           "mcp__candata__query_valet_cpi"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't answer this, because I couldn't retrieve the Toronto rent data.\n\n- **Toronto rent:** My queries to Statistics Canada table 18-10-0004-01 (the CPI table) failed. That includes a test on v41690973, the national all-items vector. I don't know the correct Toronto rent vector ID, and I won't guess a figure.\n- **Overall prices:** The Bank of Canada's Valet series V41690973 (Total CPI) did load. It's a national series, not Toronto, and I didn't calculate the 2025 annual rate from it.\n\nI can't say whether Toronto rent rose faster or slower than overall prices in 2025, and I have no annual rate for either.\n\nTo check this yourself, use table 18-10-0004-01. Pick Toronto, then \"Rented accommodation\" and \"All-items\", and compare the 2025 annual averages. If you give me the vector IDs, I can retry the query.",
       "grade": {
@@ -704,7 +741,8 @@
           "mcp__candata__execute_sql_analytics",
           "mcp__candata__query_statcan_coordinate"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't answer this one. Every Statistics Canada query I tried (by coordinate, by vector and through the SQL tool) failed with an error, so I have no verified shelter CPI figures for Toronto or for Canada in 2025. I'm not going to estimate them.\n\nThe Bank of Canada tool did work, but it only returns total CPI and the core measures. It has no shelter component, and it has nothing for Toronto.\n\nThe data should be in Statistics Canada table 18-10-0004-01 (Consumer Price Index, monthly, not seasonally adjusted). You would compare the \"Shelter\" series for Canada with the one for Toronto, using the year-over-year change from December 2024 to December 2025 or the 2025 annual average. I couldn't confirm the vector IDs for those series, so I haven't listed any.\n\nIf you retry later or give me the vector IDs, I can run the comparison.",
       "grade": {
@@ -759,7 +797,8 @@
           "mcp__candata__query_statcan_vector",
           "mcp__candata__query_statcan_vector"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you these figures. Every Statistics Canada query I ran failed with an error, including a vector (v41690973) I used to test whether the service was reachable. I tried Table 18-10-0004-01 (monthly CPI) for Toronto, both all-items and shelter, plus one Toronto vector ID I guessed from memory. I didn't get any data back, and I won't estimate the numbers.\n\nTo get the answer yourself, open Table 18-10-0004-01 on the Statistics Canada site. Select Toronto, then \"All-items\" and \"Shelter\", for August 2026 and August 2025. The year-over-year change is the August 2026 index divided by the August 2025 index, minus 1. I can retry the query if you'd like.",
       "grade": {
@@ -817,7 +856,8 @@
           "mcp__candata__query_valet_series",
           "mcp__candata__query_valet_series"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "The Bank of Canada changed its policy rate **4 times in 2025**. Each change was a 25 bp cut.\n\n- **Start of year:** 3.25% (1 Jan 2025).\n- **End of year:** 2.25% (31 Dec 2025).\n\nThe series dates each new rate on the first business day it applies, which is the day after the announcement. The new levels first appear on these dates:\n\n| Date in series | New rate |\n|---|---|\n| 30 Jan | 3.00% |\n| 13 Mar | 2.75% |\n| 18 Sep | 2.50% |\n| 30 Oct | 2.25% |\n\nThe rate stayed at 2.75% from 13 Mar through 17 Sep. I did not see every daily value between 1 May and 10 Jun. The 1 May to 29 Aug window had a minimum and maximum of 2.75%, so no change fell in it.\n\nSource: Bank of Canada Valet, series V39079 (target for the overnight rate, business daily), reference period 2025-01-01 to 2025-12-31. This is a Bank of Canada series, so there is no Statistics Canada table ID.",
       "grade": {
@@ -870,7 +910,8 @@
           "mcp__candata__query_statcan_coordinate",
           "mcp__candata__query_statcan_coordinate"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I couldn't retrieve a verified figure for mortgage interest cost inflation in Toronto in 2025.\n\nThe Statistics Canada data tool returned errors on both attempts. I queried table 18-10-0004-01 (Consumer Price Index, monthly), but I don't know the vector ID for the Toronto \"Mortgage interest cost\" series. My guessed coordinates for it failed. Any number I gave you would be an estimate, so I'm not giving one.\n\nHere are two ways to get it:\n- **If you have the vector ID:** send it and I'll pull the 2025 monthly and year-over-year values. You can find it in table 18-10-0004-01 by filtering Geography to Toronto, Ontario and Products to \"Mortgage interest cost\".\n- **If you want to try again:** I can retry the lookup, but it may fail the same way.",
       "grade": {
@@ -920,7 +961,8 @@
         "tool_calls": [
           "mcp__candata__query_statcan_coordinate"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I couldn't find a verified figure for the 1985 average two-bedroom rent in the Toronto CMA, so I won't give a number.\n\n- The relevant source is probably Statistics Canada table 34-10-0133-01. It holds CMHC average rents by bedroom type for centres with 10,000 or more people. As far as I recall, its annual series starts in the late 1980s, after 1985. I couldn't confirm that.\n- My query to that table returned an error. I also couldn't identify the Toronto two-bedroom vector ID, so I have no vector to cite.\n- Any dollar amount I gave would be an estimate, and I won't do that.\n\nYou could check the table's Toronto, two-bedroom series on the Statistics Canada site to see whether it covers 1985. If it starts later, CMHC's historical Rental Market Survey publications may have the figure. I can retry if you have the vector ID or coordinate.",
       "grade": {
@@ -989,7 +1031,8 @@
           "mcp__statcan__get_series_info",
           "mcp__statcan__get_series_info"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "Confirmed the Toronto vector ID, and I have what I need to answer.\n\nIn the October 2025 CMHC Rental Market Survey, the average rent for a two-bedroom unit in the Toronto CMA was **$2,045 a month**. That is **$73 (about 3.7%) higher** than the $1,972 in 2024.\n\n- **Source:** Statistics Canada Table 34-10-0133-01, \"Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over\". The series is vector v3823103 (coordinate 125.3.3).\n- **Reference periods:** 2024 ($1,972) and 2025 ($2,045). The table reports the annual survey by year, so I'm treating the 2025 figure as the October 2025 survey.\n- **Scope:** The series covers row and apartment structures of three units and over. It doesn't include other rental types, such as condos or basement apartments.\n- **Calculation:** The $73 and 3.7% are my own arithmetic from the two published values, not figures from the table.",
       "grade": {
@@ -1063,7 +1106,8 @@
           "mcp__statcan__get_series_info",
           "mcp__statcan__get_sdmx_vector_data"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "The purpose-built rental vacancy rate in the Toronto CMA was **3.0% in 2025**, up from **1.4% in 2023**. That is a rise of 1.6 percentage points, which is more than double the 2023 rate. The 2024 rate was 2.5%.\n\nBoth years use the same series. These are the Canada Mortgage and Housing Corporation (CMHC) survey figures that Statistics Canada republishes, and each reference period is the annual survey (CMHC's October survey).\n\n- **Table 34-10-0130-01**, vector **v1930324** (Toronto, Ontario). This covers row and apartment structures of three units and over, as a weighted average.\n- **Table 34-10-0127-01**, vector **v733349** (Toronto, Ontario). This covers apartment structures of six units and over. It gives the same values: 1.4 (2023), 2.5 (2024) and 3.0 (2025).\n\nI didn't check whether CMHC has revised these figures since the December 2025 release.",
       "grade": {
@@ -1137,7 +1181,8 @@
           "mcp__statcan__get_cube_metadata",
           "mcp__statcan__get_sdmx_rows"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't make the comparison. Statistics Canada has no usable 2025 average two-bedroom rent for the Oshawa CMA.\n\n- **Oshawa:** Table 34-10-0133-01 (CMHC average rents, areas with a population of 10,000 and over) returns no value (\"NaN\") for two-bedroom units in Oshawa, Ontario, for reference year 2025. That holds for apartment structures of three units and over, apartment structures of six units and over, and row and apartment structures of three units and over. I can't tell from the data why it's missing, though suppression for data quality or confidentiality is a likely cause.\n- **Toronto:** I didn't retrieve a Toronto CMA figure. The table has 247 geographies, and I couldn't look up the Toronto code. A Toronto number alone wouldn't answer the comparison anyway.\n- **Vector IDs:** The API returned the same vector ID (v3824235) for every row, including the Oshawa rows. I don't trust it as an identifier for the Oshawa series, so I'm not citing a vector for any figure.\n\nI haven't estimated or substituted a figure for Oshawa. If you want, I can pull Toronto's 2025 two-bedroom rent, or compare Oshawa with Toronto for an earlier year, such as 2024, if Oshawa has data then.\n\n**Source:** Statistics Canada, Table 34-10-0133-01, reference period 2025 (released 2025-12-17). SDMX query: `https://www150.statcan.gc.ca/t1/wds/sdmx/statcan/rest/data/DF_34100133/.1+4.3?startPeriod=2025&endPeriod=2025`",
       "grade": {
@@ -1210,7 +1255,8 @@
           "mcp__statcan__get_sdmx_vector_data",
           "mcp__statcan__get_sdmx_vector_data"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**Oshawa had the highest rental vacancy rate of the three in 2025, at 3.7%.**\n\n| CMA | 2025 vacancy rate | Vector |\n|---|---|---|\n| Oshawa | 3.7% | v733362 |\n| Hamilton | 3.6% | v733358 |\n| Toronto | 3.0% | v733349 |\n\n- **Source:** Statistics Canada table 34-10-0127-01 (product ID 34100127), \"Canada Mortgage and Housing Corporation, vacancy rates, apartment structures of six units and over, privately initiated in census metropolitan areas\". The reference period is 2025.\n- **Scope:** The table covers privately initiated apartment structures of six or more units. Vacancy rates for other rental types, such as row housing or smaller buildings, could rank the CMAs differently.\n- **Margin:** Oshawa and Hamilton are only 0.1 percentage point apart. I only checked the published values, not any CMHC reliability grades, so I can't say whether that gap is meaningful.",
       "grade": {
@@ -1287,7 +1333,8 @@
           "mcp__statcan__get_sdmx_data",
           "mcp__statcan__get_series_info"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "The Toronto CMA had **26,087 housing starts in calendar year 2025**, down about 31% from **37,718 in 2024**.\n\n| Year | Starts (total units) | Source |\n|---|---|---|\n| 2025 | 26,087 | Table 34-10-0134-01, v42127955 (annual) |\n| 2024 | 37,718 | Table 34-10-0154-01, v42127475 (monthly, summed Jan–Dec 2024) |\n\n- **Change:** 2025 is 11,631 units lower than 2024, a drop of 30.8%.\n- **Why two tables:** The annual table (34-10-0134-01, v42127955) returned no value for 2024. It also has none for 2023. I got the 2024 total by adding the 12 monthly values from the monthly table.\n- **Cross-check:** Adding the 12 monthly values for 2025 gives 26,087. That matches the annual figure exactly.\n- **Data source and definition:** Both tables carry CMHC's Starts and Completions Survey data, published by Statistics Canada. The figure is total units across all dwelling types, on the 2011 census CMA boundaries. Statistics Canada notes that these boundaries are not strictly comparable across census years.\n- **Revision:** CMHC corrected its data for January 2010 to December 2025 and reissued it on 2026-03-30. The values above are the corrected ones.",
       "grade": {
@@ -1357,7 +1404,8 @@
           "mcp__statcan__get_sdmx_rows",
           "mcp__statcan__get_series_info"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "New home prices in the Toronto CMA fell about 3.4% between December 2024 and December 2025. I calculated that change from the two index values below.\n\nThe New Housing Price Index (total, house and land; December 2016 = 100) was:\n- **December 2024:** 113.1\n- **December 2025:** 109.3\n\nThe index fell by 3.8 points. It slid for most of 2025, from 112.6 in January to 109.4 in October and November. The only month-to-month rises were small, in February (112.8) and in the flat November reading.\n\nThis is an index of price changes. It doesn't show actual dollar prices.\n\nSource: Statistics Canada, Table 18-10-0205-01 (New housing price index, monthly), vector v111955499 (Toronto, Ontario; Total (house and land)), reference periods December 2024 and December 2025. SDMX query: https://www150.statcan.gc.ca/t1/wds/sdmx/statcan/rest/data/DF_18100205/20.1?startPeriod=2024-12&endPeriod=2025-12",
       "grade": {
@@ -1441,7 +1489,8 @@
           "mcp__statcan__get_series_info_from_vector",
           "mcp__statcan__get_sdmx_vector_data"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "A year of average two-bedroom rent in the Toronto CMA in 2024 comes to about **61%** of the median after-tax income of individuals. That is $23,664 of $38,600. I'm not fully certain of the $38,600 figure (see the last caveat).\n\n- **Rent:** the average two-bedroom rent was $1,972 a month in 2024. That is $23,664 a year. The source is table 34-10-0133-01 (CMHC average rents), vector v3823103, reference period 2024. It covers row and apartment structures of three or more units, so purpose-built rentals only.\n- **Income:** the median after-tax income of individuals was $38,600 in 2024, in 2024 constant dollars. The source is table 11-10-0238-01, vector v107657424, reference period 2024.\n\nCaveats:\n- **Individuals, not households:** this table measures individuals. A household with two earners would have a much lower rent share. I didn't find a 2024 Toronto CMA median after-tax figure for households or families in the tables I searched. Table 11-10-0237-01 covers economic families, but I didn't pull it.\n- **Rent coverage:** the rent figure excludes condos and other secondary-market rentals, which often cost more.\n- **Possible mislabel:** the same table returned \"Number of persons\" for Toronto in 2024 as exactly 38,600. That is the same number as the median, which looks odd. The median row carries its own vector ID and is explicitly labelled, but I couldn't independently verify it.",
       "grade": {
@@ -1529,7 +1578,8 @@
           "mcp__statcan__get_series_info",
           "mcp__statcan__get_sdmx_vector_data"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "Toronto CMA average two-bedroom rent rose about 26% between 2019 and 2024. Median after-tax income rose about 2%, so rent grew roughly 12 times faster. The two series are in different dollar bases, so the gap is overstated. Rent is in nominal dollars and income is in 2024 constant dollars.\n\n| | 2019 | 2024 | Change |\n|---|---|---|---|\n| Average two-bedroom rent (nominal) | $1,563 | $1,972 | +26.2% |\n| Median after-tax income (2024 constant dollars) | $80,800 | $82,500 | +2.1% |\n\n- **Rent:** Table 34-10-0133-01, vector v3823103, Toronto, row and apartment structures of three units and over, two-bedroom units. Reference periods are 2019 and 2024, and the data come from CMHC's rental survey. This is average rent across all surveyed purpose-built rental units, not asking rents.\n- **Income:** Table 11-10-0237-01, vector v107655746, Toronto CMA, after-tax income, all economic families and persons not in an economic family, median income. Reference years are 2019 and 2024.\n\n**Caveats**\n- I did not convert rent to real dollars or find nominal income, so I can't give a like-for-like comparison. Adjusting rent for inflation would narrow the gap.\n- The income survey's target population changed in 2022 (from ages 16+ to 15+), and its methodology was revised. This affects comparability across the period.\n- The 2019 income figure has also been revised using 2021 Census population counts.",
       "grade": {
@@ -1621,7 +1671,8 @@
           "mcp__statcan__get_sdmx_data",
           "mcp__statcan__get_series_info"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I have both figures and I'm calculating the share now.\n\n**About 25%.** Toronto's average two-bedroom rent in 2025 is about $24,540 a year, against a 2021 Census median household income of $97,000.\n\n- **Rent:** $2,045 a month, or $24,540 a year, in the Toronto CMA. This is the average for two-bedroom units in row and apartment structures of three or more units.\n  - Source: Statistics Canada table 34-10-0133-01 (CMHC average rents), vector v3823103, reference period 2025.\n- **Income:** $97,000 median total household income for the Toronto CMA.\n  - Source: Statistics Canada table 98-10-0058-01 (2021 Census), geography \"Toronto (CMA) 535, Ont.\", all household sizes and types. The reference period is calendar year 2020, in 2020 constant dollars.\n  - I could not give a vector ID for this figure. The API returns vectorId 0 for this census table, so it has none.\n- **Calculation:** $24,540 ÷ $97,000 ≈ 25.3%. Rent is about 2.1% of a month's income per $100 of... more simply, it takes about 25 cents of every household dollar.\n\n**Caveats**\n- The two figures are five years apart: income is for 2020 and rent is for 2025. Incomes have risen since 2020, so the true share today is probably lower. I did not adjust for that.\n- The income figure covers all households, owners and renters. Renter households typically have lower incomes, so for them the share would be higher.\n- The rent figure covers only purpose-built rental buildings with three or more units. It excludes condos and other rentals.",
       "grade": {
@@ -1695,7 +1746,8 @@
           "mcp__statcan__get_sdmx_data",
           "mcp__statcan__get_series_info"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "Rented accommodation in Toronto rose faster than overall consumer prices in 2025, at 3.1% against 1.8%. I calculated both rates myself from the annual-average CPI index values (2002=100) in Statistics Canada table 18-10-0005-01.\n\n| Toronto series | 2024 | 2025 | Annual change |\n|---|---|---|---|\n| Rented accommodation (v41695188) | 158.6 | 163.5 | **+3.1%** |\n| All-items CPI (v41695186) | 164.7 | 167.7 | **+1.8%** |\n\n- **Gap:** Rent inflation was about 1.3 percentage points higher than overall inflation.\n- **Source:** Table 18-10-0005-01, \"Consumer Price Index, annual average, not seasonally adjusted\", for the 2024 and 2025 reference periods. The table's release time is 2026-01-19.\n- **Vector IDs:** I got them from a separate series lookup, not from the data call. The data call returned inconsistent vector IDs, so I'd double-check them if you're citing this.\n- **Series name:** Statistics Canada labels the rent series \"Rented accommodation\". It covers rent plus related items such as tenants' insurance and maintenance, so it is not pure rent.",
       "grade": {
@@ -1770,7 +1822,8 @@
           "mcp__statcan__get_bulk_vector_data_by_range",
           "mcp__statcan__get_sdmx_data"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "Shelter inflation in Toronto was far lower than in Canada as a whole in 2025. Measured December 2024 to December 2025, the shelter index rose about 0.2% in Toronto and about 2.1% nationally.\n\n| Shelter CPI (2002=100) | Dec 2024 | Dec 2025 | Change |\n|---|---|---|---|\n| Toronto | 191.3 | 191.6 | +0.2% |\n| Canada | 185.8 | 189.7 | +2.1% |\n\n- Toronto's index barely moved all year. It stayed between 190.9 and 192.0 from January to December 2025.\n- Canada's index rose steadily from 186.4 in January to 189.7 in December, with a larger step up in October (189.4).\n- I calculated the percentage changes myself from the index levels. They are not published rates.\n- This compares one December with the next. I did not compute annual averages, so a year-average comparison could differ.\n\nSource: Statistics Canada Table 18-10-0004-01, Consumer Price Index, monthly, not seasonally adjusted, Shelter, monthly, Dec 2024 to Dec 2025.\n- Toronto, Ontario: v41692889\n- Canada: v41691050\n\nI retrieved the data through the SDMX interface. One vector-level call returned an odd series key. A direct table query for both geographies and Shelter returned identical values, so I'm confident they are the right series.",
       "grade": {
@@ -1843,7 +1896,8 @@
           "mcp__statcan__get_sdmx_vector_data",
           "mcp__statcan__get_sdmx_vector_data"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "In August 2026, Toronto shelter prices were down about 0.5% from August 2025. Overall consumer prices were up about 2.1%.\n\n| Toronto CPI (2002=100) | Aug 2025 | Aug 2026 | Year over year |\n|---|---|---|---|\n| Shelter (v41692889) | 191.4 | 190.5 | about −0.5% |\n| All-items (v41692888) | 168.1 | 171.7 | about +2.1% |\n\nShelter prices rose less than overall prices by roughly 2.6 percentage points. I calculated the percentages myself from the index levels. Statistics Canada did not publish them in the data I pulled.\n\nBoth series come from table 18-10-0004-01, \"Consumer Price Index, monthly, not seasonally adjusted,\" and cover the reference period August 2026 against August 2025.\n\nI couldn't confirm that the shelter vector's returned series label says \"Shelter\". The metadata lookup does identify v41692889 as \"Toronto, Ontario; Shelter\". Earlier queries also returned some garbled period labels, but the vector-level data above had correct month labels.",
       "grade": {
@@ -1929,7 +1983,8 @@
           "mcp__statcan__get_sdmx_rows",
           "mcp__statcan__get_sdmx_rows"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "The Bank of Canada changed its target for the overnight rate **4 times in 2025**. All four were 0.25-point cuts, and the rate fell from **3.25% to 2.25%**.\n\n| Rate | First seen in the data |\n|---|---|\n| 3.25% | January 2025 (start of year) |\n| 3.00% | February 2025 |\n| 2.75% | March 2025, and still 2.75% in April, June and early September |\n| 2.50% | October 2025 |\n| 2.25% | November 2025, and still 2.25% in late December (end of year) |\n\n- **Source:** Statistics Canada table 10-10-0139-01, \"Bank of Canada, money market and other interest rates\", member \"Target rate\", vector **v39079**.\n- **Checks:** The table's period field shows only the month, not the day, so I can't give exact announcement dates from this data. I checked January, February, March, April, June, September, October, November and December, not every day.\n- **Why I'm confident in the count:** The rate is the same at each check on either side of every step. A move that was reversed between two checks would not show up, but I have no sign of one.",
       "grade": {
@@ -2004,7 +2059,8 @@
           "mcp__statcan__get_series_info",
           "mcp__statcan__get_sdmx_data"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I couldn't find a mortgage interest cost series for Toronto, so I can't give you that figure.\n\nI searched Consumer Price Index table 18-10-0004-01. The Toronto series I could find only goes up to the broader \"Owned accommodation\" group. The codes I tried for its sub-components, such as mortgage interest cost, returned nothing for Toronto. That suggests the series isn't published at city level, but I haven't confirmed that.\n\n**Closest available figure: Toronto, \"Owned accommodation\"** (vector v41692891, index 2002=100). Mortgage interest cost is one component of this group, along with others such as property taxes, insurance and maintenance.\n- December 2024: 199.9\n- December 2025: 199.4\n- That is about −0.3% over the year, calculated from the two index values.\n- Within 2025 the index moved between 199.2 (September) and 200.6 (April).\n\nThis does not measure mortgage interest cost on its own.\n\nIf you want, I can check whether mortgage interest cost is published for Ontario or Canada in the same table.\n\n**Source:** Statistics Canada, table 18-10-0004-01 (Consumer Price Index, monthly, not seasonally adjusted), vector v41692891, December 2024 to December 2025.",
       "grade": {
@@ -2067,7 +2123,8 @@
           "mcp__statcan__search_cubes_by_title",
           "mcp__statcan__search_cubes_by_title"
         ],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I couldn't find a 1985 figure. I don't have a verified number for the average two-bedroom rent in the Toronto CMA that year, and I won't estimate one.\n\nThe closest Statistics Canada source is table 34-10-0133-01 (CMHC average rents for areas with a population of 10,000 and over, formerly CANSIM 027-0040; product ID 34100133). According to the table list, its data start in 1987 and run to 2025, so 1985 isn't covered. I didn't pull the Toronto two-bedroom vector, so I can't give you a vector ID or a 1987 value.\n\nI can pull the earliest available Toronto two-bedroom value (1987) or the latest one if you'd like. For 1985 itself, CMHC's historical Rental Market Survey publications may have it, but I haven't verified that.",
       "grade": {
@@ -2108,7 +2165,8 @@
         "duration_s": 7.0,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't verify this figure, so I won't give you a rent amount or a year-over-year change. I don't have a retrieval tool in this session, and I can't confirm the October 2025 Toronto CMA two-bedroom average from memory.\n\nThe CMHC Rental Market Survey is a CMHC product, not a Statistics Canada table, so it won't have a StatCan table ID. To get the figures:\n\n- **CMHC Housing Market Information Portal** (www.cmhc-schl.gc.ca/hmip-pimh): filter by Toronto CMA, unit type \"2 Bedroom,\" and survey year 2024 and 2025. The average rent and percentage change are both reported there.\n- **CMHC Rental Market Report** (released around December 2025): includes the Toronto CMA summary and the year-over-year change.\n\nIf you share the figures from either source, I can help you interpret them or compare them with other data.",
       "grade": {
@@ -2147,7 +2205,8 @@
         "duration_s": 6.4,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't verify either figure, so I won't give you numbers. I have no tool access in this session to check the CMHC data, and I can't confirm a Statistics Canada table or vector ID for this series.\n\nThe purpose-built rental vacancy rate comes from CMHC's Rental Market Survey (October each year), not directly from a Statistics Canada table. To get both years:\n\n1. Open CMHC's Housing Market Information Portal (www03.cmhc-schl.gc.ca/hmip-pimh).\n2. Select the Toronto CMA, the Rental Market Survey, and the purpose-built universe.\n3. Compare the October 2025 and October 2023 vacancy rates, and record the reference dates.\n\nIf you share the figures, I can help you interpret the change.",
       "grade": {
@@ -2186,7 +2245,8 @@
         "duration_s": 8.0,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you verified 2025 figures for this comparison, so I won't estimate them.\n\nAverage two-bedroom rents by CMA come from the **CMHC Rental Market Survey** (2025 data, released around late 2025), which is the primary source for these figures. I also can't confirm a Statistics Canada table ID or vector ID for these rents from memory, so I won't cite one.\n\nTo get the comparison:\n\n1. **CMHC Housing Market Information Portal** (www.cmhc-schl.gc.ca, Rental Market Survey data): filter by \"Oshawa CMA\" and \"Toronto CMA,\" bedroom type \"2-bedroom,\" and year 2025. The portal's data tables give the average rent and the year-over-year change.\n2. **Statistics Canada**: search the Table Viewer for \"rent by bedroom type\" and \"census metropolitan area.\" Use the table ID and reference period shown there.\n\nCheck the CMA boundaries before you compare. Oshawa and Toronto are defined separately by Statistics Canada, and the CMHC zone definitions may not match the census definitions exactly.\n\nIf you paste the figures from the portal, I can help you compare them and calculate the difference.",
       "grade": {
@@ -2226,7 +2286,8 @@
         "duration_s": 4.8,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't answer this reliably. I don't have access to Statistics Canada or Bank of Canada data in this session, and I can't verify the 2025 rental vacancy rates for Toronto, Oshawa, or Hamilton, so I won't guess.\n\nRental vacancy rates by CMA come from CMHC's Rental Market Survey, not directly from a Statistics Canada table. To check, look up the 2025 Rental Market Survey results for these three CMAs on CMHC's website, or search Statistics Canada's Table 46-10-0055-01 and related housing tables for the vacancy series. I can help you compare the figures once you have them.",
       "grade": {
@@ -2269,7 +2330,8 @@
         "duration_s": 5.1,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't verify these figures, so I won't give you numbers.\n\nHousing starts for the Toronto CMA are published by CMHC and are available from Statistics Canada as **table 34-10-0154-01** (housing starts, under construction and completions by census metropolitan area). To answer your question:\n\n1. Open the table and filter to Toronto (CMA) and the dwelling type \"Total\".\n2. Use the 2025 and 2024 annual totals (sum the monthly or quarterly values if the table reports them that way).\n3. Compute the percentage change: (2025 − 2024) / 2024 × 100.\n\nI don't have live access to these data in this session, and I haven't confirmed the vector IDs, so please verify them in the table before relying on the results. If you can share the table extract, I can help with the comparison.",
       "grade": {
@@ -2310,7 +2372,8 @@
         "duration_s": 5.2,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't answer this reliably. I don't have live access to Statistics Canada data in this session, and I won't estimate the figures.\n\nThe relevant source is **Statistics Canada Table 18-10-0205-01, New Housing Price Index (monthly)**. Filter for the Toronto census metropolitan area and compare the December 2024 and December 2025 values. The table reports the total index along with house and land components, so you can see which drove the change. Vector IDs are listed in the table's metadata.\n\nIf you paste the two index values or the exported table, I can calculate the percentage change and explain the components.",
       "grade": {
@@ -2351,7 +2414,8 @@
         "duration_s": 6.8,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified figure for this. I don't have access to Statistics Canada or CMHC data in this session, and the rules I follow require me to cite table or vector IDs and reference periods, which I can't confirm here. Rather than estimate, I'll explain how to get the answer.\n\n**Calculation:**\n\nShare = (average two-bedroom monthly rent × 12) ÷ median after-tax income for 2024\n\n- **Rent:** CMHC's Rental Market Survey gives average rent by bedroom type for the Toronto CMA, as of October 2024. This is a CMHC source, not a Statistics Canada or Bank of Canada one.\n- **Income:** Statistics Canada publishes median after-tax income for the Toronto CMA in its income tables. Check whether you need census families or all households, since the medians differ.\n\nOnce you have those two values and their reference periods, send them over and I'll compute the share and note the sources. If you'd like, I can also tell you which Statistics Canada table to check for the income figure, though you should confirm the table ID yourself first.",
       "grade": {
@@ -2392,7 +2456,8 @@
         "duration_s": 6.1,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't answer this with verified figures. I don't have access to Statistics Canada or Bank of Canada data in this session, and I won't estimate growth rates from memory.\n\nTo get the comparison, you'd need:\n\n- **Average two-bedroom rent, Toronto CMA, 2019 and 2024:** CMHC's Rental Market Survey, which reports average rents by bedroom type. Check the CMHC data tables or Statistics Canada's rent price tables. I can't confirm the exact table and vector IDs from here, so verify them on the Statistics Canada site before citing.\n- **Median after-tax income, Toronto CMA, 2019 and 2024:** Statistics Canada's income tables, which publish median after-tax income by census metropolitan area. Confirm the table ID and reference years yourself.\n\nOnce you have both series, compute the percentage change over 2019–2024 for each and compare them. Make sure both use the same definition of income (economic families or persons not in economic families) and the same reference year basis. If you paste the figures here, I can calculate the growth rates and the gap, and I'll cite the table IDs and reference periods you provide.",
       "grade": {
@@ -2433,7 +2498,8 @@
         "duration_s": 5.6,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't verify either figure, so I can't give you a reliable share.\n\n- **2025 average two-bedroom rent in Toronto:** This comes from CMHC's Rental Market Survey, not Statistics Canada. I don't have a verified value or table reference for 2025.\n- **2021 Census median household income for Toronto:** The 2021 Census reports income for the 2020 reference year. I don't have a verified value or Statistics Canada table ID to cite.\n\nOnce you have both figures, the calculation is:\n\n**Share of income = (average monthly rent × 12) ÷ median annual household income × 100**\n\nTwo caveats:\n- **Timing mismatch:** The income is for 2020 and the rent is for 2025. Adjusting the income to 2025 dollars would require a verified CPI or income series, which I'd need to source separately.\n- **Average vs. median:** Rent is an average and income is a median, so the result is an approximation.\n\nIf you share the two figures with their table IDs or reference periods, I can run the calculation and note any caveats.",
       "grade": {
@@ -2474,7 +2540,8 @@
         "duration_s": 8.4,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you verified figures for this. I don't have live access to Statistics Canada tables in this session, and I can't confirm the 2025 annual rates for Toronto rent or overall CPI from memory. I won't estimate them.\n\nTo answer the question, pull these from Statistics Canada:\n\n1. **Overall CPI, Toronto CMA, 2025 annual average:** Table 18-10-0004-01 (Consumer Price Index, monthly, not seasonally adjusted). Use the all-items series for Toronto and compare the 2025 annual average with 2024.\n2. **Rent, Toronto CMA, 2025 annual average:** Use the rent series in the same table (or the Shelter/Rent components in the CPI basket tables). Confirm the vector ID for \"Rent\" under Toronto, then compare its 2025 annual average with 2024.\n3. **Comparison:** Whichever annual rate is higher rose faster. Check that both are annual averages on the same basis, not December-to-December changes.\n\nIf you can paste the values from those tables, I can calculate both annual rates and say which rose faster, with citations to the table and vector IDs.",
       "grade": {
@@ -2516,7 +2583,8 @@
         "duration_s": 5.7,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you verified 2025 figures for Toronto or Canada shelter inflation. I don't have access to Statistics Canada or Bank of Canada data in this session, and I won't estimate numbers.\n\nTo answer this yourself, use:\n\n- **Table 18-10-0004-01** (Consumer Price Index, monthly, not seasonally adjusted). It includes Canada and Toronto, and the Shelter component is in the same table. Compare the 12-month percentage change for December 2025 in each geography.\n- **Table 18-10-0004-01** also has the \"Rent,\" \"Owned accommodation,\" and \"Electricity, fuel and water\" subcomponents, if you want to see what drove the difference.\n\nPull the vector IDs for the Shelter series for each geography from the table's data download, since I can't confirm them from memory.\n\nIf you paste the figures or the table extract here, I can compare them and explain the differences, citing the table ID, vector ID, and reference period for each number.",
       "grade": {
@@ -2558,7 +2626,8 @@
         "duration_s": 5.1,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't answer this reliably. I don't have access to the August 2026 Toronto CPI release in this session, and my knowledge runs only to June 2026, so I'd be guessing at the shelter and all-items figures.\n\nTo get the numbers, check Statistics Canada Table **18-10-0004-01** (Consumer Price Index, monthly, not seasonally adjusted). Filter for Toronto (CMA), the \"Shelter\" and \"All-items\" components, and the reference period 2026-08. Compare each month's index with August 2025 to get the year-over-year change. The vector IDs for those series are listed in the table's metadata.",
       "grade": {
@@ -2600,7 +2669,8 @@
         "duration_s": 6.3,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "The Bank of Canada changed its policy rate **3 times** in 2025, and the rate went from **3.25% to 2.25%**:\n\n- **January 29:** cut 25 bp, 3.25% to 3.00%\n- **March 12:** cut 25 bp, 3.00% to 2.75%\n- **October 29:** cut 25 bp, 2.75% to 2.25%\n\nThe rate held at 2.25% at the December 10 decision.\n\n**Series:** Bank of Canada target for the overnight rate (BoC series V39079), 2025 calendar year. I could not query the live series in this session, so please confirm the dates and levels against that series before relying on them.",
       "grade": {
@@ -2643,7 +2713,8 @@
         "duration_s": 3.6,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't verify this figure. I don't have access to Statistics Canada data in this session, and I won't estimate it.\n\nThe series you want is the Mortgage interest cost index in the Consumer Price Index for Toronto. Statistics Canada publishes it in the monthly CPI table 18-10-0004-01 (Consumer Price Index, monthly, not seasonally adjusted, by city). To get the 2025 figure, filter that table to Toronto and the Mortgage interest cost item, then compare December 2025 with December 2024 for the annual change, or take the annual average. I can't confirm the vector ID for that series from memory, so check it in the table before citing it.",
       "grade": {
@@ -2684,7 +2755,8 @@
         "duration_s": 5.4,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't verify the average two-bedroom rent for the Toronto CMA in 1985. I don't have access to the Statistics Canada or CMHC data tables in this session, so I can't cite a table ID, vector ID, or reference period for that figure, and I won't estimate it.\n\nTo find it, you could:\n\n- **Search Statistics Canada's Rental Market Survey tables** on the Statistics Canada website for \"average rent by bedroom type\" and filter for Toronto. Check whether the series starts in 1985.\n- **Check CMHC's Housing Market Information Portal** (www.cmhc-schl.gc.ca), which publishes historical rental market survey data by census metropolitan area and bedroom type.\n\nIf you can share the table or vector output, I can help you interpret it.",
       "grade": {
@@ -2723,7 +2795,8 @@
         "duration_s": 9.3,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't verify this figure, so I won't give a number.** I don't have a data connection in this session, and I'm not confident enough in a remembered value or its vector ID to cite it.\n\n**Where to find it:**\n\n- **Statistics Canada table 34-10-0133-01**, \"Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over.\" This table republishes the CMHC Rental Market Survey data. Filter to:\n  - Geography: Toronto (CMA), Ontario\n  - Type of structure: Row and apartment structures of three units and over\n  - Type of unit: Two bedroom units\n  - Reference periods: 2025 and 2024 (the survey is conducted each October)\n\n  The vector ID for that series is shown in the table's \"Download options\" or by turning on the \"Display vector identifier\" setting.\n- **CMHC Housing Market Information Portal** (Toronto CMA, Primary Rental Market, Average Rent by Bedroom Type) or the **Rental Market Report** released in December 2025.\n\n**On the change from 2024:** subtracting the two average rents gives the dollar and percent change. That is a cross-sectional difference, though. CMHC also publishes a separate same-sample (fixed-sample) percent change. That figure better reflects rent growth for the same units, and it's the number CMHC usually headlines. The two measures can differ meaningfully.\n\nIf you can paste the table output here, I can calculate and summarize the change with proper citations.",
       "grade": {
@@ -2764,7 +2837,8 @@
         "duration_s": 9.5,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't give you verified figures for this.** I can't access live data in this session, and I can't confirm the Toronto CMA vector ID or the 2025 value from memory.\n\n**Where the data is published**\n\n- **Original source:** CMHC's Rental Market Survey (October survey, reported annually). Statistics Canada and the Bank of Canada don't produce this measure.\n- **Statistics Canada republication:** Table **34-10-0127-01**, *\"Canada Mortgage and Housing Corporation, vacancy rates, apartment structures of six units and over, privately initiated in census metropolitan areas\"* (annual). Select Toronto CMA to get the vector ID and the 2023 and 2025 values.\n\n**What I recall but can't verify**\n\n- **2023:** About 1.4% for Toronto CMA purpose-built rentals, per CMHC's January 2024 Rental Market Report.\n- **2024:** I believe the rate went up after that, but I'm not confident of the exact number.\n- **2025:** I can't reliably state this figure.\n\nPlease confirm both years in table 34-10-0127-01 or CMHC's Housing Market Information Portal before using them. If you paste the table extract or the vector, I can do the comparison.",
       "grade": {
@@ -2805,7 +2879,8 @@
         "duration_s": 12.2,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't verify the 2025 figures, so I won't give numbers.** I don't have live access to Statistics Canada or CMHC data in this session, and I won't estimate rents or guess vector IDs.\n\n**Where to find them**\n\n- **Table:** Statistics Canada 34-10-0133-01, *Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over* (annual, from CMHC's October Rental Market Survey).\n- **Filters:**\n  - Geography: *Oshawa, Ontario* and *Toronto, Ontario*\n  - Type of structure: *Row and apartment structures of three units and over*\n  - Type of unit: *Two bedroom units*\n  - Reference period: *2025*\n- **Vector IDs:** Select \"Add/Remove data,\" then \"Display vector identifier and coordinate\" to show the vector ID for each series.\n- **Cross-check:** CMHC's Housing Market Information Portal has the same survey data, along with reliability codes and whether year-over-year changes are statistically significant.\n\n**Caveat on \"Durham\":** The Oshawa CMA is not the same as Durham Region. It covers only Oshawa, Whitby and Clarington. Ajax and Pickering are part of the Toronto CMA, and the northern Durham townships fall outside both. So comparing the two CMAs isn't a Durham-versus-Toronto comparison. CMHC's portal has Durham Region (census division) data if you need that instead.\n\nIf you paste the two values from the table, I can work out the gap and the percentage difference.",
       "grade": {
@@ -2847,7 +2922,8 @@
         "duration_s": 12.8,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't verify the 2025 figures, so I won't name a winner.** I have no live data access in this session, and I don't reliably recall the 2025 values or their vector IDs.\n\n**Where to find them:**\n\n- **Statistics Canada table 34-10-0127-01**, *Canada Mortgage and Housing Corporation, vacancy rates, apartment structures of six units and over, privately initiated in census metropolitan areas*. It reports annual rates by CMA. Filter it to Toronto, Oshawa and Hamilton, with reference period 2025.\n- **CMHC Rental Market Survey / Rental Market Report**, the source of the table. The October 2025 survey was published around December 2025.\n\nEach CMA's series has its own vector ID, shown in the table's \"Add/Remove data\" view or the downloaded CSV.\n\nIf you paste the three 2025 values or the table extract, I'll confirm which is highest and cite it properly.",
       "grade": {
@@ -2890,7 +2966,8 @@
         "duration_s": 8.8,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't give you verified figures for this.** I don't have live access to Statistics Canada or CMHC data in this session, and I won't quote Toronto CMA starts or vector IDs from memory, because I can't confirm them.\n\nYou can get the numbers from these sources:\n\n- **Statistics Canada:** search \"housing starts\" on www150.statcan.gc.ca and pick the annual CMHC table for census metropolitan areas. Set the geography to Toronto (Ontario), the unit type to \"Total units,\" and the reference periods to 2024 and 2025. The vector ID appears in the table's \"Add/Remove data\" or \"Download options\" view. I'm not certain of the exact table number, so please confirm it on the site rather than relying on me.\n- **CMHC Housing Market Information Portal:** Toronto CMA, Starts, Annual, 2024–2025. This is the source Statistics Canada republishes.\n\nThe Bank of Canada doesn't publish CMA-level housing starts.\n\nIf you paste the table output or the 2024 and 2025 values here, I'll calculate the year-over-year change and format the citation.",
       "grade": {
@@ -2929,7 +3006,8 @@
         "duration_s": 8.2,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't give you verified figures for this.** I have no live data access in this session, and I don't reliably know the December 2024 and December 2025 values or the exact vector ID, so I won't estimate them.\n\n**Where to get the official numbers:**\n\n- **Source:** Statistics Canada, *New Housing Price Index (NHPI), monthly*, **Table 18-10-0205-01** (December 2016 = 100).\n- **Selection:** Geography = *Toronto, Ontario*; New housing price indexes = *Total (house and land)*. You can also look at the *House only* and *Land only* components.\n- **Periods:** December 2024 and December 2025.\n- **Calculation:** % change = (Dec 2025 index ÷ Dec 2024 index − 1) × 100.\n- **Vector ID:** the table page shows it once you make the selection above. Please confirm it there; I won't quote one from memory.\n\n**Context, not a figure:** Toronto's NHPI generally declined through 2024–2025 as builders cut prices in a weak new-home market. Please confirm the actual direction and size of the change from the table.\n\nIf you paste the two index values or the vector ID, I'll calculate and report the change with full citations.",
       "grade": {
@@ -2970,7 +3048,8 @@
         "duration_s": 10.9,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified share. I don't have live access to Statistics Canada here, and I won't quote rent, income or vector IDs from memory. Here is where the two figures are published and how to compute the share.\n\n**1. Average two-bedroom rent, Toronto CMA, 2024**\n- Table **34-10-0133-01** (CMHC average rents for areas with a population of 10,000 and over). This table holds CMHC Rental Market Survey data.\n- Filter to Toronto CMA, two-bedroom units, October 2024.\n- This covers purpose-built rental apartments only. It excludes condo and secondary-market rentals, so it is usually well below current asking rents.\n\n**2. Median after-tax income, Toronto CMA, 2024**\n- Table **11-10-0190-01** (Market income, government transfers, total income, income tax and after-tax income by economic family type), from the Canadian Income Survey.\n- Check whether reference year 2024 has been published for Toronto before relying on it.\n- You need to choose an income unit, and the result changes a lot depending on which one you pick. The table includes:\n  - all economic families and persons not in an economic family\n  - economic families only\n  - persons not in an economic family (single individuals)\n\n**3. Calculation**\n\nShare = (monthly average 2-bedroom rent × 12) ÷ median after-tax income\n\nWhen you pull the data, note the vector IDs for your chosen geography and series so the result can be cited. If you paste the two values here, I'll compute the share and note the caveats.",
       "grade": {
@@ -3014,7 +3093,8 @@
         "duration_s": 12.3,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "# Toronto CMA: two-bedroom rent growth vs. median after-tax income, 2019–2024\n\n**I can't give you verified figures.** I have no live access to Statistics Canada or CMHC data in this session. I won't quote numbers or vector IDs from memory, because I can't confirm them and the vector IDs especially would be guesses.\n\n## Where to get the figures\n\n| Measure | Source | Reference period |\n|---|---|---|\n| Average rent, 2-bedroom, Toronto CMA | StatCan table **34-10-0133-01** (CMHC Rental Market Survey, average rents for areas with population 10,000+). Filter: Toronto, Ontario; Two bedroom units. | October 2019 and October 2024 |\n| Median after-tax income, Toronto CMA | StatCan table **11-10-0190-01** (Canadian Income Survey, income by economic family type). Filter: Toronto; Median after-tax income; choose a family type. | Calendar 2019 and 2024. Check that 2024 has been released. |\n\nThe vector ID for each series is shown in the table viewer under \"Add/Remove data → Customize layout → Display vector identifier.\"\n\n## Points to check before comparing\n\n- **Nominal vs. real:** Rents are in current dollars. Income may be in constant dollars by default. Use the same basis for both.\n- **Timing:** Rents are an October snapshot. Income is an annual figure.\n- **Income unit:** Pick one, either \"Economic families and persons not in an economic family\" or \"Persons not in an economic family.\" The result can differ a lot, especially for renters.\n- **Rent measure:** The average covers all occupied units, including long-term tenants under rent control. It understates rent growth on new leases.\n\nGrowth for each series = (2024 value ÷ 2019 value − 1). If you paste the two values from each table, I can do the comparison with full citations.",
       "grade": {
@@ -3058,7 +3138,8 @@
         "duration_s": 16.3,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "# Two-bedroom rent as a share of median household income, Toronto\n\nI can't give you a verified percentage. I have no data-retrieval tools in this session, so I can't confirm the 2025 rent figure or any vector IDs. I'd rather not guess a rent number and present it as official.\n\n**Median household income (2021 Census)**\n- These figures come from the Census Profile (Statistics Canada, catalogue 98-316-X2021001). They're not part of a CANSIM-style table, so they don't have vector IDs.\n- The **income reference year is 2020**, not 2021.\n- From memory, the medians are about **$97,000 for the Toronto CMA** and **$84,000 for the City of Toronto**. Please check these against the Census Profile before using them.\n\n**Average two-bedroom rent (2025)**\n- This comes from the CMHC Rental Market Survey, October 2025, which Statistics Canada republishes in table **34-10-0133-01**.\n- I can't confirm the 2025 Toronto value or its vector ID without querying the table.\n- The survey covers purpose-built rentals only. It excludes condo rentals and asking rents, both of which are higher.\n\n**Calculation**\nShare of income = (monthly rent × 12) ÷ median household income\n\nFor example, a hypothetical $2,200/month rent against the $97,000 CMA median gives 27%. Against the $84,000 city median, it gives 31%. These are illustrations, not results.\n\n**Things to be aware of**\n1. **Time mismatch:** This compares 2025 rent with 2020 income. That likely overstates the burden, because incomes have risen since 2020.\n2. **Inflated 2020 income:** Pandemic benefits such as CERB raised 2020 income, which pushes the other way.\n3. **Mixed populations:** The median covers all households, including owners. Renter households have much lower median incomes. A better comparison is the renter median from the Census, by tenure.\n4. **Geography:** Use the CMA or the city consistently for both figures.\n\nIf you paste the value from 34-10-0133-01 and tell me whether you want the CMA or the city, I'll do the calculation with the full citation.",
       "grade": {
@@ -3101,7 +3182,8 @@
         "duration_s": 8.2,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't verify this, so I won't give numbers.** I don't have access to live Statistics Canada data in this session, and I can't confirm the 2025 annual rates or the exact vector IDs from memory. Citing approximate figures with guessed vector IDs would risk giving you wrong data.\n\n**Where to get both rates:**\n\n- **Table:** Statistics Canada, *Consumer Price Index, annual average, not seasonally adjusted*, **18-10-0005-01**\n- **Geography:** Toronto, Ontario (a CPI city series)\n- **Products:**\n  - \"All-items\" (overall consumer prices)\n  - \"Rented accommodation\" (under Shelter)\n- **Reference period:** 2025 (annual average). The table can show the percentage change from 2024 directly. Otherwise, calculate (2025 ÷ 2024 − 1) × 100.\n- The vector ID for each series appears in the table's \"Add/Remove data\" or \"Download options\" view.\n\nFor monthly detail, use table **18-10-0004-01** (CPI, monthly, not seasonally adjusted).\n\nIf you give me the two index values or rates from the table, I can compare them and format the citation.",
       "grade": {
@@ -3145,7 +3227,8 @@
         "duration_s": 10.4,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't verify the 2025 figures in this session, so I won't give numbers.** I have no way to query Statistics Canada right now, and I can't confirm the annual 2025 shelter inflation rates for Toronto or for Canada, or their vector IDs. Rather than estimate, here is where to find the official numbers:\n\n- **Source:** Statistics Canada, Table **18-10-0005-01**, *Consumer Price Index, annual average, not seasonally adjusted*.\n- **Filters:**\n  - Geography: \"Canada\" and \"Toronto, Ontario\"\n  - Products and product groups: \"Shelter\"\n  - Reference period: 2024 and 2025\n- **Calculation:** Shelter inflation for 2025 = (2025 annual average index ÷ 2024 annual average index − 1) × 100. Do this separately for Canada and for Toronto. Then compare the two rates.\n- **Vector IDs:** These appear in the table's \"Add/Remove data\" view or the downloaded CSV. Record them with the reference period when you cite the figures.\n- **Monthly alternative:** Table **18-10-0004-01** has the monthly index if you want December-over-December rates. These will differ from the annual-average rates, so state which one you use.\n\nIf you can paste the four index values (2024 and 2025 for Toronto and for Canada) or the CSV, I'll calculate and compare the rates for you with full citations.",
       "grade": {
@@ -3189,7 +3272,8 @@
         "duration_s": 11.7,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't verify the August 2026 figures, so I won't give numbers.** That data was released after my knowledge cutoff (June 2026), and I don't have a working data-retrieval tool in this session. Any figures I gave would be guesses.\n\n**Where to find them:**\n\n- **Table:** Statistics Canada **18-10-0004-01**, *Consumer Price Index, monthly, not seasonally adjusted*\n- **Geography:** Toronto, Ontario\n- **Products:** \"All-items\" and \"Shelter\"\n- **Reference periods:** August 2026 compared with August 2025, as a 12-month percent change\n- **Release:** The August 2026 CPI was published in mid-to-late September 2026 in *The Daily*, which usually includes a table of CPI by major city.\n\n**Vector IDs:** I'm confident that Canada all-items is **v41690973**. I can't reliably recall the vector IDs for Toronto all-items and Toronto shelter. The safest way to get them is to open table 18-10-0004-01, choose Toronto with All-items and Shelter, and enable \"Display vector identifier and coordinate\" under the table options.\n\n**Calculating the change:** Use (Aug 2026 index ÷ Aug 2025 index − 1) × 100 for each series. Then compare the Toronto shelter rate with the Toronto all-items rate.\n\nIf you paste the four index values, I can calculate and compare them for you.",
       "grade": {
@@ -3233,7 +3317,8 @@
         "duration_s": 7.9,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**The Bank of Canada changed its policy rate 4 times in 2025, all cuts. The rate started the year at 3.25% and ended it at 2.25%.**\n\n| Announcement date | Decision | Target for the overnight rate |\n|---|---|---|\n| Start of 2025 (set Dec 11, 2024) | n/a | 3.25% |\n| Jan 29, 2025 | Cut 25 bps | 3.00% |\n| Mar 12, 2025 | Cut 25 bps | 2.75% |\n| Apr 16, Jun 4, Jul 30 | Hold | 2.75% |\n| Sep 17, 2025 | Cut 25 bps | 2.50% |\n| Oct 29, 2025 | Cut 25 bps | 2.25% |\n| Dec 10, 2025 | Hold | 2.25% (year-end) |\n\n**Sources**\n- Bank of Canada, Target for the overnight rate, Valet series **V39079**, reference period January to December 2025.\n- Statistics Canada **Table 10-10-0139-01** (Bank of Canada, money market and other interest rates), vector **v39079**, reference period 2025.\n\n**Caveat:** I couldn't pull these series live in this session. The figures come from my knowledge of the Bank's 2025 announcements. Please check the dates and levels against the Valet series before citing them formally.",
       "grade": {
@@ -3278,7 +3363,8 @@
         "duration_s": 9.6,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't give you a verified figure for this.** I have no live access to Statistics Canada data in this session, and I won't estimate a number or a vector ID that I can't check.\n\n**Where the data is published**\n\n- **Annual average, 2025:** Table **18-10-0005-01** (Consumer Price Index, annual average, not seasonally adjusted). Set Geography to **Toronto, Ontario** and Products to **Mortgage interest cost**. The 2025 percentage change compares the 2025 annual average index with the 2024 one.\n- **Monthly, January–December 2025:** Table **18-10-0004-01** (Consumer Price Index, monthly, not seasonally adjusted), with the same Geography and Products filters. Use this if you want 12-month changes, such as December 2025 compared with December 2024.\n\nEach table's \"Add/Remove data\" view shows the vector ID for the Toronto mortgage interest cost series, so you can confirm you have the right one.\n\n**Caveat:** CPI city data covers the Toronto census metropolitan area, not the City of Toronto proper.\n\nIf you paste the index values or the table output here, I can calculate and check the inflation rate for you.",
       "grade": {
@@ -3321,7 +3407,8 @@
         "duration_s": 9.0,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "**I can't give you a verified 1985 figure.**\n\n- **StatCan's main table doesn't cover 1985.** Table 34-10-0133-01 (CMHC average rents for areas with a population of 10,000 and over) is the official source for average rents by bedroom type and CMA. As far as I know, its annual series starts in **1987**, so it has no 1985 value for Toronto.\n- **I couldn't check this live.** I have no data-retrieval tools here, so I can't confirm the table's exact start year or give you the Toronto two-bedroom vector ID. I won't guess a vector ID.\n- **The Bank of Canada doesn't publish rent levels by bedroom type.**\n\n**Where you might find 1985 data:**\n- **CMHC's archived Rental Market Reports** for Toronto, from the October surveys of the mid-1980s. CMHC ran the survey before 1987, but those years aren't in the StatCan table. You may be able to get them through CMHC's Housing Market Information Portal, its historical publications, or a library that holds CMHC's printed reports.\n- **The CPI rent index**, table 18-10-0004-01, for Toronto going back before 1985. It shows how rents changed over time, not dollar amounts, so it can't give you an average two-bedroom rent.\n\nIf you can run queries against StatCan's Web Data Service, I can help you confirm the table's start year and find the Toronto two-bedroom vector.",
       "grade": {
@@ -3364,7 +3451,8 @@
         "duration_s": 10.8,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified figure. I have no data-retrieval tool in this session, and I won't quote a number from memory or estimate it.\n\nTo get the answer yourself:\n- **Source:** CMHC's Rental Market Survey (October 2025 reference period), which Statistics Canada republishes as table 34-10-0133-01 (average rents for areas with a population of 10,000 and over). I believe this is the right table, but I haven't confirmed it here.\n- **Selection:** Geography = Toronto CMA, Type of unit = two-bedroom, Reference period = October 2024 and October 2025.\n- **Calculation:** Percent change = (2025 − 2024) ÷ 2024. CMHC's Rental Market Report also gives its own year-over-year figure, but that is for the same-sample (units present in both years) and can differ from the simple difference in averages.\n\nI also can't give you the vector ID, since I can't confirm it without looking up the table.\n\nIf you paste the two values, or let me run a lookup with a data tool, I'll calculate the change and cite them properly.",
       "grade": {
@@ -3405,7 +3493,8 @@
         "duration_s": 8.2,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified figure. I have no way to query the data in this session, and I won't cite a number or vector ID from memory.\n\n- **Source:** The purpose-built rental vacancy rate comes from CMHC's Rental Market Survey, conducted each October. Statistics Canada republishes it in table 34-10-0127-01 (apartment structures of three units and over, by census metropolitan area). I believe that table ID is right, but I haven't confirmed it.\n- **Vector IDs:** I can't confirm the vectors for Toronto CMA for October 2023 and October 2025.\n- **How to check:** Filter the table to Toronto, Ontario, and compare the October 2023 and October 2025 reference periods. CMHC's Rental Market Report for each year also lists the figures.\n\nIf you give me the two values from the table, or let me run a data lookup, I can work out the change in percentage points and cite it properly.",
       "grade": {
@@ -3446,7 +3535,8 @@
         "duration_s": 11.2,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you verified figures. I have no data access in this session, and I won't estimate rents or invent vector IDs.\n\n**Where to find the comparison:**\n- **Table:** Statistics Canada 34-10-0133-01, \"Canada Mortgage and Housing Corporation, average rents for areas with a population of 10,000 and over\". It carries CMHC's Rental Market Survey results.\n- **Filters:** Geography = Oshawa, Ontario (CMA) and Toronto, Ontario (CMA). Type of structure = Row and apartment structures of three units and over. Number of bedrooms = 2 bedrooms. Reference period = 2025, the October 2025 survey.\n- **Vector IDs:** After you pick those filters, the table's \"Add/Remove data\" and \"Download options\" show the vector ID for each series. I can't confirm them from memory.\n\nIf you paste the two values or share the downloaded CSV, I can calculate the dollar and percentage gap and cite the table, vectors and reference period.",
       "grade": {
@@ -3488,7 +3578,8 @@
         "duration_s": 8.2,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified answer. I have no data access in this session, so I can't pull the 2025 figures, and I won't estimate them.\n\nThe right source is Statistics Canada Table 34-10-0127-01, \"Canada Mortgage and Housing Corporation, vacancy rates, apartment structures of three units and over, privately initiated in census metropolitan areas\". It draws on the CMHC Rental Market Survey, which is conducted each October, so the reference period would be October 2025. I can't confirm the vector IDs for Toronto, Oshawa and Hamilton from memory, so I'm not citing any.\n\nTo check it yourself, open the table, select those three CMAs, set the reference period to 2025, and choose the total for all bedroom types. If you can run queries or share the output, I can compare the three rates.",
       "grade": {
@@ -3531,7 +3622,8 @@
         "duration_s": 7.8,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified figure. I have no live access to Statistics Canada or CMHC data in this session, and I won't estimate or quote numbers from memory. I also can't confirm the table ID or vector ID for the Toronto CMA series, so I'm not going to guess at those either.\n\n**Where to find it:**\n- Statistics Canada republishes CMHC housing starts for census metropolitan areas in its \"Housing starts, under construction and completions\" tables, in the 34-10 subject series. Search \"housing starts census metropolitan areas\" at statcan.gc.ca, filter to Toronto, Ontario, and select \"Housing starts\" for the 2024 and 2025 reference periods.\n- Annual totals for a calendar year are the sum of the 12 monthly values (or the annual table, if one is offered). Don't average the seasonally adjusted annual rates (SAAR), which are a different measure.\n- CMHC's Housing Market Information Portal has the same underlying data. It is the original source, so it makes a good cross-check.\n\nIf you can paste the 2024 and 2025 values (or the table and vector IDs) from the download, I'll calculate the change and percentage difference and cite them correctly.",
       "grade": {
@@ -3570,7 +3662,8 @@
         "duration_s": 8.5,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you the change. I have no live access to Statistics Canada data in this session, and I won't estimate figures I can't verify.\n\nThe series you want is the New Housing Price Index (NHPI), total (house and land), for Toronto, Ontario:\n\n- **Table:** 18-10-0205-01 (New Housing Price Index, monthly, 2016=100)\n- **Vector ID:** I can't confirm it from memory, so I'm not quoting one. You can find it under \"Add/Remove data\" → \"Download options\" on the table page, or in the table's metadata.\n- **Reference periods:** December 2024 and December 2025\n\nTo get the change, take the index values for those two months and compute (Dec 2025 ÷ Dec 2024 − 1) × 100. The table also publishes the 12-month percent change in the Statistics Canada \"The Daily\" release for December 2025 NHPI.\n\nIf you paste the two index values or the vector ID, I can do the calculation and cite it properly.",
       "grade": {
@@ -3611,7 +3704,8 @@
         "duration_s": 8.8,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a figure. I have no data access in this session, so I can't pull or verify the numbers, and I won't estimate them from memory.\n\n**What the calculation needs**\n- **Rent:** average two-bedroom rent for the Toronto CMA, October 2024, from the CMHC Rental Market Survey. Statistics Canada republishes it as Table 34-10-0133-01. I can't confirm the vector ID without looking it up, so I'm not going to guess one.\n- **Income:** median after-tax income for the Toronto CMA, reference year 2024, from the Canadian Income Survey or tax-filer based income tables. I can't confirm the exact table ID or vector ID, and I'm not certain 2024 CMA-level figures are published.\n- **Formula:** (average monthly two-bedroom rent × 12) ÷ median after-tax income.\n\n**Define the income measure first.** Median after-tax income differs a lot depending on whether it covers individuals, economic families or households. Household income gives a much lower share than individual income. Tell me which one you want.\n\nIf you can share the two values, or give me a session with data access, I'll compute the share and cite the table, vector and reference period for each.",
       "grade": {
@@ -3654,7 +3748,8 @@
         "duration_s": 9.9,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified comparison. I have no data retrieval tools in this session, so I can't pull the Toronto CMA series. Any percentages or vector IDs I gave would be estimates, and I won't provide those.\n\n**Where the data should be**\n- **Average two-bedroom rent, Toronto CMA:** Statistics Canada Table 34-10-0133-01, which republishes the CMHC Rental Market Survey (October reference month). I haven't confirmed the vector ID for Toronto, two-bedroom.\n- **Median after-tax income:** Statistics Canada's income tables, based on the T1 Family File and Canadian Income Survey. Likely candidates are 11-10-0190-01 (families and persons, with CMA detail) and 11-10-0239-01 (individuals). I haven't confirmed which has Toronto CMA median after-tax income for 2019 and 2024, or its vector ID.\n\n**Caveats for the comparison**\n- Rent is an October snapshot, while income is a calendar-year figure.\n- The CMHC survey covers purpose-built rentals only, not condos or other secondary rentals.\n- 2024 income data may not be fully released or may be preliminary. I can't confirm that without checking.\n- Both series are nominal, so you'd want to state whether you're comparing nominal or CPI-adjusted growth.\n\nIf you can paste the 2019 and 2024 values (or the CSV downloads), I'll calculate the growth rates and cite them properly.",
       "grade": {
@@ -3700,7 +3795,8 @@
         "duration_s": 10.8,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified figure. I have no data access in this session, so I can't retrieve the exact values or vector IDs, and I won't estimate them.\n\n**What you need**\n- **Rent:** the average two-bedroom rent for the Toronto CMA, October 2025 survey. This should be in Statistics Canada table 34-10-0133-01 (CMHC data). I can't confirm the vector ID or the value.\n- **Income:** the 2021 Census median total household income for Toronto. This is in the Census Profile, table 98-10-0057-01. I can't confirm the vector or value, and the geography (city vs. CMA) changes the answer.\n\n**Calculation**\nRent share = (monthly rent × 12) ÷ median household income\n\n**Caveats**\n- The 2021 Census income is for calendar year 2020, so you are comparing 2020 income with 2025 rent. The share will look higher than it would with income from the same year.\n- Average rent covers all occupied purpose-built units, including long-tenured ones. It is usually well below asking rents.\n- Renter households have a lower median income than all households. If you want rent affordability, the renter-household median is the better denominator.\n\nIf you send me the two values (or let me use a tool with data access), I'll calculate the share and cite the table, vector, and reference period for each.",
       "grade": {
@@ -3745,7 +3841,8 @@
         "duration_s": 5.8,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you the two inflation rates. I have no data access in this session, and I don't want to quote figures or vector IDs from memory that I can't verify.\n\nTo get the answer yourself, use Statistics Canada Table 18-10-0005-01 (Consumer Price Index, annual average, not seasonally adjusted):\n\n1. Set the geography to Toronto, Ontario.\n2. Select the products \"Rent\" (under shelter) and \"All-items\".\n3. Set the reference period to 2024 and 2025.\n4. Calculate the annual inflation rate as (2025 index ÷ 2024 index − 1) × 100 for each series.\n\nComparing the two rates will show whether Toronto rent rose faster or slower than overall prices. The table's \"Add/Remove data\" and \"Download options\" pages show the vector ID for each series. I haven't confirmed those IDs, so I'm not listing them.\n\nIf you paste the index values here, I can do the calculation and the comparison.",
       "grade": {
@@ -3787,7 +3884,8 @@
         "duration_s": 6.7,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified comparison. I have no data-retrieval tool in this session, and I won't estimate figures or quote vector IDs from memory.\n\nThe data to answer this exists in these Statistics Canada tables:\n\n- **Table 18-10-0005-01** (CPI, annual average, not seasonally adjusted): select geography \"Toronto, Ontario\" and \"Canada\", product group \"Shelter\", reference period 2025. The annual average percent change for 2025 comes from comparing the 2025 and 2024 index values, or from the percent change shown in the table's companion release.\n- **Table 18-10-0004-01** (CPI, monthly, not seasonally adjusted): the same geographies and \"Shelter\" component, if you want 12-month changes for specific months in 2025 (for example December 2025 vs. December 2024).\n\nTo get the vector IDs, use the \"Add/Remove data\" or \"Download options\" feature in each table after selecting Toronto and Canada with Shelter. It will list the v-numbers for each series.\n\nIf you paste the index values or percent changes from those tables, I can calculate and compare them. I can also try again if you give me a way to access the data.",
       "grade": {
@@ -3831,7 +3929,8 @@
         "duration_s": 7.5,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you those figures. I have no data access in this session, and August 2026 is after my knowledge cutoff, so any number I gave would be an estimate.\n\n**Where to find them:**\n- **Table 18-10-0004-01**, Consumer Price Index, monthly, not seasonally adjusted. Set the geography to Toronto, Ontario, the reference period to August 2026, and the products to \"Shelter\" and \"All-items\".\n- Statistics Canada reports 12-month percent changes in **Table 18-10-0004-03** (or compute them from the index values in 18-10-0004-01).\n- I can't confirm the vector IDs for Toronto shelter and Toronto all-items from memory, so I'm not citing them. They appear in the table's \"Add/Remove data\" and download options.\n\nIf you paste the two index values or percent changes from the table, I'll work out the comparison.",
       "grade": {
@@ -3873,7 +3972,8 @@
         "duration_s": 6.0,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "The Bank of Canada changed its policy rate **4 times** in 2025, all cuts of 25 basis points. I'm working from memory and haven't pulled the series live, so please check the figures against the series below.\n\n- **Start of 2025:** 3.25% (set 11 Dec 2024)\n- **29 Jan 2025:** cut to 3.00%\n- **12 Mar 2025:** cut to 2.75%\n- **17 Sep 2025:** cut to 2.50%\n- **29 Oct 2025:** cut to 2.25%\n- **End of 2025:** 2.25%. The rate was held at the 10 Dec 2025 decision, as well as in April, June and July.\n\n**Source:** Bank of Canada, Target for the overnight rate (policy interest rate), Valet series V39079, reference period 1 Jan to 31 Dec 2025. This is Bank of Canada data, so there is no Statistics Canada table ID.",
       "grade": {
@@ -3916,7 +4016,8 @@
         "duration_s": 7.6,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified figure. I have no data retrieval in this session, and I won't estimate or recall a number for something this specific.\n\n**Where the data should be:**\n- **Table 18-10-0004-01** (Consumer Price Index, monthly, not seasonally adjusted).\n- Geography: Toronto, Ontario.\n- Product group: \"Mortgage interest cost\" (under Shelter, Owned accommodation).\n- Reference period: January to December 2025. For the year-over-year rate, use \"Percentage change, 12-month\" or compute from the index values.\n\nI'm not certain of the Toronto mortgage interest cost vector ID, so I won't quote one. You can find it by selecting the series in the table and using \"Add/Remove data\" and then \"Download options\". The vector ID appears in the series header.\n\n**Caveats to check:**\n- Statistics Canada's mortgage interest cost index reflects interest on outstanding mortgages, so it responds with a lag to rate changes as mortgages renew.\n- \"Inflation in 2025\" could mean December 2025 vs. December 2024, or the 2025 annual average vs. 2024. They can differ a lot for this series.\n\nIf you paste the table's values or give me a file, I can calculate either measure and cite the vector.",
       "grade": {
@@ -3957,7 +4058,8 @@
         "duration_s": 7.1,
         "num_turns": 1,
         "tool_calls": [],
-        "is_error": false
+        "is_error": false,
+        "run_date": "2026-10-22"
       },
       "response": "I can't give you a verified figure for the average two-bedroom rent in the Toronto CMA in 1985, and I won't estimate one.\n\n- I have no data access in this session, so I can't query Statistics Canada or CMHC directly.\n- The Statistics Canada tables I know of for CMHC average rents, such as 34-10-0133-01 (average rents for areas with a population of 10,000 and over), appear to start well after 1985. I can't confirm the exact start year, so please check the table's reference period range.\n- I can't confirm a Toronto two-bedroom vector ID for that table, and I won't guess one.\n\nTo find out whether 1985 data exists, you could check the table's \"Reference period\" selector on Statistics Canada, or look at CMHC's Housing Market Information Portal and its archived Rental Market Reports. Pre-1990 figures, if published at all, may only be in historical CMHC publications.\n\nIf you tell me which table or source you're working from, I can help interpret it.",
       "grade": {
@@ -3980,6 +4082,2244 @@
           "unverified_ids": []
         },
         "overridden": true,
+        "false_claim": null
+      },
+      "table_coverage": 1.0,
+      "vector_coverage": 0.0
+    },
+    {
+      "run": {
+        "question_id": "GT-01",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:09:38+00:00",
+        "duration_s": 13.5,
+        "num_turns": 7,
+        "tool_calls": [
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "average rents Toronto two-bedroom CMHC rental market survey"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "average rents"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "dimension_name": "Type of unit"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "dimension_name": "Type of structure"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0133-01",
+              "coordinate": "125.3.3",
+              "limit": 4
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "In the October 2025 CMHC Rental Market Survey, the average rent for a two-bedroom unit in the Toronto CMA was **$2,045 a month**. In October 2024 it was **$1,972**. That is an increase of **$73, or about 3.7%**.\n\n- **Scope:** The figures cover row and apartment structures of three or more units.\n- **Source:** Statistics Canada Table 34-10-0133-01, vector v3823103, with reference periods 2025 and 2024. The survey is taken each October. The data was released 2025-12-17.\n- **Calculation:** I calculated the $73 difference and the 3.7% change from the two published values. They are not published figures.",
+      "grade": {
+        "question_id": "GT-01",
+        "eval_type": "numeric",
+        "outcome": "correct",
+        "reason": "all expected values within tolerance",
+        "value_recall": 1.0,
+        "citations": {
+          "tables_expected": [
+            "34100133"
+          ],
+          "tables_cited": [
+            "34100133"
+          ],
+          "vectors_expected": [
+            "v3823103"
+          ],
+          "vectors_cited": [
+            "v3823103"
+          ],
+          "unverified_ids": []
+        },
+        "overridden": false,
+        "false_claim": null
+      },
+      "table_coverage": 1.0,
+      "vector_coverage": 1.0
+    },
+    {
+      "run": {
+        "question_id": "GT-02",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:09:52+00:00",
+        "duration_s": 18.1,
+        "num_turns": 10,
+        "tool_calls": [
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__execute_sql_analytics"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "vacancy rate purpose-built rental apartment CMA"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "rental vacancy rate"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "apartment vacancy rates census metropolitan areas"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100130",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100127",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0130-01",
+              "coordinate": "24",
+              "start_date": "2022",
+              "limit": 6
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0127-01",
+              "coordinate": "23",
+              "start_date": "2022",
+              "limit": 6
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v1930324",
+              "sql_query": "select * from series order by 1 desc limit 6",
+              "start_period": "2022"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v733349",
+              "sql_query": "select * from series order by 1 desc limit 6",
+              "start_period": "2022"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "I've pulled the Toronto figures from both CMHC tables and am writing up the comparison now.\n\n**Toronto CMA purpose-built rental vacancy rate (October survey, CMHC data via Statistics Canada)**\n\n- **2025: 3.0%**\n- **2023: 1.4%**\n- **Change: up 1.6 percentage points.** The rate was 2.5% in 2024, so it has risen each year since 2023.\n\n**Sources**\n- Table 34-10-0130-01, vector v1930324: row and apartment structures of 3+ units, weighted average. This is the closest match to \"purpose-built rental\". Reference periods are 2023 and 2025.\n- Table 34-10-0127-01, vector v733349: apartment structures of 6+ units. It shows the same values (3.0% in 2025 and 1.4% in 2023).\n\nBoth tables were released 2025-12-17. The tables label their reference period by year only. The figures come from CMHC's annual survey, which I understand is run each October, but I didn't confirm that in the metadata.",
+      "grade": {
+        "question_id": "GT-02",
+        "eval_type": "numeric",
+        "outcome": "correct",
+        "reason": "all expected values within tolerance",
+        "value_recall": 1.0,
+        "citations": {
+          "tables_expected": [
+            "34100130"
+          ],
+          "tables_cited": [
+            "34100130"
+          ],
+          "vectors_expected": [
+            "v1930324"
+          ],
+          "vectors_cited": [
+            "v1930324"
+          ],
+          "unverified_ids": [
+            "34100127",
+            "v733349"
+          ]
+        },
+        "overridden": false,
+        "false_claim": null
+      },
+      "table_coverage": 1.0,
+      "vector_coverage": 1.0
+    },
+    {
+      "run": {
+        "question_id": "GT-03",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:10:10+00:00",
+        "duration_s": 15.5,
+        "num_turns": 10,
+        "tool_calls": [
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "average rents two-bedroom census metropolitan area"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "average rents"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "rental market survey"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100133",
+              "member_query": "Oshawa"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100133",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100133",
+              "dimension_name": "Type of unit"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100133",
+              "dimension_name": "Type of structure"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0133-01",
+              "coordinate": "104.3.3",
+              "start_date": "2024"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0133-01",
+              "coordinate": "125.3.3",
+              "start_date": "2024"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "I've pulled both series, so here is the comparison.\n\nIn 2025, the average two-bedroom rent in the Oshawa CMA was **$1,762**. In the Toronto CMA it was **$2,045**. Oshawa was **$283 a month (about 14%) lower**, or roughly 86% of Toronto's level.\n\n| CMA | 2024 | 2025 | Change |\n|---|---|---|---|\n| Oshawa (v3823091) | $1,690 | $1,762 | +4.3% |\n| Toronto (v3823103) | $1,972 | $2,045 | +3.7% |\n\n- **Source:** Statistics Canada table 34-10-0133-01 (CMHC average rents), reference period 2025, released 2025-12-17.\n- **Scope:** Both figures cover row and apartment structures of three or more units, two-bedroom units. The table labels the areas \"Oshawa, Ontario\" and \"Toronto, Ontario\". I assumed these are the CMAs, and I didn't check that against the table's geography definitions.\n- **Reference month:** The table doesn't state the survey month for 2025. I haven't confirmed it.",
+      "grade": {
+        "question_id": "GT-03",
+        "eval_type": "numeric",
+        "outcome": "correct",
+        "reason": "Both rents right ($1,762 v3823091, $2,045 v3823103) and the $283 gap. '14% lower' is the same gap measured from Toronto ($283 / $2,045 = 13.8%); the 16.1% premium measures it from Oshawa. Reviewed by Samir, 2026-11-25.",
+        "value_recall": 0.75,
+        "citations": {
+          "tables_expected": [
+            "34100133"
+          ],
+          "tables_cited": [
+            "34100133"
+          ],
+          "vectors_expected": [
+            "v3823091",
+            "v3823103"
+          ],
+          "vectors_cited": [
+            "v3823091",
+            "v3823103"
+          ],
+          "unverified_ids": []
+        },
+        "overridden": true,
+        "false_claim": null
+      },
+      "table_coverage": 1.0,
+      "vector_coverage": 1.0
+    },
+    {
+      "run": {
+        "question_id": "GT-04",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:10:26+00:00",
+        "duration_s": 16.0,
+        "num_turns": 11,
+        "tool_calls": [
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "rental vacancy rate census metropolitan areas"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "vacancy rate"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "rental market survey"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "Canada Mortgage and Housing Corporation vacancy rates apartment"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100127",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100127",
+              "member_query": "Oshawa"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100127",
+              "member_query": "Hamilton"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0127-01",
+              "coordinate": "23",
+              "limit": 2
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0127-01",
+              "coordinate": "10",
+              "limit": 2
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0127-01",
+              "coordinate": "6",
+              "limit": 2
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "**Oshawa had the highest rental vacancy rate of the three CMAs in 2025, at 3.7%.**\n\n| CMA | 2025 vacancy rate | Vector |\n|---|---|---|\n| Oshawa, Ont. | 3.7% | v733362 |\n| Hamilton, Ont. | 3.6% | v733358 |\n| Toronto, Ont. | 3.0% | v733349 |\n\nThe source is Statistics Canada table 34-10-0127-01, which carries CMHC data. The reference period is 2025, and the table was released 2025-12-17.\n\nThe rates cover privately initiated apartment structures of six units and over. They don't cover other rental types, such as row houses or condos. Oshawa and Hamilton are only 0.1 percentage point apart. CMHC's survey has sampling error, so the data may not show a real difference between them.",
+      "grade": {
+        "question_id": "GT-04",
+        "eval_type": "comparison",
+        "outcome": "partial",
+        "reason": "Right call (Oshawa highest) and the right Toronto rate (3.0%), from real values in a different table: 34-10-0127-01 (apartments of six units and over: Oshawa 3.7%, Hamilton 3.6%, Toronto 3.0%, checked live) instead of 34-10-0130-01 (row and apartment, three units and over: 3.6, 3.5, 3.0). It disclosed the structure type and noted the 0.1-point gap is within sampling error. Reviewed by Samir, 2026-11-25.",
+        "value_recall": 0.67,
+        "citations": {
+          "tables_expected": [
+            "34100130"
+          ],
+          "tables_cited": [],
+          "vectors_expected": [
+            "v1930306",
+            "v1930312",
+            "v1930324"
+          ],
+          "vectors_cited": [],
+          "unverified_ids": [
+            "34100127",
+            "v733349",
+            "v733358",
+            "v733362"
+          ]
+        },
+        "overridden": true,
+        "false_claim": null
+      },
+      "table_coverage": 0.0,
+      "vector_coverage": 0.0
+    },
+    {
+      "run": {
+        "question_id": "GT-05",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:10:42+00:00",
+        "duration_s": 19.0,
+        "num_turns": 9,
+        "tool_calls": [
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__execute_sql_analytics"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "housing starts census metropolitan areas"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100134",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0134-01",
+              "coordinate": "24.1.1",
+              "start_date": "2023-01-01",
+              "limit": 5
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100134",
+              "dimension_name": "Housing estimates"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_vector",
+            "input": {
+              "vector_id": "v42127955",
+              "start_date": "2024-01-01",
+              "limit": 3
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34100154",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0154-01",
+              "coordinate": "23.1.1",
+              "start_date": "2024-01-01",
+              "end_date": "2025-12-01",
+              "limit": 30
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v42127475",
+              "sql_query": "SELECT substr(CAST(date AS VARCHAR),1,4) AS yr, SUM(value) AS total, COUNT(value) AS n FROM series WHERE CAST(date AS VARCHAR) >= '2024' AND CAST(date AS VARCHAR) < '2026' GROUP BY 1 ORDER BY 1",
+              "start_period": "2024-01",
+              "end_period": "2025-12"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "Toronto CMA had 26,087 housing starts in calendar 2025, down from 37,718 in 2024. That is 11,631 fewer starts, a drop of about 30.8%.\n\n- **2025:** 26,087 total units. This matches the annual figure in Table 34-10-0134-01 (vector v42127955, reference period 2025).\n- **2024:** 37,718 total units. The annual table shows no value for 2024 (it is flagged as missing). I summed the 12 monthly values for 2024 from Table 34-10-0154-01 (vector v42127475, reference period 2024-01 to 2025-12). The 2025 monthly values sum to the same 26,087 as the annual table, so the two tables agree for 2025.\n\nBoth tables are CMHC data published by Statistics Canada. The series is Toronto, Ontario; Housing starts; Total units.",
+      "grade": {
+        "question_id": "GT-05",
+        "eval_type": "numeric",
+        "outcome": "correct",
+        "reason": "all expected values within tolerance",
+        "value_recall": 1.0,
+        "citations": {
+          "tables_expected": [
+            "34100154"
+          ],
+          "tables_cited": [
+            "34100154"
+          ],
+          "vectors_expected": [
+            "v42127475"
+          ],
+          "vectors_cited": [
+            "v42127475"
+          ],
+          "unverified_ids": [
+            "34100134",
+            "v42127955"
+          ]
+        },
+        "overridden": false,
+        "false_claim": null
+      },
+      "table_coverage": 1.0,
+      "vector_coverage": 1.0
+    },
+    {
+      "run": {
+        "question_id": "GT-06",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:11:01+00:00",
+        "duration_s": 12.0,
+        "num_turns": 4,
+        "tool_calls": [
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100205",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0205-01",
+              "coordinate": "20.1",
+              "start_date": "2024-12",
+              "end_date": "2025-12",
+              "limit": 14
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_vector",
+            "input": {
+              "vector_id": "v111955499",
+              "start_date": "2024-12",
+              "end_date": "2025-01"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "New home prices in the Toronto CMA fell about 3.4% between December 2024 and December 2025.\n\nThe New Housing Price Index (total, house and land; 2016-12 = 100) moved as follows:\n\n| Month | Index value |\n|---|---|\n| December 2024 | 113.1 |\n| December 2025 | 109.3 |\n\nThat is a drop of 3.8 index points, or about −3.4% (my calculation: 109.3 ÷ 113.1 − 1).\n\nThe index fell through much of the year. It was 110.4 in September 2025 and 109.4 in both October and November 2025.\n\nSource: Statistics Canada, table 18-10-0205-01, vector v111955499 (\"Toronto, Ontario; Total (house and land)\"), December 2024 and December 2025.",
+      "grade": {
+        "question_id": "GT-06",
+        "eval_type": "numeric",
+        "outcome": "correct",
+        "reason": "all expected values within tolerance",
+        "value_recall": 1.0,
+        "citations": {
+          "tables_expected": [
+            "18100205"
+          ],
+          "tables_cited": [
+            "18100205"
+          ],
+          "vectors_expected": [
+            "v111955499"
+          ],
+          "vectors_cited": [
+            "v111955499"
+          ],
+          "unverified_ids": []
+        },
+        "overridden": false,
+        "false_claim": null
+      },
+      "table_coverage": 1.0,
+      "vector_coverage": 1.0
+    },
+    {
+      "run": {
+        "question_id": "GT-07",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:11:13+00:00",
+        "duration_s": 21.5,
+        "num_turns": 17,
+        "tool_calls": [
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "average rents two-bedroom Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "median after-tax income census metropolitan area"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "rental market survey average rent"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "Canadian Income Survey after-tax income census metropolitan"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "rent"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "income of individuals census metropolitan area after-tax"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_open_canada_datasets",
+            "input": {
+              "query": "CMHC rental market survey average rent by bedroom type"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "11-10-0238-01",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "dimension_name": "Type of unit"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "dimension_name": "Type of structure"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "11-10-0238-01",
+              "dimension_name": "Statistics"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "11-10-0238-01",
+              "dimension_name": "Income concept"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "11-10-0238-01",
+              "coordinate": "17.3.18",
+              "start_date": "2022"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0133-01",
+              "coordinate": "125.3.3",
+              "start_date": "2022"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0133-01",
+              "coordinate": "125.4.3",
+              "start_date": "2022"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "A year of average two-bedroom rent in the Toronto CMA would take about **61% of the median after-tax income** in 2024.\n\n- **Rent:** The average two-bedroom rent was $1,972 a month in 2024. That is $23,664 over 12 months. It comes from Statistics Canada table 34-10-0133-01, vector v3823103, which covers row and apartment structures of three or more units. The reference period is 2024, and the figure comes from the Canada Mortgage and Housing Corporation (CMHC) survey.\n- **Income:** The median after-tax income of individuals was $38,600 in 2024, in 2024 constant dollars. It comes from table 11-10-0238-01, vector v107657424.\n- **Result:** $23,664 ÷ $38,600 ≈ 61.3%.\n\n- **Individuals, not households:** The income figure is for individuals, not households. A household with more than one earner would face a much lower share.\n- **Other structure type:** Using the six-or-more-unit apartment series instead (v3824819, $1,979 a month) gives about 61.5%.",
+      "grade": {
+        "question_id": "GT-07",
+        "eval_type": "numeric",
+        "outcome": "partial",
+        "reason": "Same as the mcp_statcan arm on 2026-10-22. Rent is right ($1,972 x 12 = $23,664, v3823103). For income it used individuals' median after-tax income ($38,600, v107657424 in 11-10-0238-01, checked live) instead of economic families and persons not in an economic family ($82,500, v96415851). A real series, and it disclosed that it covers individuals, but a different concept, so the 61% share does not answer the question. Reviewed by Samir, 2026-11-25.",
+        "value_recall": 0.33,
+        "citations": {
+          "tables_expected": [
+            "11100190",
+            "34100133"
+          ],
+          "tables_cited": [
+            "34100133"
+          ],
+          "vectors_expected": [
+            "v3823103",
+            "v96415851"
+          ],
+          "vectors_cited": [
+            "v3823103"
+          ],
+          "unverified_ids": [
+            "11100238",
+            "v107657424",
+            "v3824819"
+          ]
+        },
+        "overridden": true,
+        "false_claim": null
+      },
+      "table_coverage": 0.5,
+      "vector_coverage": 0.5
+    },
+    {
+      "run": {
+        "question_id": "GT-08",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:11:34+00:00",
+        "duration_s": 33.0,
+        "num_turns": 23,
+        "tool_calls": [
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_open_canada_datasets",
+          "get_cube_dimensions_placeholder",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__execute_sql_analytics"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "average rents two-bedroom census metropolitan area"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "median after-tax income census metropolitan area"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "rental market survey average rent"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "Canadian Income Survey median after-tax income"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "rent"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "median income after-tax census metropolitan"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_open_canada_datasets",
+            "input": {
+              "query": "CMHC rental market survey average rent two-bedroom"
+            },
+            "is_error": false
+          },
+          {
+            "name": "get_cube_dimensions_placeholder",
+            "input": {},
+            "is_error": true
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "11-10-0035-01",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "dimension_name": "Type of unit"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "dimension_name": "Type of structure"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "Canadian Income Survey income of individuals census metropolitan areas"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0133-01",
+              "coordinate": "125.3.3",
+              "start_date": "2019",
+              "end_date": "2024",
+              "limit": 10
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "income after-tax census metropolitan areas"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v3823103",
+              "sql_query": "select * from series order by date",
+              "start_period": "2019",
+              "end_period": "2024"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "11-10-0237-01",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "11-10-0237-01",
+              "dimension_name": "Income concept"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "11-10-0237-01",
+              "dimension_name": "Economic family type"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "11-10-0237-01",
+              "dimension_name": "Statistics"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "11-10-0237-01",
+              "coordinate": "17.3.1.20",
+              "start_date": "2019",
+              "end_date": "2024",
+              "limit": 10
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v107655746",
+              "sql_query": "select date, value from series order by date",
+              "start_period": "2019",
+              "end_period": "2024"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "Average two-bedroom rent in the Toronto CMA grew about 26% from 2019 to 2024. Median after-tax income grew about 2%.\n\n| | 2019 | 2024 | Change |\n|---|---|---|---|\n| Average two-bedroom rent (monthly) | $1,563 | $1,972 | +$409, or **+26.2%** |\n| Median after-tax income | $80,800 | $82,500 | +$1,700, or **+2.1%** |\n\n- **Rent:** The source is Table 34-10-0133-01 (CMHC average rents), vector v3823103. It covers Toronto, row and apartment structures of three or more units, two-bedroom units. The reference periods are 2019 and 2024, and the figures are in nominal dollars.\n- **Income:** The source is Table 11-10-0237-01, vector v107655746. It covers Toronto, after-tax income, economic families and persons not in an economic family, median income. The reference periods are 2019 and 2024, and the figures are in 2024 constant dollars.\n\n**Caveats**\n- **Mixed dollars:** Rent is nominal and income is inflation-adjusted, so the 26% and 2% figures aren't directly comparable. I didn't convert either series, because I didn't pull a Toronto price index.\n- **Real income:** Income in 2024 dollars is roughly flat, up about 2%. Median income peaked at $85,100 in 2021 and was $82,500 in 2024.\n- **Different populations:** The rent figure covers purpose-built rental units in structures of three or more units. The income figure covers all Toronto families and unattached individuals, not only renters.",
+      "grade": {
+        "question_id": "GT-08",
+        "eval_type": "numeric",
+        "outcome": "correct",
+        "reason": "all expected values within tolerance",
+        "value_recall": 1.0,
+        "citations": {
+          "tables_expected": [
+            "11100190",
+            "34100133"
+          ],
+          "tables_cited": [
+            "34100133"
+          ],
+          "vectors_expected": [
+            "v3823103",
+            "v96415851"
+          ],
+          "vectors_cited": [
+            "v3823103"
+          ],
+          "unverified_ids": [
+            "11100237",
+            "v107655746"
+          ]
+        },
+        "overridden": false,
+        "false_claim": null
+      },
+      "table_coverage": 0.5,
+      "vector_coverage": 0.5
+    },
+    {
+      "run": {
+        "question_id": "GT-09",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:12:07+00:00",
+        "duration_s": 25.7,
+        "num_turns": 15,
+        "tool_calls": [
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__execute_sql_analytics"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "average rents two-bedroom Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "census 2021 median household income Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "household income census"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "dimension_name": "Type of unit"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "dimension_name": "Type of structure"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "98-10-0058-01",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0133-01",
+              "coordinate": "125.3.3",
+              "limit": 3
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "34-10-0133-01",
+              "coordinate": "125.1.3",
+              "limit": 3
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "98-10-0058-01",
+              "dimension_name": "Household income statistics (6)"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "98-10-0058-01",
+              "dimension_name": "Household type including census family structure (11)"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "98-10-0058-01",
+              "dimension_name": "Household size (7)"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "98-10-0058-01",
+              "coordinate": "4112.1.1.3"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "98-10-0058-01:4112.1.1.3",
+              "sql_query": "select * from series"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "I can't give you the share, because I couldn't retrieve the 2021 Census median household income for Toronto. The tools only return series that have a vector ID, and the census table has none. That table is 98-10-0058-01, Toronto CMA, \"Median household total income (2020)\". The calls to it failed with a vector ID error. I won't fill the gap with a figure from memory.\n\n**The rent figure I did verify:**\n- **Rent:** CMHC average two-bedroom rent in Toronto was **$2,045 a month** in October 2025.\n- **Source:** Table 34-10-0133-01, vector v3823103, reference period 2025. The geography is Toronto, Ontario, and the structure type is row and apartment structures of three units and over.\n- **Apartments only:** The apartment-only series (v3824175) shows $2,046.\n- **Annual rent:** $2,045 × 12 = **$24,540 a year**.\n\n**To get the share:**\n- Share = $24,540 ÷ median household income, using the 2020 income reported in the 2021 Census.\n- Look up the Toronto CMA value in table 98-10-0058-01 (household size: total; household type: total; statistic: median household total income, 2020). If you send me that figure, I'll calculate the share.\n\n**Caveats:**\n- The census income is for 2020 and the rent is for 2025, so the two are five years apart.\n- The CMHC rent covers purpose-built rental units, not the whole rental market.",
+      "grade": {
+        "question_id": "GT-09",
+        "eval_type": "flag",
+        "outcome": "correct",
+        "reason": "flagged the 2020 income vs 2025 rent mismatch",
+        "value_recall": 1.0,
+        "citations": {
+          "tables_expected": [
+            "11100190",
+            "34100133"
+          ],
+          "tables_cited": [
+            "34100133"
+          ],
+          "vectors_expected": [
+            "v3823103",
+            "v96415851"
+          ],
+          "vectors_cited": [
+            "v3823103"
+          ],
+          "unverified_ids": [
+            "98100058",
+            "v3824175"
+          ]
+        },
+        "overridden": false,
+        "false_claim": null
+      },
+      "table_coverage": 0.5,
+      "vector_coverage": 0.5
+    },
+    {
+      "run": {
+        "question_id": "GT-10",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:12:33+00:00",
+        "duration_s": 18.4,
+        "num_turns": 7,
+        "tool_calls": [
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__execute_sql_analytics"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100004",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100004",
+              "member_query": "Rented accommodation"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "16.80",
+              "start_date": "2024-01",
+              "end_date": "2025-12",
+              "limit": 30
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "16.2",
+              "start_date": "2024-01",
+              "end_date": "2025-12",
+              "limit": 30
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v41692890",
+              "sql_query": "SELECT year(CAST(date AS DATE)) y, avg(value) a, count(*) n FROM series GROUP BY 1 ORDER BY 1",
+              "start_period": "2024-01",
+              "end_period": "2025-12"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v41692888",
+              "sql_query": "SELECT year(CAST(date AS DATE)) y, avg(value) a, count(*) n FROM series GROUP BY 1 ORDER BY 1",
+              "start_period": "2024-01",
+              "end_period": "2025-12"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "In 2025, rented accommodation in Toronto rose faster than overall consumer prices. Its annual rate was 3.1%, against 1.8% for all items.\n\nI measured annual inflation as the change in the 12-month average CPI, 2025 versus 2024.\n\n| Toronto CPI (2002=100) | 2024 avg | 2025 avg | Annual inflation |\n|---|---|---|---|\n| Rented accommodation (v41692890) | 158.57 | 163.48 | **3.1%** |\n| All-items (v41692888) | 164.69 | 167.67 | **1.8%** |\n\nRented accommodation rose about 1.3 percentage points faster than all-items.\n\nSource: Statistics Canada, Table 18-10-0004-01 (CPI, monthly, not seasonally adjusted), reference period January–December 2024 and 2025. I calculated the rates from the monthly index values. They are not published figures.",
+      "grade": {
+        "question_id": "GT-10",
+        "eval_type": "comparison",
+        "outcome": "correct",
+        "reason": "all expected values within tolerance",
+        "value_recall": 1.0,
+        "citations": {
+          "tables_expected": [
+            "18100005"
+          ],
+          "tables_cited": [],
+          "vectors_expected": [
+            "v41695186",
+            "v41695188"
+          ],
+          "vectors_cited": [],
+          "unverified_ids": [
+            "18100004",
+            "v41692888",
+            "v41692890"
+          ]
+        },
+        "overridden": false,
+        "false_claim": null
+      },
+      "table_coverage": 0.0,
+      "vector_coverage": 0.0
+    },
+    {
+      "run": {
+        "question_id": "GT-11",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:12:51+00:00",
+        "duration_s": 26.6,
+        "num_turns": 10,
+        "tool_calls": [
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__execute_sql_analytics"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100004",
+              "member_query": "Shelter"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100004",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "16.79.0.0.0.0.0.0.0.0",
+              "start_date": "2024-12-01",
+              "end_date": "2025-12-31",
+              "limit": 14
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "1.79.0.0.0.0.0.0.0.0",
+              "start_date": "2024-12-01",
+              "end_date": "2025-12-31",
+              "limit": 14
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100004",
+              "member_query": "Canada"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v41692889",
+              "sql_query": "select strftime(date,'%Y-%m') m, value from series where date between '2024-12-01' and '2025-12-31' order by date",
+              "start_period": "2024-12",
+              "end_period": "2025-12"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "2.79.0.0.0.0.0.0.0.0",
+              "start_date": "2024-12-01",
+              "end_date": "2025-12-31",
+              "limit": 14
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v41692889",
+              "sql_query": "select cast(date as varchar) d, value from series order by date",
+              "start_period": "2024-12",
+              "end_period": "2025-12"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v41691050",
+              "sql_query": "select cast(date as varchar) d, value from series order by date",
+              "start_period": "2024-12",
+              "end_period": "2025-12"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "Shelter inflation in Toronto was much lower than the national rate in 2025. Over the year to December 2025, Toronto's shelter prices rose about 0.2%, while Canada's rose about 2.1%.\n\n| Shelter CPI (2002=100) | Dec 2024 | Dec 2025 | Change |\n|---|---|---|---|\n| Toronto | 191.3 | 191.6 | +0.2% |\n| Canada | 185.8 | 189.7 | +2.1% |\n\n- **Toronto:** the index stayed between 190.9 and 192.0 all year, so it was essentially flat.\n- **Canada:** the index rose steadily through the year, from 185.8 in December 2024 to 189.7 in December 2025.\n- **Level versus growth:** Toronto's index level is still higher than Canada's (191.6 against 189.7). That reflects past increases, not 2025 inflation.\n\nI calculated the percentage changes myself from the index values, comparing December 2025 with December 2024. These are not-seasonally-adjusted figures from Statistics Canada Table 18-10-0004-01, with the reference period December 2024 to December 2025. The Toronto series is v41692889 and the Canada series is v41691050.",
+      "grade": {
+        "question_id": "GT-11",
+        "eval_type": "comparison",
+        "outcome": "partial",
+        "reason": "Same as the mcp_statcan arm on 2026-10-22. Right call (Toronto lower than Canada) from real index values in 18-10-0004-01 (Toronto shelter 191.3 to 191.6, Canada 185.8 to 189.7, checked live), but it measured December to December (Toronto +0.2%, Canada +2.1%) instead of the annual average (Toronto +2.1%, Canada +3.0%). It disclosed the method. Reviewed by Samir, 2026-11-25.",
+        "value_recall": 0.5,
+        "citations": {
+          "tables_expected": [
+            "18100005"
+          ],
+          "tables_cited": [],
+          "vectors_expected": [
+            "v41693348",
+            "v41695187"
+          ],
+          "vectors_cited": [],
+          "unverified_ids": [
+            "18100004",
+            "v41691050",
+            "v41692889"
+          ]
+        },
+        "overridden": true,
+        "false_claim": null
+      },
+      "table_coverage": 0.0,
+      "vector_coverage": 0.0
+    },
+    {
+      "run": {
+        "question_id": "GT-12",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:13:18+00:00",
+        "duration_s": 16.2,
+        "num_turns": 9,
+        "tool_calls": [
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__execute_sql_analytics"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100004",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "consumer price index shelter Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100004",
+              "dimension_name": "Products and product groups",
+              "member_query": "Shelter"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100004",
+              "dimension_name": "Products and product groups",
+              "member_query": "All-items"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "16.79",
+              "start_date": "2025-08",
+              "end_date": "2026-08",
+              "limit": 13
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "16.2",
+              "start_date": "2025-08",
+              "end_date": "2026-08",
+              "limit": 13
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v41692889",
+              "sql_query": "select * from series where cast(date as varchar) like '2025-08%' or cast(date as varchar) like '2026-08%'"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "statcan",
+              "series_id": "v41692888",
+              "sql_query": "select * from series where cast(date as varchar) like '2025-08%' or cast(date as varchar) like '2026-08%'"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "Toronto shelter prices fell year over year in August 2026, while overall consumer prices rose. I calculated both changes from the index levels. I did not use a published percentage.\n\n| Toronto CPI (2002=100) | Aug 2025 | Aug 2026 | Change |\n|---|---|---|---|\n| Shelter (v41692889) | 191.4 | 190.5 | about −0.5% |\n| All-items (v41692888) | 168.1 | 171.7 | about +2.1% |\n\nShelter prices were about 2.6 percentage points weaker than overall inflation.\n\nBoth series are from Statistics Canada Table 18-10-0004-01 (CPI, monthly, not seasonally adjusted). The reference period is August 2026 against August 2025.",
+      "grade": {
+        "question_id": "GT-12",
+        "eval_type": "comparison",
+        "outcome": "correct",
+        "reason": "all expected values within tolerance",
+        "value_recall": 1.0,
+        "citations": {
+          "tables_expected": [
+            "18100004"
+          ],
+          "tables_cited": [
+            "18100004"
+          ],
+          "vectors_expected": [
+            "v41692888",
+            "v41692889"
+          ],
+          "vectors_cited": [
+            "v41692888",
+            "v41692889"
+          ],
+          "unverified_ids": []
+        },
+        "overridden": false,
+        "false_claim": null
+      },
+      "table_coverage": 1.0,
+      "vector_coverage": 1.0
+    },
+    {
+      "run": {
+        "question_id": "GT-13",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:13:34+00:00",
+        "duration_s": 13.8,
+        "num_turns": 4,
+        "tool_calls": [
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__execute_sql_analytics"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__query_valet_policy_rate",
+            "input": {
+              "start_date": "2024-12-01",
+              "end_date": "2025-12-31",
+              "limit": 400
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "valet",
+              "series_id": "V39079",
+              "sql_query": "select date, value, prev from (select date, value, lag(value) over (order by date) prev from series) where prev is not null and value<>prev order by date",
+              "start_period": "2024-12-01",
+              "end_period": "2025-12-31"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__execute_sql_analytics",
+            "input": {
+              "source": "valet",
+              "series_id": "V39079",
+              "sql_query": "select date, value from series order by date limit 3",
+              "start_period": "2025-01-01",
+              "end_period": "2025-12-31"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "The Bank of Canada changed its policy rate **4 times in 2025**. All four changes were cuts, and the rate went from 3.25% to 2.25%. The data is Bank of Canada Valet series V39079, \"Target for the overnight rate\", for 2025-01-01 to 2025-12-31.\n\n- **Start of year:** 3.25%, the rate on 2025-01-01. It had been set on 2024-12-12, so that cut doesn't count toward 2025.\n- **Cuts in 2025:**\n  - 2025-01-30: 3.25% to 3.00%\n  - 2025-03-13: 3.00% to 2.75%\n  - 2025-09-18: 2.75% to 2.50%\n  - 2025-10-30: 2.50% to 2.25%\n- **End of year:** 2.25%, the rate on 2025-12-31.\n\nThe rate was unchanged at every other decision date in 2025.",
+      "grade": {
+        "question_id": "GT-13",
+        "eval_type": "numeric",
+        "outcome": "correct",
+        "reason": "all expected values within tolerance",
+        "value_recall": 1.0,
+        "citations": {
+          "tables_expected": [
+            "valet"
+          ],
+          "tables_cited": [
+            "valet"
+          ],
+          "vectors_expected": [
+            "v39079"
+          ],
+          "vectors_cited": [
+            "v39079"
+          ],
+          "unverified_ids": []
+        },
+        "overridden": false,
+        "false_claim": null
+      },
+      "table_coverage": 1.0,
+      "vector_coverage": 1.0
+    },
+    {
+      "run": {
+        "question_id": "GT-14",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:13:48+00:00",
+        "duration_s": 56.7,
+        "num_turns": 13,
+        "tool_calls": [
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_coordinate"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "mortgage interest cost CPI Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "consumer price index monthly census metropolitan areas"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "consumer price index",
+              "limit": 20
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100004",
+              "member_query": "Mortgage"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "18100004",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "16.85",
+              "start_date": "2024-12-01",
+              "end_date": "2025-12-31",
+              "limit": 14
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "1.85",
+              "start_date": "2025-01-01",
+              "end_date": "2025-12-31",
+              "limit": 3
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "16.2",
+              "start_date": "2025-01-01",
+              "end_date": "2025-12-31",
+              "limit": 3
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "16.84",
+              "start_date": "2025-01-01",
+              "end_date": "2025-12-31",
+              "limit": 2
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "16.86",
+              "start_date": "2025-01-01",
+              "end_date": "2025-12-31",
+              "limit": 2
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "2.85",
+              "start_date": "2025-01-01",
+              "end_date": "2025-12-31",
+              "limit": 2
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__query_statcan_coordinate",
+            "input": {
+              "table_id": "18-10-0004-01",
+              "coordinate": "2.85",
+              "start_date": "2024-12-01",
+              "end_date": "2025-01-31",
+              "limit": 2
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "I couldn't find a mortgage interest cost series for Toronto, so I can't give you a Toronto figure for 2025.\n\nTable 18-10-0004-01 (CPI, monthly, not seasonally adjusted) lists Toronto as a geography and \"Mortgage interest cost\" as a product. But the Toronto series for that product returned no data. The Toronto series I could pull were all-items (v41692888) and owned accommodation (v41692891). I didn't estimate a number.\n\n**Canada-wide figures** (table 18-10-0004-01, vector v41691056, index 2002=100):\n- December 2024: 180.3\n- December 2025: 183.4\n- That is about +1.7% from December 2024 to December 2025. This is my own calculation from the two index values.\n- The monthly values in 2025 ranged from 180.7 to 183.8.\n\n**Toronto's broader owned accommodation index** (vector v41692891) was 199.4 in December 2025. It was between 199.2 and 200.6 across 2025. That index covers more than mortgage interest, so don't read it as the mortgage interest cost.",
+      "grade": {
+        "question_id": "GT-14",
+        "eval_type": "refusal",
+        "outcome": "partial",
+        "reason": "Declined the Toronto figure without inventing one, and offered the national series (v41691056, Canada mortgage interest cost). Two gaps: it says it 'couldn't find' a Toronto series rather than that none is published, and its national figure is December to December (180.3 to 183.4, +1.7%, checked live) instead of the annual average (+5.3%, v41693354 in 18-10-0005-01), which the tolerance requires within 0.1 point. Reviewed by Samir, 2026-11-25.",
+        "value_recall": 0.0,
+        "citations": {
+          "tables_expected": [
+            "18100005"
+          ],
+          "tables_cited": [],
+          "vectors_expected": [
+            "v41693354"
+          ],
+          "vectors_cited": [],
+          "unverified_ids": [
+            "18100004",
+            "v41691056",
+            "v41692888",
+            "v41692891"
+          ]
+        },
+        "overridden": true,
+        "false_claim": null
+      },
+      "table_coverage": 0.0,
+      "vector_coverage": 0.0
+    },
+    {
+      "run": {
+        "question_id": "GT-15",
+        "arm": "candata_mcp",
+        "requested_model": "claude-sonnet-5-5",
+        "model_ids": [
+          "claude-sonnet-5-5"
+        ],
+        "tools_available": [
+          "mcp__candata__execute_sql_analytics",
+          "mcp__candata__get_cube_dimensions",
+          "mcp__candata__get_open_canada_dataset",
+          "mcp__candata__query_open_canada_datastore",
+          "mcp__candata__query_statcan_coordinate",
+          "mcp__candata__query_statcan_vector",
+          "mcp__candata__query_valet_cpi",
+          "mcp__candata__query_valet_policy_rate",
+          "mcp__candata__query_valet_series",
+          "mcp__candata__search_open_canada_datasets",
+          "mcp__candata__search_statcan_cubes"
+        ],
+        "started_at": "2026-11-25T19:14:45+00:00",
+        "duration_s": 16.5,
+        "num_turns": 5,
+        "tool_calls": [
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__search_statcan_cubes",
+          "mcp__candata__get_cube_dimensions"
+        ],
+        "is_error": false,
+        "tool_call_details": [
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "average rents two-bedroom census metropolitan area"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "CMHC rental market survey average rent"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__search_statcan_cubes",
+            "input": {
+              "query": "average rents"
+            },
+            "is_error": false
+          },
+          {
+            "name": "mcp__candata__get_cube_dimensions",
+            "input": {
+              "product_id": "34-10-0133-01",
+              "member_query": "Toronto"
+            },
+            "is_error": false
+          }
+        ],
+        "run_date": "2026-11-25"
+      },
+      "response": "I couldn't find a figure for 1985, so I can't give you one.\n\nThe only Statistics Canada table I found with CMHC average rents is 34-10-0133-01, \"CMHC average rents for areas with a population of 10,000 and over\". It includes Toronto, Ontario, but its series starts in 1987 and runs to 2025. I found no Statistics Canada or Bank of Canada series with Toronto CMA rents for 1985, and I won't estimate one.\n\nFor 1985, CMHC's own historical Rental Market Survey publications may have the figure. I haven't checked them. I can pull the 1987 two-bedroom Toronto figure from table 34-10-0133-01 as the closest year if that helps.",
+      "grade": {
+        "question_id": "GT-15",
+        "eval_type": "refusal",
+        "outcome": "correct",
+        "reason": "said the official data does not exist",
+        "value_recall": 1.0,
+        "citations": {
+          "tables_expected": [
+            "34100133"
+          ],
+          "tables_cited": [
+            "34100133"
+          ],
+          "vectors_expected": [
+            "v3823103"
+          ],
+          "vectors_cited": [],
+          "unverified_ids": []
+        },
+        "overridden": false,
         "false_claim": null
       },
       "table_coverage": 1.0,

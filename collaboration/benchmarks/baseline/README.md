@@ -21,16 +21,18 @@ The system prompt asks every arm to cite the table ID, vector ID and reference p
 You need a logged-in `claude` CLI (`claude auth status`).
 
 ```bash
-python collaboration/benchmarks/run_baseline.py run --arm no_tools --model claude-sonnet-5-5
-python collaboration/benchmarks/run_baseline.py run --arm mcp_statcan --model claude-sonnet-5-5
-python collaboration/benchmarks/run_baseline.py run --arm candata_mcp --model claude-sonnet-5-5
-python collaboration/benchmarks/run_baseline.py grade
+uv run python collaboration/benchmarks/run_baseline.py run --arm no_tools --model claude-sonnet-5-5
+uv run python collaboration/benchmarks/run_baseline.py run --arm mcp_statcan --model claude-sonnet-5-5
+uv run python collaboration/benchmarks/run_baseline.py run --arm candata_mcp --model claude-sonnet-5-5
+uv run python collaboration/benchmarks/run_baseline.py grade
 ```
+
+The script needs Python 3.12 or later (`uv run` gives you the project's).
 
 - `run` writes `runs/<date>_<arm>_<model>.jsonl`. Each line records:
   - the model IDs the API actually reported, which is the exact ID even when you pass an alias
   - the UTC start time
-  - every tool call
+  - every tool call, with its arguments (long strings cut to 300 characters) and whether its result was an error; results are not stored (#54)
   - the full answer
 - `--only GT-13 GT-15` runs just those questions, which is useful for a smoke test. The output file gets a `_partial` suffix so it does not overwrite a full run.
 - `grade` scores every run file offline and writes `baseline_results_v1.json` and `baseline_results_v1.md`.
@@ -77,11 +79,11 @@ Signs are compared as magnitudes, so "fell 30.8%" and "−30.8%" both count. Dir
 
 ### Manual review
 
-The automatic grade is a first pass. Read the hallucination log in the report, and record any re-grade in `manual_overrides.json`:
+The automatic grade is a first pass. Read the hallucination log in the report, and record any re-grade in `manual_overrides.json`. Keys name the arm, the model, the run file's date and the question, so a re-run of an arm is its own row in the report and doesn't inherit the earlier run's grades:
 
 ```json
 {
-  "no_tools/claude-sonnet-5-5/GT-03": {
+  "no_tools/claude-sonnet-5-5/2026-10-22/GT-03": {
     "outcome": "partial",
     "reason": "Gave both rents correctly; the 16.1% premium was phrased as 'about 16%'."
   }
@@ -104,11 +106,31 @@ The declines were honest: no wrong figures and no false claims. `mcp-statcan` ex
 
 The fixes are tracked in CAN-17 (BEN-45): discovery tools (table search and dimension listing) and actionable error payloads. Member labels on sliced payloads come in CAN-26. Re-run the `candata_mcp` arm once those land.
 
+## The CanData-MCP re-run (2026-11-25, #54)
+
+The `candata_mcp` arm was re-run on `main` at `c493990`, with the same model (`claude-sonnet-5-5`), system prompt and harness. The server now has the discovery tools from CAN-17 (`search_statcan_cubes`, `get_cube_dimensions`) and the Open Government Canada tools. Both runs stay in the report as separate rows.
+
+| Run | Correct | Partial | Abstained | Hallucinated | False claims | Vector coverage | Tool calls per answer |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| 2026-10-22 | 3 | 0 | 12 | 0 | 0 | 10% | 4.5 |
+| 2026-11-25 | 11 | 4 | 0 | 0 | 0 | 57% | 9.3 |
+
+`mcp-statcan` scored 11 correct and 3 partial on 2026-10-22. That run is a month older, so the two aren't a same-day comparison.
+
+Five answers were graded by hand (see `manual_overrides.json`). I checked every figure in them against StatCan on 2026-11-25. None was invented: each miss comes from choosing a different series or method.
+- **GT-03 (correct):** "$283, about 14% lower" is the same gap as the 16.1% premium, measured from Toronto instead of Oshawa.
+- **GT-04 (partial):** It made the right call (Oshawa), but from table 34-10-0127-01 (apartments of six units and over) instead of 34-10-0130-01 (row and apartment, three units and over).
+- **GT-07 (partial):** It used individuals' median after-tax income instead of economic families' (the same slip as `mcp-statcan`).
+- **GT-11 (partial):** It made the right call, but measured December to December instead of the annual average (the same slip as `mcp-statcan`).
+- **GT-14 (partial):** It declined the Toronto figure and offered the national series, but as a December-to-December change (+1.7%) instead of the annual average (+5.3%). It also said it "couldn't find" a Toronto series rather than that none is published.
+
+The run file records each tool call's arguments. Of 139 calls, one failed: in GT-08, the model called a tool that does not exist (`get_cube_dimensions_placeholder`). It recovered, and the answer was correct.
+
 ## Known limits
 
 - Grading is pattern-based, with no LLM judge. It can miss correct answers phrased in unusual ways, which is why the manual overrides exist.
 - An answer that lists many numbers can match expected values by chance. The hallucination log and the unverified IDs are there to catch this.
 - The no-tools arm is graded against data released after some models' training cutoffs. That is intended: it measures whether the model admits it doesn't know.
 - The two MCP arms expose different tool sets, so `candata_mcp` against `mcp_statcan` measures server design (which tools exist) as well as data quality. That is fine for a baseline, but it is not a like-for-like comparison of the data layer.
-- One run per arm and model. Run-to-run variance is not measured yet; that belongs in the DeepEval harness (CAN-41).
-- Every run in `runs/` uses the same harness: the version that records `tools_available` and runs MCP tools with `ENABLE_TOOL_SEARCH=false`. The part-1 Haiku and Sonnet runs predated that version and were re-run in part 2.
+- One run per arm, model and date. Run-to-run variance is not measured yet; that belongs in the DeepEval harness (CAN-41).
+- Every run in `runs/` uses the same harness: the version that records `tools_available` and runs MCP tools with `ENABLE_TOOL_SEARCH=false`. The part-1 Haiku and Sonnet runs predated that version and were re-run in part 2. The 2026-11-25 run also records tool-call arguments; the questions, prompt and agent loop are unchanged.

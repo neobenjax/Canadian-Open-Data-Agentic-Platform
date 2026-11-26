@@ -158,7 +158,7 @@ def test_every_question_can_be_graded(qid: str) -> None:
 
 
 def test_false_claim_override_keeps_the_automatic_outcome(tmp_path, monkeypatch) -> None:
-    run = tmp_path / "run.jsonl"
+    run = tmp_path / "2026-10-22_no_tools_m.jsonl"
     row = {
         "question_id": "GT-14",
         "arm": "no_tools",
@@ -175,7 +175,9 @@ def test_false_claim_override_keeps_the_automatic_outcome(tmp_path, monkeypatch)
     run.write_text(json.dumps(row) + "\n", encoding="utf-8")
     overrides = tmp_path / "overrides.json"
     overrides.write_text(
-        json.dumps({"no_tools/m/GT-14": {"false_claim": "Says a Toronto series exists."}}),
+        json.dumps(
+            {"no_tools/m/2026-10-22/GT-14": {"false_claim": "Says a Toronto series exists."}}
+        ),
         encoding="utf-8",
     )
     monkeypatch.setattr(rb, "OVERRIDES", overrides)
@@ -183,3 +185,112 @@ def test_false_claim_override_keeps_the_automatic_outcome(tmp_path, monkeypatch)
     assert report["answers"][0]["grade"]["outcome"] == "abstained"
     assert report["summary"][0]["false_claims"] == 1
     assert "Says a Toronto series exists." in rb.render_markdown(report)
+
+
+def test_run_records_each_tool_calls_arguments_and_error_status() -> None:
+    """#54: a failed call must be diagnosable from the run file, not inferred from the answer."""
+    long_sql = "SELECT " + "x, " * 200 + "1"
+    events = [
+        {"type": "system", "subtype": "init", "tools": ["mcp__candata__query_statcan_vector"]},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {"type": "text", "text": "Looking it up."},
+                    {
+                        "type": "tool_use",
+                        "id": "tu_1",
+                        "name": "mcp__candata__query_statcan_coordinate",
+                        "input": {"product_id": 34100133, "coordinate": "1.2.3"},
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "tu_2",
+                        "name": "mcp__candata__execute_sql_analytics",
+                        "input": {"sql": long_sql, "tables": ["t"]},
+                    },
+                ]
+            },
+        },
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "tu_1", "is_error": True},
+                    {"type": "tool_result", "tool_use_id": "tu_2", "content": "ok"},
+                ]
+            },
+        },
+        {"type": "assistant", "message": {"content": "plain text, not blocks"}},
+    ]
+    first, second = rb.tool_call_details(events)
+    assert first == {
+        "name": "mcp__candata__query_statcan_coordinate",
+        "input": {"product_id": 34100133, "coordinate": "1.2.3"},
+        "is_error": True,
+    }
+    assert second["is_error"] is False
+    assert second["input"]["tables"] == ["t"]
+    sql = second["input"]["sql"]
+    assert len(sql) < len(long_sql) and sql.endswith(f"... [{len(long_sql)} chars]")
+    assert sql.startswith(long_sql[: rb.MAX_ARG_CHARS])
+
+
+def test_a_tool_call_without_a_result_is_recorded_as_unknown() -> None:
+    events = [
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "tool_use", "id": "a", "name": "t", "input": {}}]},
+        }
+    ]
+    assert rb.tool_call_details(events) == [{"name": "t", "input": {}, "is_error": None}]
+
+
+def _answer(qid: str, response: str, started: str) -> dict[str, object]:
+    return {
+        "question_id": qid,
+        "arm": "candata_mcp",
+        "requested_model": "m",
+        "model_ids": ["m"],
+        "tools_available": [],
+        "started_at": started,
+        "duration_s": 1.0,
+        "num_turns": 1,
+        "tool_calls": [],
+        "is_error": False,
+        "response": response,
+    }
+
+
+def test_a_rerun_is_its_own_row_and_keeps_its_own_hand_grades(tmp_path, monkeypatch) -> None:
+    """#54: re-running CanData-MCP must not merge with, or inherit grades from, the old run."""
+    old = tmp_path / "2026-10-22_candata_mcp_m.jsonl"
+    new = tmp_path / "2026-11-25_candata_mcp_m.jsonl"
+    old.write_text(
+        json.dumps(_answer("GT-14", "I can't verify that.", "2026-10-22T20:00:00+00:00"))
+    )
+    new.write_text(
+        json.dumps(_answer("GT-14", "I can't verify that.", "2026-11-25T19:00:00+00:00"))
+    )
+    overrides = tmp_path / "overrides.json"
+    overrides.write_text(
+        json.dumps({"candata_mcp/m/2026-11-25/GT-14": {"outcome": "correct", "reason": "ok"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rb, "OVERRIDES", overrides)
+
+    report = rb.grade([new, old])
+    assert [(s["run_date"], s["questions"], s["correct"]) for s in report["summary"]] == [
+        ("2026-10-22", 1, 0),
+        ("2026-11-25", 1, 1),
+    ]
+    md = rb.render_markdown(report)
+    assert "| Question | candata_mcp · m · 2026-10-22 | candata_mcp · m · 2026-11-25 |" in md
+    assert "| GT-14 | abstained | correct* |" in md
+
+
+def test_run_files_must_start_with_their_date(tmp_path) -> None:
+    bad = tmp_path / "candata_mcp_m.jsonl"
+    bad.write_text(json.dumps(_answer("GT-14", "x", "2026-11-25T19:00:00+00:00")))
+    with pytest.raises(ValueError, match="does not start with its run date"):
+        rb.load_runs([bad])
