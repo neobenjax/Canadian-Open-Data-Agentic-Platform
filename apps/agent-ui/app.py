@@ -246,13 +246,24 @@ def _summary(result: RunResult, took: dict[str, float], index: int) -> None:
     if result.verification is not None:
         verdicts = _verdicts(result)
         passed = sum(1 for v in verdicts if v["passed"])
+        gaps: list[str] = []
         missing_priors = _missing_prior_comparisons(result)
+        if missing_priors:
+            gaps.append(
+                f"comparison prior period is missing for: {', '.join(missing_priors)}. "
+                "Change cannot be calculated"
+            )
+        if result.significance_not_assessed:
+            gaps.append(
+                "the question asks about statistical significance, and no step compared a "
+                "change with its standard error. Significance was not assessed"
+            )
         if result.verified:
-            if missing_priors:
-                missing_str = ", ".join(missing_priors)
+            if gaps:
                 st.warning(
-                    f"All cited series verified ({passed} of {len(verdicts)}), but comparison "
-                    f"prior period is missing for: {missing_str}. Change cannot be calculated.",
+                    f"All cited series verified ({passed} of {len(verdicts)}), but "
+                    + "; and ".join(gaps)
+                    + ".",
                     icon="⚠️",
                 )
             else:
@@ -267,6 +278,8 @@ def _summary(result: RunResult, took: dict[str, float], index: int) -> None:
                 "these figures as unverified.",
                 icon="⚠️",
             )
+            for gap in gaps:
+                st.warning(gap[0].upper() + gap[1:] + ".")
 
 
 def _evidence(result: RunResult) -> None:

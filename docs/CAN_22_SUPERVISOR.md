@@ -37,7 +37,7 @@ START → supervisor ─┬→ data_fetcher ─┐
 `validate_plan` (`supervisor/registry.py`) is the deterministic gate. Nothing runs until it passes:
 
 - **Known tools only.** Each tool's arguments are validated against a frozen Pydantic model with `extra="forbid"`. Every problem in the draft is reported in one pass.
-- **Fetch steps.** A fetch step loads one series into a named slot (`series_table`, `table_a`, `table_b`, `rent_table`, `income_table`). Vector IDs must match `v[1-9]\d*`. Periods must be `YYYY`, `YYYY-MM` or a real calendar date `YYYY-MM-DD` (`2025-02-30` is rejected), with start ≤ end after normalisation (guardrail 8). A slot holds one series.
+- **Fetch steps.** A fetch step loads one series into a named slot (`series_table`, `table_a` to `table_d`, `rent_table`, `income_table`). Vector IDs must match `v[1-9]\d*`. Periods must be `YYYY`, `YYYY-MM` or a real calendar date `YYYY-MM-DD` (`2025-02-30` is rejected), with start ≤ end after normalisation (guardrail 8). A slot holds one series.
 - **Confirmed vectors only.** The Claude planner passes the vector IDs `lookup_series` returned in that conversation as `confirmed_vectors`, and any other StatCan vector is rejected. A well-formed guess would otherwise fetch a real but wrong series, and its citation would still verify. Valet series names have no lookup tool, so they aren't checked. Scripted plans (`confirmed_vectors=None`) skip the check.
 - **Analyst steps.** An analyst step must read only slots that an earlier fetch step filled. Single-series recipes read the slot named in `slot` (default `series_table`), so a comparison (GT-08, GT-10, GT-11, GT-12) loads two series into two slots and runs the recipe once per slot. The step's `series_id` is **copied from the fetch step that filled the slot it reads**; the model cannot supply it (guardrail 6).
 - **Recipes not exposed to the planner.** `multi_year_cagr` would need the model to type numbers. Free-form `custom_sql` isn't deterministic. `cross_geography_ranking` needs input a fetch step can't produce yet.
@@ -50,10 +50,37 @@ START → supervisor ─┬→ data_fetcher ─┐
 | `yoy_point_to_point(lag, interval_years, slot)` | data_analyst | `slot` (default series_table) |
 | `percentage_point_spread(series_a_name, series_b_name)` | data_analyst | table_a, table_b |
 | `affordability_burden_ratio()` | data_analyst | rent_table, income_table |
+| `change_vs_standard_error(estimate_slot, standard_error_slot, change_period)` | data_analyst | the two slots it names (#109) |
 | `calendar_year_aggregation(agg_func, expected_periods, slot)` | data_analyst | `slot` (default series_table) |
 | `discrete_regime_change_counter(year, slot)` | data_analyst | `slot` (default series_table) |
 
 The Data Fetcher normalises periods to whole days: `2024` → `2024-01-01` and `2025` → `2025-12-31`. I checked live that WDS accepts these ranges for monthly (v42127475), annual (v3823103) and single-month (v41692889) series. The fetcher stores rows with `status_code` and `symbol_code`, so the analyst's quality warnings still apply, and adds the connector's citation to `AgentState.citations`.
+
+## Significance questions (#109)
+
+In the CAN-35 sessions (M2 follow-up), the question asked whether Ontario's and Alberta's 12-month changes in the unemployment rate were statistically meaningful. The page fetched and verified four series, the two rates and the standard errors of their year-over-year change, but only computed each change. No step compared a change with its standard error, and the banner read "All cited series verified (4 of 4)".
+
+**What StatCan publishes.** Labour Force Survey table 14-10-0287-01 has a Statistics dimension: Estimate, Standard error of estimate, Standard error of month-to-month change and Standard error of year-over-year change. The change itself isn't published. The table's footnote says to compute it as the estimate minus the estimate for the same month a year earlier, and that the change is significant at the 68% level when the change ± 1 SE excludes zero (± 2 SE for about 95%). The published standard errors are averages over the previous 12 months, updated in February and August.
+
+**`change_vs_standard_error`** (`analyst/recipes.py`) does exactly that, for each period that has a standard error:
+
+| Column | Meaning |
+| :-- | :-- |
+| `current_value`, `lag_value` | The estimate and the estimate 12 months (or 1 month) earlier |
+| `change_absolute`, `standard_error` | The change and the published SE for that period |
+| `change_in_se` | Change divided by SE (charted) |
+| `ci68_low`, `ci68_high`, `ci95_low`, `ci95_high` | change ± 1 SE and ± 2 SE |
+| `significant_68`, `significant_95` | Whether that interval excludes zero |
+
+- The step names its two slots (`estimate_slot`, `standard_error_slot`, which must differ) and `change_period` (`year_over_year` by default, or `month_to_month`). `validate_plan` copies both series IDs from the fetch steps, so the model can't supply them, and the analyst fails loud without both Tier 1 citations.
+- It fails loud when the two series have different units, or no period has both an estimate and an SE. A missing prior value or a non-positive SE leaves the significance columns null with a warning.
+- The change and SE are rounded to six decimals before comparing. A change equal to its SE (Ontario: 7.6 → 7.3, SE 0.3) touches zero and is not significant, and float noise (7.9 − 7.6 = 0.30000000000000071) can't flip that.
+- Comparing two provinces takes four slots, so `table_c` and `table_d` were added.
+- A planner rule says to look up the published SE for a significance question, and never to treat a change as significant without one.
+
+**The page.** `RunResult.significance_not_assessed` is true when the question asks about significance (statistically, significant, margin of error, standard error, confidence interval, and the French equivalents) and no `change_vs_standard_error` step ran. The banner then turns into a warning: "All cited series verified (4 of 4), but the question asks about statistical significance, and no step compared a change with its standard error. Significance was not assessed." A bare "meaningful" doesn't count, because "a meaningful drop" is usually not a statistical question.
+
+With October 2026 data (released 2026-11-06): Ontario 7.6 → 7.3 with SE 0.3 (68% interval −0.6 to 0.0), and Alberta 7.6 → 7.3 with SE 0.6 (change of −0.5 SE). Neither change is significant at the 68% level. `tests/test_supervisor.py::test_graph_answers_the_m2_significance_follow_up` runs this case through the graph twice on one thread.
 
 ## Follow-up questions (BEN-62)
 

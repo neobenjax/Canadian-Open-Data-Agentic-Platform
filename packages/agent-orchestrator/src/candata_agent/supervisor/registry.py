@@ -29,7 +29,9 @@ DATA_FETCHER: Final = "data_fetcher"
 DATA_ANALYST: Final = "data_analyst"
 MAX_STEPS: Final = 12
 
-DataSlot = Literal["series_table", "table_a", "table_b", "rent_table", "income_table"]
+DataSlot = Literal[
+    "series_table", "table_a", "table_b", "table_c", "table_d", "rent_table", "income_table"
+]
 
 
 def _real_date(period: str) -> str:
@@ -104,6 +106,20 @@ class NoArgs(_Args):
     pass
 
 
+class ChangeSignificanceArgs(_Args):
+    """An estimate's change against the published standard error of that change (#109)."""
+
+    estimate_slot: DataSlot = "table_a"
+    standard_error_slot: DataSlot = "table_b"
+    change_period: Literal["year_over_year", "month_to_month"] = "year_over_year"
+
+    @model_validator(mode="after")
+    def _distinct(self) -> ChangeSignificanceArgs:
+        if self.estimate_slot == self.standard_error_slot:
+            raise ValueError("estimate_slot and standard_error_slot must be different slots")
+        return self
+
+
 class CalendarYearArgs(_SingleSeriesArgs):
     agg_func: Literal["SUM", "AVG", "MIN", "MAX"] = "SUM"
     expected_periods: Annotated[int, Field(ge=1, le=366)] = 12
@@ -117,6 +133,7 @@ _SECOND_SLOT_ID_KEY: Final[Mapping[str, str]] = {
     "percentage_point_spread": "series_b_id",
     "affordability_burden_ratio": "income_series_id",
     "real_wage_change": "cpi_series_id",
+    "change_vs_standard_error": "standard_error_series_id",
 }
 
 
@@ -169,6 +186,13 @@ TOOLS: Final[Mapping[str, ToolSpec]] = {
             "Real wage change and inflation spread between wages (table_a) and CPI (table_b).",
             NoArgs,
             ("table_a", "table_b"),
+        ),
+        ToolSpec(
+            "change_vs_standard_error",
+            DATA_ANALYST,
+            "Whether an estimate's change is statistically significant: the change against the "
+            "published standard error of that change (68% and 95% levels).",
+            ChangeSignificanceArgs,
         ),
         ToolSpec(
             "affordability_burden_ratio",
@@ -280,7 +304,7 @@ def validate_plan(
                 )
             filled[parsed.into] = source
         else:
-            reads = (parsed.slot,) if isinstance(parsed, _SingleSeriesArgs) else spec.reads
+            reads = _reads(parsed, spec)
             missing = [slot for slot in reads if slot not in filled]
             if missing:
                 problems.append(
@@ -311,6 +335,15 @@ def validate_plan(
         steps=tuple(steps),
         active_step_id=steps[0].step_id,
     )
+
+
+def _reads(parsed: _Args, spec: ToolSpec) -> tuple[DataSlot, ...]:
+    """The slots an analyst step reads, first slot first (its series_id comes from that one)."""
+    if isinstance(parsed, _SingleSeriesArgs):
+        return (parsed.slot,)
+    if isinstance(parsed, ChangeSignificanceArgs):
+        return (parsed.estimate_slot, parsed.standard_error_slot)
+    return spec.reads
 
 
 def period_bounds(start: str, end: str) -> tuple[str, str]:

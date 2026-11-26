@@ -10,6 +10,7 @@ import pytest
 
 from candata_agent.analyst import (
     affordability_burden_ratio,
+    change_vs_standard_error,
     data_analyst_node,
     percentage_point_spread,
 )
@@ -568,3 +569,146 @@ async def test_validate_plan_to_analyst_dual_series_handoff() -> None:
                 ),
             )
         )
+
+
+# ---------------------------------------------------------------------------------------------
+# Issue #109: is a change statistically significant? (change vs its published standard error)
+# ---------------------------------------------------------------------------------------------
+
+
+def _monthly(unit: str, *points: tuple[str, float]) -> pa.Table:
+    table = pa.table({"date": [d for d, _ in points], "value": [v for _, v in points]})
+    return table.replace_schema_metadata({b"unit": unit.encode()})
+
+
+def test_change_vs_standard_error_m2_follow_up() -> None:
+    """The CAN-35 M2 follow-up, with October 2026 LFS values (14-10-0287-01, released Nov 6).
+
+    Ontario 7.6 -> 7.3 with SE 0.3: the 68% interval is -0.6 to 0.0, which reaches zero, so
+    the change is not significant. Alberta 7.6 -> 7.3 with SE 0.6 is well inside one SE.
+    """
+    ontario = change_vs_standard_error(
+        _monthly("Percentage", ("2025-10-01", 7.6), ("2026-10-01", 7.3)),
+        _monthly("Percentage", ("2026-10-01", 0.3)),
+        source_series_id="v2063949",
+    )
+    (on,) = ontario.rows
+    assert on["change_absolute"] == pytest.approx(-0.3)
+    assert on["standard_error"] == 0.3
+    assert on["change_in_se"] == pytest.approx(-1.0)
+    assert (on["ci68_low"], on["ci68_high"]) == (pytest.approx(-0.6), pytest.approx(0.0))
+    assert on["significant_68"] is False
+    assert on["significant_95"] is False
+
+    alberta = change_vs_standard_error(
+        _monthly("Percentage", ("2025-10-01", 7.6), ("2026-10-01", 7.3)),
+        _monthly("Percentage", ("2026-10-01", 0.6)),
+    )
+    assert alberta.rows[0]["change_in_se"] == pytest.approx(-0.5)
+    assert alberta.rows[0]["significant_68"] is False
+
+
+def test_change_vs_standard_error_follows_the_table_footnote_examples() -> None:
+    """14-10-0287-01's footnote: +160,000 with SE 55,000 is significant; +40,000 is not."""
+    se = _monthly("Persons in thousands", ("2026-10-01", 55.0))
+    big = change_vs_standard_error(
+        _monthly("Persons in thousands", ("2025-10-01", 1000.0), ("2026-10-01", 1160.0)), se
+    )
+    assert (big.rows[0]["ci68_low"], big.rows[0]["ci68_high"]) == (105.0, 215.0)
+    assert big.rows[0]["significant_68"] is True
+    assert big.rows[0]["significant_95"] is True  # 160 > 2 x 55
+
+    small = change_vs_standard_error(
+        _monthly("Persons in thousands", ("2025-10-01", 1000.0), ("2026-10-01", 1040.0)), se
+    )
+    assert (small.rows[0]["ci68_low"], small.rows[0]["ci68_high"]) == (-15.0, 95.0)
+    assert small.rows[0]["significant_68"] is False
+
+
+def test_change_equal_to_its_standard_error_is_not_flipped_by_float_noise() -> None:
+    # 7.9 - 7.6 is 0.30000000000000071 in floating point; the interval still touches zero.
+    art = change_vs_standard_error(
+        _monthly("Percentage", ("2025-10-01", 7.6), ("2026-10-01", 7.9)),
+        _monthly("Percentage", ("2026-10-01", 0.3)),
+    )
+    assert art.rows[0]["significant_68"] is False
+
+
+def test_change_vs_standard_error_month_to_month_and_missing_prior() -> None:
+    estimate = _monthly("Percentage", ("2026-08-01", 7.0), ("2026-09-01", 7.4), ("2026-10-01", 7.3))
+    se = _monthly("Percentage", ("2026-09-01", 0.2), ("2026-10-01", 0.2))
+    rows = change_vs_standard_error(estimate, se, change_period="month_to_month").rows
+    assert [r["obs_date"] for r in rows] == ["2026-10-01", "2026-09-01"]  # periods with an SE
+    assert rows[0]["change_absolute"] == pytest.approx(-0.1)
+    assert rows[1]["change_absolute"] == pytest.approx(0.4)
+    assert rows[1]["significant_68"] is True and rows[1]["significant_95"] is False
+
+    yoy = change_vs_standard_error(estimate, se).rows  # no estimate a year earlier
+    assert yoy[0]["lag_value"] is None and yoy[0]["significant_68"] is None
+    assert "Missing prior period" in yoy[0]["warning"]
+
+
+def test_change_vs_standard_error_fails_loud() -> None:
+    estimate = _monthly("Percentage", ("2025-10-01", 7.6), ("2026-10-01", 7.3))
+    with pytest.raises(ValueError, match="same unit"):
+        change_vs_standard_error(estimate, _monthly("Persons in thousands", ("2026-10-01", 5.0)))
+    with pytest.raises(ValueError, match="no period with both"):
+        change_vs_standard_error(estimate, _monthly("Percentage", ("2024-10-01", 0.3)))
+    with pytest.raises(ValueError, match="change_period"):
+        change_vs_standard_error(estimate, estimate, change_period="quarterly")
+
+    zero = change_vs_standard_error(estimate, _monthly("Percentage", ("2026-10-01", 0.0)))
+    assert zero.rows[0]["significant_68"] is None
+    assert "not positive" in zero.rows[0]["warning"]
+
+
+async def test_analyst_node_tests_significance_with_both_citations() -> None:
+    est_cit = _make_citation("14-10-0287-01", "v2063949", "Ontario unemployment rate")
+    se_cit = _make_citation("14-10-0287-01", "v101887840", "Ontario SE of year-over-year change")
+    step = PlanStep(
+        step_id=1,
+        description="Is Ontario's change significant?",
+        assigned_agent="data_analyst",
+        tool_name="change_vs_standard_error",
+        tool_args={
+            "estimate_slot": "table_a",
+            "standard_error_slot": "table_c",
+            "series_id": "v2063949",
+            "standard_error_series_id": "v101887840",
+        },
+    )
+    state = AgentState(
+        session_id="s",
+        thread_id="t",
+        plan=QueryPlan(objective="significance", steps=(step,), active_step_id=1),
+        citations=(se_cit, est_cit),
+        scratchpad={
+            "table_a": [{"date": "2025-10-01", "value": 7.6}, {"date": "2026-10-01", "value": 7.3}],
+            "table_c": [{"date": "2026-10-01", "value": 0.3}],
+            "table_a_unit": "Percentage",
+            "table_c_unit": "Percentage",
+        },
+    )
+    out = await data_analyst_node(state)
+    (art,) = out["sql_artifacts"]
+    assert art.source_series_id == "v2063949"
+    assert [c.core.vector_id for c in art.citations] == ["v2063949", "v101887840"]
+    assert art.rows[0]["significant_68"] is False
+    assert out["plan"].steps[0].status is StepStatus.COMPLETED
+
+    no_se_cit = state.model_copy(update={"citations": (est_cit,)})
+    failed = await data_analyst_node(no_se_cit)
+    assert failed["plan"].steps[0].status is StepStatus.FAILED
+    assert "standard_error (v101887840)" in failed["plan"].steps[0].error
+
+
+def test_change_vs_standard_error_keeps_only_periods_it_can_assess() -> None:
+    """A 13-month fetch with a monthly SE has one assessable year-over-year change, not 13."""
+    months = [f"2025-{m:02d}-01" for m in range(10, 13)] + [
+        f"2026-{m:02d}-01" for m in range(1, 11)
+    ]
+    estimate = _monthly("Percentage", *((d, 7.0) for d in months))
+    se = _monthly("Percentage", *((d, 0.3) for d in months))
+    rows = change_vs_standard_error(estimate, se).rows
+    assert [r["obs_date"] for r in rows] == ["2026-10-01"]
+    assert rows[0]["warning"] is None

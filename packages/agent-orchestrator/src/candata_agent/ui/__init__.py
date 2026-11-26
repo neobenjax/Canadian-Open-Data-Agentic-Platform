@@ -14,6 +14,7 @@ from candata_agent.ui.stream import (
     RunEvent,
     RunFinished,
     RunResult,
+    asks_for_significance,
     stream_question,
 )
 
@@ -27,5 +28,6 @@ __all__ = [
     "RunEvent",
     "RunFinished",
     "RunResult",
+    "asks_for_significance",
     "stream_question",
 ]

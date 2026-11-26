@@ -32,7 +32,13 @@ from candata_agent.supervisor import (
 )
 from candata_agent.supervisor.clarification import Resolution
 from candata_agent.supervisor.context import PlanContext
-from candata_agent.supervisor.planner import ClaudePlanner, PlannerResult, PlanningError
+from candata_agent.supervisor.planner import (
+    SYSTEM_PROMPT,
+    ClaudePlanner,
+    PlannerResult,
+    PlanningError,
+    _tool_catalog,  # pyright: ignore[reportPrivateUsage]
+)
 from candata_mcp.connectors.boc_valet import Observation as ValetObservation
 from candata_mcp.connectors.boc_valet import ObservationSet, SeriesDetail
 from candata_mcp.connectors.statcan_wds import (
@@ -890,6 +896,174 @@ async def test_graph_real_wage_change_m3_end_to_end(saver: AsyncSqliteSaver) -> 
     assert second["verification"]["passed"] is True
     assert len(second["sql_artifacts"]) >= 2
     assert len(planner.questions) == 2
+
+
+# Issue #109: the CAN-35 M2 follow-up, "were those changes statistically meaningful?"
+M2_FOLLOW_UP = (
+    "Were the 12-month changes in the unemployment rate in Ontario and Alberta statistically "
+    "meaningful?"
+)
+M2_DRAFT = draft(
+    ("fetch_statcan_vector", {"vector_id": "v2063949", "start": "2025-10", "end": "2026-10"}),
+    (
+        "fetch_statcan_vector",
+        {"vector_id": "v101887840", "start": "2025-10", "end": "2026-10", "into": "table_a"},
+    ),
+    (
+        "fetch_statcan_vector",
+        {"vector_id": "v2064516", "start": "2025-10", "end": "2026-10", "into": "table_b"},
+    ),
+    (
+        "fetch_statcan_vector",
+        {"vector_id": "v101889100", "start": "2025-10", "end": "2026-10", "into": "table_c"},
+    ),
+    (
+        "change_vs_standard_error",
+        {"estimate_slot": "series_table", "standard_error_slot": "table_a"},
+    ),
+    ("change_vs_standard_error", {"estimate_slot": "table_b", "standard_error_slot": "table_c"}),
+    objective="Ontario and Alberta unemployment rate, October 2026 vs October 2025, with SEs",
+)
+
+
+def lfs_series(vector_id: int, coordinate: str, title: str, *points: tuple[str, float]) -> Any:
+    return StatCanSeriesResult(
+        product_id=14100287,
+        coordinate=coordinate,
+        vector_id=vector_id,
+        title_en=title,
+        title_fr=None,
+        frequency_code=6,
+        unit="Percentage",
+        observations=tuple(Observation(d, v, 1, "2026-11-06T08:30", 0, 6, 0, 0) for d, v in points),
+        fetched_at="2026-11-25T00:00:00+00:00",
+    )
+
+
+def m2_statcan() -> FakeStatCan:
+    """October 2025 and 2026 values from 14-10-0287-01 (released 2026-11-06)."""
+    return FakeStatCan(
+        lfs_series(
+            2063949,
+            "7.7.1.1.1.1.0.0.0.0",
+            "Ontario;Unemployment rate",
+            ("2025-10-01", 7.6),
+            ("2026-10-01", 7.3),
+        ),
+        lfs_series(
+            101887840,
+            "7.7.1.1.4.1.0.0.0.0",
+            "Ontario;SE of year-over-year change",
+            ("2026-10-01", 0.3),
+        ),
+        lfs_series(
+            2064516,
+            "10.7.1.1.1.1.0.0.0.0",
+            "Alberta;Unemployment rate",
+            ("2025-10-01", 7.6),
+            ("2026-10-01", 7.3),
+        ),
+        lfs_series(
+            101889100,
+            "10.7.1.1.4.1.0.0.0.0",
+            "Alberta;SE of year-over-year change",
+            ("2026-10-01", 0.6),
+        ),
+    )
+
+
+def test_significance_steps_take_both_ids_from_the_fetch_steps() -> None:
+    plan = validate_plan(M2_DRAFT)
+    ontario, alberta = plan.steps[4].tool_args, plan.steps[5].tool_args
+    assert (ontario["series_id"], ontario["standard_error_series_id"]) == ("v2063949", "v101887840")
+    assert (alberta["series_id"], alberta["standard_error_series_id"]) == ("v2064516", "v101889100")
+    assert alberta["change_period"] == "year_over_year"
+
+    typed_id = draft(
+        ("fetch_statcan_vector", {"vector_id": "v1", "start": "2025", "end": "2026"}),
+        (
+            "change_vs_standard_error",
+            {"estimate_slot": "series_table", "standard_error_slot": "table_a"},
+        ),
+    )
+    with pytest.raises(PlanValidationError, match="no earlier fetch step fills table_a"):
+        validate_plan(typed_id)
+    same_slot = draft(
+        ("fetch_statcan_vector", {"vector_id": "v1", "start": "2025", "end": "2026"}),
+        (
+            "change_vs_standard_error",
+            {"estimate_slot": "series_table", "standard_error_slot": "series_table"},
+        ),
+    )
+    with pytest.raises(PlanValidationError, match="must be different slots"):
+        validate_plan(same_slot)
+    smuggled = draft(
+        ("fetch_statcan_vector", {"vector_id": "v1", "start": "2025", "end": "2026"}),
+        (
+            "fetch_statcan_vector",
+            {"vector_id": "v2", "start": "2025", "end": "2026", "into": "table_a"},
+        ),
+        (
+            "change_vs_standard_error",
+            {
+                "estimate_slot": "series_table",
+                "standard_error_slot": "table_a",
+                "standard_error_series_id": "v999",
+            },
+        ),
+    )
+    with pytest.raises(PlanValidationError, match="standard_error_series_id"):
+        validate_plan(smuggled)
+
+
+def test_planner_prompt_asks_for_the_standard_error_on_significance_questions() -> None:
+    prompt = SYSTEM_PROMPT.format(tool_catalog=_tool_catalog())
+    assert "statistically significant" in prompt
+    assert "Standard error of year-over-year change" in prompt
+    assert "never treat a change as significant without one" in prompt
+    assert (
+        "- change_vs_standard_error(change_period, estimate_slot, standard_error_slot):" in prompt
+    )
+    assert "Reads: the slots its *_slot arguments name." in prompt
+
+
+async def test_graph_answers_the_m2_significance_follow_up(saver: AsyncSqliteSaver) -> None:
+    """Issue #109 / Rule 26: four verified series and a significance result for each province."""
+    planner = ScriptedPlanner(planned(M2_DRAFT), planned(M2_DRAFT))
+    app = build_agent_graph(
+        planner=planner, statcan=m2_statcan(), valet=FakeValet(), checkpointer=saver
+    )
+    config = {"configurable": {"thread_id": "m2_significance"}}
+
+    first = await app.ainvoke(
+        {"session_id": "s_m2", "thread_id": "m2_significance", "messages": (user(M2_FOLLOW_UP),)},
+        config,
+    )
+    assert first["plan"].completed
+    assert first["verification"]["passed"] is True
+    verified = sorted(
+        v["claim"]["citation"]["core"]["vector_id"] for v in first["verification"]["verdicts"]
+    )
+    assert verified == ["v101887840", "v101889100", "v2063949", "v2064516"]
+
+    ontario, alberta = first["sql_artifacts"]
+    assert [c.core.vector_id for c in ontario.citations] == ["v2063949", "v101887840"]
+    assert [c.core.vector_id for c in alberta.citations] == ["v2064516", "v101889100"]
+    (on,), (ab,) = ontario.rows, alberta.rows
+    assert (on["change_absolute"], on["standard_error"]) == (pytest.approx(-0.3), 0.3)
+    assert (on["ci68_low"], on["ci68_high"]) == (pytest.approx(-0.6), pytest.approx(0.0))
+    assert on["significant_68"] is False  # the 68% interval reaches zero
+    assert (ab["change_in_se"], ab["significant_68"]) == (pytest.approx(-0.5), False)
+
+    second = await app.ainvoke({"messages": (user(M2_FOLLOW_UP),)}, config)
+    assert second["verification"]["passed"] is True
+    assert len(second["sql_artifacts"]) == 4  # appended, not overwritten
+    assert planner.questions == [M2_FOLLOW_UP, M2_FOLLOW_UP]
+
+    history = [snapshot async for snapshot in app.aget_state_history(config)]
+    assert len(history) >= 2
+    restored = (await app.aget_state(config)).values
+    assert restored["sql_artifacts"][-1].rows[0]["significant_68"] is False
 
 
 # ---------------------------------------------------------------------------------------------

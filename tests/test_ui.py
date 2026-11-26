@@ -23,6 +23,7 @@ from candata_agent.ui import (
     RunEvent,
     RunFinished,
     RunResult,
+    asks_for_significance,
     stream_question,
 )
 from candata_agent.ui.charts import CUT_NOTE, flag_text, result_figure, series_figure
@@ -427,3 +428,90 @@ def test_page_valid_comparison_shows_verified_banner() -> None:
     assert "⚠️ comparison missing prior period" not in text
     assert at.success
     assert not at.warning
+
+
+# Issue #109: a significance question that no step answered must not show a plain green banner.
+def _m2_turn(*analyses: AnalysisResult) -> RunResult:
+    turn = RunResult(
+        "Were the 12-month changes in the unemployment rate in Ontario and Alberta "
+        "statistically meaningful?"
+    )
+    turn.analyses.extend(analyses)
+    turn.verification = {
+        "passed": True,
+        "verdicts": [
+            verdict(v, True) for v in ("v2063949", "v2064516", "v101887840", "v101889100")
+        ],
+    }
+    return turn
+
+
+def test_page_says_significance_was_not_assessed_when_no_step_tested_it() -> None:
+    """The M2 follow-up as it ran on 2026-11-17: two year-over-year changes, no SE step."""
+    change = {"obs_date": "2026-10-01", "current_value": 7.3, "lag_value": 7.6}
+    turn = _m2_turn(
+        AnalysisResult("yoy_point_to_point", artifact("v2063949", change), "Ontario"),
+        AnalysisResult("yoy_point_to_point", artifact("v2064516", change), "Alberta"),
+    )
+    assert turn.significance_not_assessed
+    at = page_with(turn)
+
+    assert not at.exception
+    assert not at.success
+    (banner,) = at.warning
+    assert banner.value.startswith("All cited series verified (4 of 4), but the question asks")
+    assert "Significance was not assessed." in banner.value
+
+
+def test_page_shows_verified_when_a_step_tested_significance() -> None:
+    tested = {
+        "obs_date": "2026-10-01",
+        "lag_value": 7.6,
+        "change_absolute": -0.3,
+        "standard_error": 0.3,
+        "change_in_se": -1.0,
+        "significant_68": False,
+    }
+    turn = _m2_turn(
+        AnalysisResult("change_vs_standard_error", artifact("v2063949", tested), "Ontario"),
+        AnalysisResult("change_vs_standard_error", artifact("v2064516", tested), "Alberta"),
+    )
+    assert not turn.significance_not_assessed
+    at = page_with(turn)
+
+    assert not at.exception
+    assert at.success and not at.warning
+    assert result_figure(turn.analyses) is not None  # charted as change in standard errors
+
+
+def test_page_lists_a_missing_prior_and_unassessed_significance_together() -> None:
+    no_prior = {"obs_date": "2026-10-01", "current_value": 7.3, "lag_value": None}
+    turn = _m2_turn(AnalysisResult("yoy_point_to_point", artifact("v2063949", no_prior), "Ontario"))
+    at = page_with(turn)
+    (banner,) = at.warning
+    assert "comparison prior period is missing for: Ontario (v2063949)" in banner.value
+    assert "Significance was not assessed." in banner.value
+
+
+def test_page_shows_unassessed_significance_under_a_failed_verification() -> None:
+    turn = _m2_turn()
+    turn.verification = {"passed": False, "verdicts": [verdict("v2063949", False, "mismatch")]}
+    at = page_with(turn)
+    assert at.error
+    assert any("Significance was not assessed." in w.value for w in at.warning)
+
+
+@pytest.mark.parametrize(
+    ("question", "asks"),
+    [
+        ("Were those changes statistically meaningful?", True),
+        ("Is the drop in Ontario's unemployment rate significant?", True),
+        ("What is the margin of error on that estimate?", True),
+        ("Ces variations sont-elles statistiquement significatives?", True),
+        ("Quelle est la marge d’erreur?", True),
+        ("What was Ontario's unemployment rate in October 2026?", False),
+        ("Was that a meaningful drop in housing starts?", False),
+    ],
+)
+def test_significance_questions_are_recognised(question: str, asks: bool) -> None:
+    assert asks_for_significance(question) is asks

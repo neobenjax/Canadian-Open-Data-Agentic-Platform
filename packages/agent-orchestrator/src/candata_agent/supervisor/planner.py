@@ -145,6 +145,12 @@ Rules:
 - A table marked archived is official data that is no longer updated. If it is the only table
   with the figure, plan from it and name its last period in the objective; do not decline as if
   the figure were never published.
+- If the question asks whether a change is statistically significant (or meaningful, or
+  within the margin of error), look up the published standard error of that change (for the
+  Labour Force Survey, the Statistics member "Standard error of year-over-year change" or "...
+  of month-to-month change" of the same table) and run change_vs_standard_error once per
+  estimate, with both series fetched over the same periods. If no standard error is published,
+  say so in the objective; never treat a change as significant without one.
 - If official data cannot answer the question (the series is not published for that geography,
   period or breakdown), call decline with the reason instead of planning around it.
 - Finish by calling submit_plan or decline exactly once. If submit_plan returns problems, fix
@@ -513,7 +519,12 @@ def _tool_catalog() -> str:
     for spec in TOOLS.values():
         schema = spec.args.model_json_schema()
         props = ", ".join(sorted(schema.get("properties", {})))
-        reads = f" Reads: {', '.join(spec.reads)}." if spec.reads else " Reads: its slot."
+        if spec.reads:
+            reads = f" Reads: {', '.join(spec.reads)}."
+        elif "slot" in schema.get("properties", {}):
+            reads = " Reads: its slot."
+        else:
+            reads = " Reads: the slots its *_slot arguments name."
         lines.append(f"- {spec.name}({props}): {spec.description}{reads}")
     return "\n".join(lines)
 
