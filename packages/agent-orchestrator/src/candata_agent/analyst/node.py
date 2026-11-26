@@ -91,6 +91,33 @@ def _slot(tool_args: dict[str, Any]) -> str:
     return str(tool_args.get("slot", "series_table"))
 
 
+def _changes(
+    table: pa.Table, tool_args: dict[str, Any], date_col: str, value_col: str
+) -> tuple[pa.Table, str]:
+    """Each period's % change in ``table``, as yoy_point_to_point computes it (#112).
+
+    Periods without a prior value are left out, so the spread is only taken where both series
+    have a change. The result is marked as a percentage for the spread's rate check.
+    """
+    interval = tool_args.get("interval_years")
+    rows, sql = recipes.yoy_point_to_point(
+        table,
+        date_col=date_col,
+        value_col=value_col,
+        lag=int(tool_args.get("lag") or 12),
+        interval_years=int(interval) if interval is not None else None,
+    )
+    kept = [
+        {"obs_date": str(r["obs_date"]), "change_pct": float(r["change_pct"])}
+        for r in rows
+        if r.get("change_pct") is not None
+    ]
+    schema = pa.schema(
+        [("obs_date", pa.string()), ("change_pct", pa.float64())], metadata={b"unit": b"percent"}
+    )
+    return pa.Table.from_pylist(kept, schema=schema), sql
+
+
 def _inspect_data_quality(table: pa.Table | None) -> list[str]:
     """Inspect Arrow table columns for data quality/suppression flags."""
     warnings: list[str] = []
@@ -398,18 +425,34 @@ async def data_analyst_node(state: AgentState) -> dict[str, Any]:
             )
             input_citations = dual_cits
             input_citation = dual_cits[0]
+            date_col = str(tool_args.get("date_col", "date"))
+            value_col = str(tool_args.get("value_col", "value"))
+            change_sql = ""
+            if tool_args.get("compare") == "change":
+                # #112: a spread of two levels (CPI index points, dollars) is meaningless; take
+                # each series' change first, then the spread between the two changes.
+                table_a, sql_a = _changes(table_a, tool_args, date_col, value_col)
+                table_b, sql_b = _changes(table_b, tool_args, date_col, value_col)
+                if not set(table_a["obs_date"].to_pylist()) & set(table_b["obs_date"].to_pylist()):
+                    raise ValueError(
+                        "percentage_point_spread with compare='change': no period has a change "
+                        "for both series; fetch the comparison period for both slots"
+                    )
+                date_col, value_col = "obs_date", "change_pct"
+                change_sql = f"-- change of table_a\n{sql_a}\n-- change of table_b\n{sql_b}\n"
+                metadata["compare"] = "change"
             recipe_art = recipes.percentage_point_spread(
                 table_a,
                 table_b,
-                date_col=str(tool_args.get("date_col", "date")),
-                value_col=str(tool_args.get("value_col", "value")),
+                date_col=date_col,
+                value_col=value_col,
                 series_a_name=str(tool_args.get("series_a_name", "series_a")),
                 series_b_name=str(tool_args.get("series_b_name", "series_b")),
                 citations=input_citations,
                 source_series_id=source_series_id,
             )
             rows = list(recipe_art.rows)
-            executed_sql = recipe_art.sql_query
+            executed_sql = change_sql + recipe_art.sql_query
             input_citations = recipe_art.citations
             input_citation = recipe_art.citation
 

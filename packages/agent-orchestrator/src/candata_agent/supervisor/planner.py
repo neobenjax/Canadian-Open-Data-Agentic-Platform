@@ -138,6 +138,12 @@ Rules:
 - Prefer a table that publishes the figure directly (an annual table for an annual figure) over
   computing it from a finer series. For comparisons between periods (e.g. 2025 vs 2024), ensure
   fetch steps load both the target period and the comparison/prior period into the slot.
+- To compare how two series changed (for example shelter prices against all items), run the
+  change calculation once per slot; the two changes answer the comparison. Add
+  percentage_point_spread only when the gap between them is wanted, and when the series are
+  levels (an index, dollars or counts) set compare to "change" with the same lag or
+  interval_years as the change steps. compare "levels" is only for series that are already
+  rates, such as a vacancy rate or the policy rate.
 - Table titles name the measure, not every breakdown: a cause of death, product or industry is
   usually a member, found with find_members. Search for the measure (for example "mortality
   rates") before deciding no table has a topic. If a search has more matches than it shows,

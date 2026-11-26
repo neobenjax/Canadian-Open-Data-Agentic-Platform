@@ -98,8 +98,24 @@ class YoYArgs(_SingleSeriesArgs):
 
 
 class SpreadArgs(_Args):
+    """``levels`` subtracts two rates as published; ``change`` subtracts their changes (#112).
+
+    ``change`` is for series that are levels, such as a CPI index or a dollar amount: each
+    slot's change against ``lag`` months (or ``interval_years``) earlier is computed first, the
+    same way ``yoy_point_to_point`` does, and the spread is taken between those changes.
+    """
+
     series_a_name: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,31}$")] = "series_a"
     series_b_name: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,31}$")] = "series_b"
+    compare: Literal["levels", "change"] = "levels"
+    lag: Annotated[int, Field(ge=1, le=120)] | None = None
+    interval_years: Annotated[int, Field(ge=1, le=50)] | None = None
+
+    @model_validator(mode="after")
+    def _period_only_for_change(self) -> SpreadArgs:
+        if self.compare == "levels" and (self.lag is not None or self.interval_years is not None):
+            raise ValueError("lag and interval_years apply only when compare is 'change'")
+        return self
 
 
 class NoArgs(_Args):
@@ -176,7 +192,10 @@ TOOLS: Final[Mapping[str, ToolSpec]] = {
         ToolSpec(
             "percentage_point_spread",
             DATA_ANALYST,
-            "Difference in percentage points and basis points between table_a and table_b.",
+            "Difference in percentage points and basis points between table_a and table_b. "
+            "compare='levels' for series that are already rates (a vacancy or policy rate); "
+            "compare='change' for levels such as a CPI index or dollars, to subtract their "
+            "changes over lag months or interval_years.",
             SpreadArgs,
             ("table_a", "table_b"),
         ),

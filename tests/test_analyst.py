@@ -712,3 +712,91 @@ def test_change_vs_standard_error_keeps_only_periods_it_can_assess() -> None:
     rows = change_vs_standard_error(estimate, se).rows
     assert [r["obs_date"] for r in rows] == ["2026-10-01"]
     assert rows[0]["warning"] is None
+
+
+def _spread_state(
+    spread_args: dict[str, object], rent: list[float], income: list[float]
+) -> AgentState:
+    """A GT-08-shaped plan: rent and income fetched for 2019 and 2024, then a spread step."""
+    import json
+
+    from candata_agent.supervisor.registry import DraftStep, PlanDraft, validate_plan
+
+    def fetch(vector: str, into: str) -> DraftStep:
+        args = {"vector_id": vector, "start": "2019", "end": "2024", "into": into}
+        return DraftStep(tool="fetch_statcan_vector", args_json=json.dumps(args), description="")
+
+    plan = validate_plan(
+        PlanDraft(
+            objective="Toronto rent and income growth, 2019 to 2024",
+            steps=(
+                fetch("v3823103", "table_a"),
+                fetch("v96415851", "table_b"),
+                DraftStep(
+                    tool="percentage_point_spread",
+                    args_json=json.dumps(spread_args),
+                    description="",
+                ),
+            ),
+        )
+    )
+    years = ("2019-01-01", "2024-01-01")
+    return AgentState(
+        session_id="s_gt08",
+        thread_id="t_gt08",
+        plan=plan.model_copy(update={"active_step_id": 3}),
+        scratchpad={
+            "table_a": [{"date": d, "value": v} for d, v in zip(years, rent, strict=True)],
+            "table_a_source": "v3823103",
+            "table_a_unit": "Dollars",
+            "table_b": [{"date": d, "value": v} for d, v in zip(years, income, strict=True)],
+            "table_b_source": "v96415851",
+            "table_b_unit": "2024 constant dollars",
+        },
+        citations=(
+            _make_citation("34-10-0133-01", "v3823103", "Average rent"),
+            _make_citation("11-10-0190-01", "v96415851", "Median after-tax income"),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_spread_of_changes_for_gt08_over_five_years() -> None:
+    """#112: rent +26.17% and income +2.10% from 2019 to 2024 give a 24.06-point gap."""
+    state = _spread_state(
+        {"compare": "change", "interval_years": 5, "series_a_name": "rent",
+         "series_b_name": "income"},
+        rent=[1563.0, 1972.0],
+        income=[80800.0, 82500.0],
+    )  # fmt: skip
+    delta = await data_analyst_node(state)
+
+    assert delta["plan"].steps[2].status is StepStatus.COMPLETED
+    (artifact,) = delta["sql_artifacts"]
+    (row,) = artifact.rows
+    assert (row["obs_date"], row["rent"], row["income"]) == ("2024-01-01", 26.1676, 2.104)
+    assert row["spread_pp"] == pytest.approx(24.0636)
+    assert [c.core.vector_id for c in artifact.citations] == ["v3823103", "v96415851"]
+    assert "INTERVAL 5 YEAR" in artifact.sql_query  # the changes' own SQL is shown too
+
+
+@pytest.mark.asyncio
+async def test_spread_of_dollar_levels_still_fails_loud() -> None:
+    """#107 stays: without compare='change', subtracting two dollar amounts is refused."""
+    delta = await data_analyst_node(
+        _spread_state({}, rent=[1563.0, 1972.0], income=[80800.0, 82500.0])
+    )
+    step = delta["plan"].steps[2]
+    assert step.status is StepStatus.FAILED
+    assert "Do not subtract raw levels" in (step.result_summary or "")
+
+
+@pytest.mark.asyncio
+async def test_spread_of_changes_needs_a_change_for_both_series() -> None:
+    """A one-year change on two annual points 5 years apart has no period to compare."""
+    delta = await data_analyst_node(
+        _spread_state({"compare": "change"}, rent=[1563.0, 1972.0], income=[80800.0, 82500.0])
+    )
+    step = delta["plan"].steps[2]
+    assert step.status is StepStatus.FAILED
+    assert "no period has a change for both series" in (step.result_summary or "")

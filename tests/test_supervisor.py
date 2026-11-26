@@ -1066,6 +1066,109 @@ async def test_graph_answers_the_m2_significance_follow_up(saver: AsyncSqliteSav
     assert restored["sql_artifacts"][-1].rows[0]["significant_68"] is False
 
 
+# Issue #112: the 2026-11-25 live plans for GT-08, 10, 11 and 12 added a spread of the two raw
+# series after the two change steps. The spread now subtracts changes when asked to, and a
+# failed step no longer hides the verified results of the steps before it.
+def gt12_with_spread(**spread: Any) -> PlanDraft:
+    return draft(
+        *((s.tool, json.loads(s.args_json)) for s in GT12_DRAFT.steps),
+        ("percentage_point_spread", {"series_a_name": "shelter", "series_b_name": "all_items",
+                                     **spread}),
+        objective="Toronto shelter vs all-items CPI, Aug 2026 year over year",
+    )  # fmt: skip
+
+
+def gt12_statcan() -> FakeStatCan:
+    return FakeStatCan(
+        cpi_series(41692889, "16.79.0.0.0.0.0.0.0.0", SHELTER),
+        cpi_series(41692888, "16.2.0.0.0.0.0.0.0.0", ALL_ITEMS),
+    )
+
+
+def test_a_spread_takes_a_change_period_only_when_it_compares_changes() -> None:
+    plan = validate_plan(gt12_with_spread(compare="change", lag=12))
+    spread = plan.steps[-1].tool_args
+    assert (spread["compare"], spread["lag"]) == ("change", 12)
+    assert (spread["series_id"], spread["series_b_id"]) == ("v41692889", "v41692888")
+    with pytest.raises(PlanValidationError, match="apply only when compare is 'change'"):
+        validate_plan(gt12_with_spread(lag=12))
+
+
+def test_prompt_says_how_to_spread_two_changes() -> None:
+    prompt = SYSTEM_PROMPT.format(tool_catalog=_tool_catalog())
+    assert 'set compare to "change"' in prompt
+    assert "the two changes answer the comparison" in prompt
+    assert "compare='change' for levels such as a CPI index" in prompt
+
+
+async def test_graph_spreads_the_two_changes_for_gt12(saver: AsyncSqliteSaver) -> None:
+    """#112 / Rule 26: the GT-12 plan with a spread step completes, and the spread is between
+    the two year-over-year changes (-0.47% minus +2.14%), not the two index levels."""
+    planner = ScriptedPlanner(*(planned(gt12_with_spread(compare="change")),) * 2)
+    app = build_agent_graph(
+        planner=planner, statcan=gt12_statcan(), valet=FakeValet(), checkpointer=saver
+    )
+    config = {"configurable": {"thread_id": "gt12_spread"}}
+
+    first = await app.ainvoke(
+        {"session_id": "s", "thread_id": "gt12_spread", "messages": (user(GT12_QUESTION),)},
+        config,
+    )
+    assert first["plan"].completed
+    assert first["verification"]["passed"] is True
+    shelter, all_items, spread = first["sql_artifacts"]
+    assert _august_2026_change(shelter.rows) == pytest.approx(-0.47, abs=0.01)
+    assert _august_2026_change(all_items.rows) == pytest.approx(2.14, abs=0.01)
+    (row,) = spread.rows  # only August 2026 has a change for both series
+    assert row["obs_date"].startswith("2026-08")
+    assert (row["shelter"], row["all_items"]) == (-0.4702, 2.1416)
+    assert row["spread_pp"] == pytest.approx(-2.6118)
+    assert [c.core.vector_id for c in spread.citations] == ["v41692889", "v41692888"]
+    assert spread.metadata["compare"] == "change"
+
+    second = await app.ainvoke({"messages": (user(GT12_QUESTION),)}, config)
+    assert second["verification"]["passed"] is True
+    assert len(second["sql_artifacts"]) == 6  # appended, not overwritten
+    assert planner.questions == [GT12_QUESTION, GT12_QUESTION]
+
+    history = [snapshot async for snapshot in app.aget_state_history(config)]
+    assert len(history) >= 2
+    restored = (await app.aget_state(config)).values
+    assert restored["sql_artifacts"][-1].rows[0]["spread_pp"] == pytest.approx(-2.6118)
+
+
+async def test_a_failed_spread_still_verifies_the_finished_steps(saver: AsyncSqliteSaver) -> None:
+    """#112 / Rule 26: the live GT-12 plan, a spread of the two index levels, still fails loud
+    (#107), but the two change results that finished are verified instead of "not checked"."""
+    planner = ScriptedPlanner(*(planned(gt12_with_spread()),) * 2)
+    app = build_agent_graph(
+        planner=planner, statcan=gt12_statcan(), valet=FakeValet(), checkpointer=saver
+    )
+    config = {"configurable": {"thread_id": "gt12_failed_spread"}}
+
+    for turn in (1, 2):
+        out = await app.ainvoke(
+            {"session_id": "s", "thread_id": "gt12_failed_spread",
+             "messages": (user(GT12_QUESTION),)},
+            config,
+        )  # fmt: skip
+        plan = cast(QueryPlan, out["plan"])
+        assert [s.status for s in plan.steps][-2:] == [StepStatus.COMPLETED, StepStatus.FAILED]
+        assert "requires rate or percentage inputs" in (plan.steps[-1].result_summary or "")
+        assert out["verification"]["passed"] is True
+        verified = sorted(
+            v["claim"]["citation"]["core"]["vector_id"] for v in out["verification"]["verdicts"]
+        )
+        assert verified == ["v41692888", "v41692889"]  # this question's series only
+        assert len(out["sql_artifacts"]) == 2 * turn  # the two changes; no spread artifact
+        assert len(planner.questions) == turn
+
+    history = [snapshot async for snapshot in app.aget_state_history(config)]
+    assert len(history) >= 2
+    restored = (await app.aget_state(config)).values
+    assert restored["plan"].steps[-1].status is StepStatus.FAILED
+
+
 # ---------------------------------------------------------------------------------------------
 # Live: real Claude planner with real StatCan discovery (costs API tokens; `pytest -m live`)
 # ---------------------------------------------------------------------------------------------

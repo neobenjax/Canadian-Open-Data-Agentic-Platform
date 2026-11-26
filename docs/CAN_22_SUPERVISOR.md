@@ -9,12 +9,12 @@ The Supervisor turns a question into a plan of deterministic tool calls and rout
 ```
 START → supervisor ─┬→ data_fetcher ─┐
                     ├→ data_analyst ─┤ (back to supervisor after each step)
-                    ├→ citation_verifier → END   (plan complete)
-                    └→ END                       (declined, planning failed, or a step failed)
+                    ├→ citation_verifier → END   (plan complete, or a step failed after a fetch)
+                    └→ END                       (declined, planning failed, or nothing fetched)
 ```
 
 - **One plan per user message.** Planning is keyed on the message ID, not its text, so a new message starts a new plan on the same thread, including a retry of a question that failed or a repeat of one that finished. Mid-plan, the Supervisor only routes.
-- **Every executor finishes its step.** It marks the step `completed` or `failed` and moves `active_step_id` on. A failed step ends the run, with the reason in the messages and in `result_summary`.
+- **Every executor finishes its step.** It marks the step `completed` or `failed` and moves `active_step_id` on. A failed step ends the run, with the reason in the messages and in `result_summary`. If any series were fetched before it, they are verified first, so the results of the finished steps keep their badges (#112).
 - **Verification is per question.** The verifier checks only the citations this question's fetch steps produced. Its report goes in `AgentState.verification` (new field), which is reset when the next question is planned.
 - **Tracing.** Every node is wrapped in `traced_node` (CAN-25), so `traced_run` gives one trace per question. This also covers BEN-50 for the Supervisor and the Citation Verifier.
 
@@ -48,7 +48,7 @@ START → supervisor ─┬→ data_fetcher ─┐
 | `fetch_valet_series(series_id, start, end, into)` | data_fetcher | |
 | `annual_inflation_rate(expected_periods, slot)` | data_analyst | `slot` (default series_table) |
 | `yoy_point_to_point(lag, interval_years, slot)` | data_analyst | `slot` (default series_table) |
-| `percentage_point_spread(series_a_name, series_b_name)` | data_analyst | table_a, table_b |
+| `percentage_point_spread(series_a_name, series_b_name, compare, lag, interval_years)` | data_analyst | table_a, table_b |
 | `affordability_burden_ratio()` | data_analyst | rent_table, income_table |
 | `change_vs_standard_error(estimate_slot, standard_error_slot, change_period)` | data_analyst | the two slots it names (#109) |
 | `calendar_year_aggregation(agg_func, expected_periods, slot)` | data_analyst | `slot` (default series_table) |
@@ -81,6 +81,17 @@ In the CAN-35 sessions (M2 follow-up), the question asked whether Ontario's and 
 **The page.** `RunResult.significance_not_assessed` is true when the question asks about significance (statistically, significant, margin of error, standard error, confidence interval, and the French equivalents) and no `change_vs_standard_error` step ran. The banner then turns into a warning: "All cited series verified (4 of 4), but the question asks about statistical significance, and no step compared a change with its standard error. Significance was not assessed." A bare "meaningful" doesn't count, because "a meaningful drop" is usually not a statistical question.
 
 With October 2026 data (released 2026-11-06): Ontario 7.6 → 7.3 with SE 0.3 (68% interval −0.6 to 0.0), and Alberta 7.6 → 7.3 with SE 0.6 (change of −0.5 SE). Neither change is significant at the 68% level. `tests/test_supervisor.py::test_graph_answers_the_m2_significance_follow_up` runs this case through the graph twice on one thread.
+
+## Spreads between two changes (#112)
+
+In the 2026-11-25 live run (CAN-55), GT-08, GT-10, GT-11 and GT-12 computed the right changes, then failed. Each plan had two fetches, a `yoy_point_to_point` step per series, and then a `percentage_point_spread` step. The spread reads `table_a` and `table_b`, which hold the series as published (a CPI index, or dollars), not the changes. The rate check from #107 refused it, as designed. Because the failed step ended the run before the verifier, every result showed "not checked".
+
+- **`compare`.** The spread step now takes `compare`: `levels` (the default) subtracts two series that are already rates, such as a vacancy rate or the policy rate. `change` first computes each series' change against `lag` months (default 12) or `interval_years` earlier, the same way `yoy_point_to_point` does, and subtracts the two changes. Only periods where both series have a change are kept, and it fails loud if there are none. `lag` and `interval_years` are refused with `levels`. The artifact's SQL shows the two change queries before the spread.
+- **Planner rule.** To compare how two series changed, the two change steps answer the comparison. The planner adds a spread only when the gap is wanted, with `compare="change"` for levels.
+- **A failed step no longer hides finished results.** After a failed step, the router sends the run to the verifier when series were fetched, and the run then ends. The page shows the failure, and the banner reads "All cited series verified (N of M), but a step failed (above), so the answer is incomplete", never the green banner.
+- A spread of two levels is still refused (#107). The difference is that the finished change results stay visible and verified.
+
+GT-12 with a spread step: shelter −0.4702% minus all-items +2.1416% gives −2.6118 points. GT-08 over five years: rent +26.1676% minus income +2.104% gives 24.0636 points.
 
 ## Follow-up questions (BEN-62)
 
@@ -162,6 +173,7 @@ async with StatCanClient() as statcan, ValetClient() as valet, AsyncSqliteSaver(
     - Two questions on one thread. GT-05 gives **37,718 / 26,087**, then GT-13 gives **4 changes, 3.25 → 2.25**, and only the second question's citation is re-verified.
     - GT-12 compares two series: Toronto shelter **−0.47%** and all-items **+2.14%** year over year (real WDS values), each citing and verifying its own vector. Asking it again on the same thread plans again.
     - A failed fetch ends the run, and the first question's report isn't carried over. Retrying the same question plans it again and succeeds.
+    - GT-12 with a spread of the two changes completes and verifies both series. With a spread of the two index levels, the spread fails, and the two change results are still verified (#112).
     - Decline and planner errors end the run with a message.
     - The fork resumes.
 - `python scripts/verify.py` passes.

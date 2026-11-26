@@ -247,6 +247,11 @@ def _summary(result: RunResult, took: dict[str, float], index: int) -> None:
         verdicts = _verdicts(result)
         passed = sum(1 for v in verdicts if v["passed"])
         gaps: list[str] = []
+        if result.failed_step:  # #112: the finished steps' series are verified, not the answer
+            gaps.append(
+                "a step failed (above), so the answer is incomplete. The results shown are from "
+                "the steps that finished"
+            )
         missing_priors = _missing_prior_comparisons(result)
         if missing_priors:
             gaps.append(
