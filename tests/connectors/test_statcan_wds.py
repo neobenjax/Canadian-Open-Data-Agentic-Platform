@@ -686,3 +686,119 @@ async def test_get_data_from_cube_auto_pads_short_coordinate(statcan: StatCanCli
     assert result.unit == "Rate"
     assert result.unit_code == 257
     assert result.series_title_en == "Toronto, Ontario"
+
+
+# Real catalog entries (getAllCubesListLite, 2026-11-24) for issue #103: provincial
+# age-standardized mortality by cause lives in archived tables whose titles say
+# "age standardizing" / "age standardization", and never name the cause.
+MORTALITY_CUBES: list[dict[str, Any]] = [
+    {
+        "productId": 13100007,
+        "cubeTitleEn": (
+            "Mortality, by selected causes of death and sex, Canada, provinces, territories "
+            "and health regions, rate"
+        ),
+        "cubeStartDate": "1996-01-01",
+        "cubeEndDate": "1996-01-01",
+        "frequencyCode": 12,
+        "archived": "1",
+    },
+    {
+        "productId": 13100392,
+        "cubeTitleEn": "Deaths and age-specific mortality rates, by selected grouped causes",
+        "cubeStartDate": "2000-01-01",
+        "cubeEndDate": "2024-01-01",
+        "frequencyCode": 12,
+        "archived": "2",
+    },
+    {
+        "productId": 13100393,
+        "cubeTitleEn": (
+            "Deaths and mortality rates (age standardizing using 1991 population), "
+            "by selected grouped causes"
+        ),
+        "cubeStartDate": "2000-01-01",
+        "cubeEndDate": "2013-01-01",
+        "frequencyCode": 12,
+        "archived": "1",
+    },
+    {
+        "productId": 13100396,
+        "cubeTitleEn": (
+            "Leading causes of death, total population (age standardization using 1991 population)"
+        ),
+        "cubeStartDate": "2000-01-01",
+        "cubeEndDate": "2013-01-01",
+        "frequencyCode": 12,
+        "archived": "1",
+    },
+    {
+        "productId": 13100800,
+        "cubeTitleEn": (
+            "Deaths and mortality rate (age standardization using 2011 population), "
+            "by selected grouped causes, inactive"
+        ),
+        "cubeStartDate": "2000-01-01",
+        "cubeEndDate": "2023-01-01",
+        "frequencyCode": 12,
+        "archived": "1",
+    },
+]
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    "query",
+    [
+        "age-standardized mortality",
+        "age-standardised mortality rates",
+        "age standardized mortality rate",
+    ],
+)
+async def test_search_finds_archived_age_standardized_mortality_tables(
+    statcan: StatCanClient, query: str
+) -> None:
+    """#103: the H2 wording must reach the archived provincial tables, marked archived."""
+    respx.get(f"{STATCAN_WDS_BASE_URL}/getAllCubesListLite").mock(
+        return_value=httpx.Response(200, json=MORTALITY_CUBES)
+    )
+    found = await statcan.search_cubes(query, limit=8, bypass_cache=True)
+    by_id = {c.product_id: c for c in found.cubes}
+    assert {13100393, 13100800} <= set(by_id)
+    assert 13100392 not in by_id  # age-specific, not age-standardized
+    assert by_id[13100393].archived is True
+    assert by_id[13100393].end_date == "2013-01-01"
+    assert by_id[13100800].end_date == "2023-01-01"
+
+
+@respx.mock
+async def test_search_ranks_exact_words_first_and_reports_archive_status(
+    statcan: StatCanClient,
+) -> None:
+    respx.get(f"{STATCAN_WDS_BASE_URL}/getAllCubesListLite").mock(
+        return_value=httpx.Response(200, json=MORTALITY_CUBES)
+    )
+    # "deaths" and "causes" also match "death"/"cause"; titles with both exact words lead.
+    found = await statcan.search_cubes("deaths causes", limit=8, bypass_cache=True)
+    assert [c.product_id for c in found.cubes][:3] == [13100392, 13100393, 13100800]
+    assert found.cubes[-1].product_id == 13100396  # "causes of death" only
+    status = {c.product_id: c.archived for c in found.cubes}
+    assert status[13100392] is False and status[13100393] is True
+
+
+def test_search_term_forms() -> None:
+    from candata_mcp.connectors.statcan_wds import _search_terms, _term_pattern
+
+    assert _search_terms("Age-standardized  mortality/rates") == [
+        "age",
+        "standardized",
+        "mortality",
+        "rates",
+    ]
+    standardized = _term_pattern("standardized")
+    assert standardized.search("age standardizing using 1991 population")
+    assert standardized.search("age standardisation")
+    assert not _term_pattern("rent").search("current account")  # word start still required
+    assert _term_pattern("rates").search("mortality rate")
+    assert _term_pattern("class").pattern.endswith("class")  # "ss" is not a plural
+    assert _term_pattern("gas").pattern.endswith("gas")  # too short to strip

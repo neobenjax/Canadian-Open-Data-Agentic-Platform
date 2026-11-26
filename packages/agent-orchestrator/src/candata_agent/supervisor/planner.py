@@ -138,6 +138,13 @@ Rules:
 - Prefer a table that publishes the figure directly (an annual table for an annual figure) over
   computing it from a finer series. For comparisons between periods (e.g. 2025 vs 2024), ensure
   fetch steps load both the target period and the comparison/prior period into the slot.
+- Table titles name the measure, not every breakdown: a cause of death, product or industry is
+  usually a member, found with find_members. Search for the measure (for example "mortality
+  rates") before deciding no table has a topic. If a search has more matches than it shows,
+  add words to narrow it.
+- A table marked archived is official data that is no longer updated. If it is the only table
+  with the figure, plan from it and name its last period in the objective; do not decline as if
+  the figure were never published.
 - If official data cannot answer the question (the series is not published for that geography,
   period or breakdown), call decline with the reason instead of planning around it.
 - Finish by calling submit_plan or decline exactly once. If submit_plan returns problems, fix
@@ -364,6 +371,7 @@ class ClaudePlanner:
                         "start": c.start_date,
                         "end": c.end_date,
                     }
+                    | ({"archived": True} if c.archived else {})
                     for c in found.cubes
                 ],
             }

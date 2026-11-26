@@ -45,6 +45,33 @@ def _normalize_search_term(text: str) -> str:
     return "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
 
 
+# "-ize" word forms differ between a question and a table title: "age-standardized" asks for
+# tables titled "age standardizing" or "age standardization" (13-10-0393-01, 13-10-0800-01).
+_IZE_SUFFIX = re.compile(r"i[sz](?:ations?|ing|ed|es|e)$")
+_MIN_STEM = 4
+
+
+def _search_terms(query: str) -> list[str]:
+    """Split a search query into normalized terms; hyphens and slashes separate words."""
+    return [t for t in re.split(r"[\s\-/]+", _normalize_search_term(query.strip())) if t]
+
+
+def _term_pattern(term: str) -> re.Pattern[str]:
+    """Match a term at a word start, tolerating -ize/-ise forms and a plural "s"."""
+    ize = _IZE_SUFFIX.search(term)
+    if ize and ize.start() >= _MIN_STEM:
+        return re.compile(rf"\b{re.escape(term[: ize.start()])}i[sz]")
+    if len(term) > _MIN_STEM and term.endswith("s") and not term.endswith("ss"):
+        term = term[:-1]
+    return re.compile(rf"\b{re.escape(term)}")
+
+
+def _archive_status(raw: object) -> bool | None:
+    """WDS cube list ``archived``: "1" archived (no longer updated), "2" current."""
+    code = str(raw).strip() if raw is not None else ""
+    return {"1": True, "2": False}.get(code)
+
+
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 FREQUENCY_NAMES: Mapping[int, str] = {
@@ -230,6 +257,7 @@ class CubeSummary:
     release_time: str | None
     frequency_code: int
     frequency_name: str
+    archived: bool | None = None  # True: still published but no longer updated
 
 
 @dataclass(frozen=True, slots=True)
@@ -560,18 +588,23 @@ class StatCanClient:
     ) -> CubeSearchResult:
         """Search Statistics Canada data cubes by keyword with token-budgeted pagination.
 
-        Tokenizes queries on whitespace and matches all terms on word boundaries
+        Splits queries on whitespace, hyphens and slashes and matches all terms at word starts
         (e.g. 'toronto rent' matches 34-10-0133-01, while 'rent' does not match 'current').
+        A trailing plural "s" and -ize/-ise word forms are tolerated, so 'age-standardized
+        mortality rates' matches "mortality rates (age standardizing ...)". Archived tables
+        (still published, no longer updated) are returned and marked ``archived``.
         Returns true total match count alongside paginated results.
         """
         cubes = await self.get_all_cubes_list_lite(bypass_cache=bypass_cache)
-        tokens = [_normalize_search_term(t) for t in query.strip().split() if t]
+        tokens = _search_terms(query)
         if not tokens:
             return CubeSearchResult(total_results=0, cubes=())
 
-        token_patterns = [re.compile(rf"\b{re.escape(t)}", re.IGNORECASE) for t in tokens]
+        token_patterns = [_term_pattern(t) for t in tokens]
+        exact_patterns = [re.compile(rf"\b{re.escape(t)}\b") for t in tokens]
 
         matches: list[CubeSummary] = []
+        exact_counts: list[int] = []
         for c in cubes:
             pid = normalize_product_id(str(c.get("productId", 0)))
             title_en = str(c.get("cubeTitleEn", ""))
@@ -593,9 +626,14 @@ class StatCanClient:
                         release_time=_optional_text(c, "releaseTime"),
                         frequency_code=freq_code,
                         frequency_name=FREQUENCY_NAMES.get(freq_code, f"code_{freq_code}"),
+                        archived=_archive_status(c.get("archived")),
                     )
                 )
+                exact_counts.append(sum(1 for p in exact_patterns if p.search(searchable)))
 
+        # Tables whose titles use the query's exact words come first; ties keep catalog order.
+        order = sorted(range(len(matches)), key=lambda i: -exact_counts[i])
+        matches = [matches[i] for i in order]
         total_results = len(matches)
         paged_cubes = tuple(matches[offset : offset + limit])
         return CubeSearchResult(total_results=total_results, cubes=paged_cubes)
