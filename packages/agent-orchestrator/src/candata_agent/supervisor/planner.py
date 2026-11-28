@@ -16,6 +16,11 @@ dimension shares, ``lookup_series`` refuses such a member until the user has cho
 are only members ``find_members`` returned. ``plan(question, resolved=...)`` plans again with
 the user's choices.
 
+#79 failures: a ``PlanningError`` carries a plain ``user_message`` and the tokens spent before
+it, and planning stops as soon as Claude repeats a call that was already rejected, instead of
+spending the rest of the turn budget on it. ``describe_planning_failure`` turns any planner
+exception, Anthropic API errors included, into the one line the user sees.
+
 CAN-44 token optimization: Anthropic prompt caching with ephemeral breakpoints on the system
 prompt, tools catalog, and the latest conversation turn; token usage records cache creation and
 read hits.
@@ -24,12 +29,14 @@ read hits.
 from __future__ import annotations
 
 import json
+import logging
 import time
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final, Protocol, cast
 
+import anthropic
 from anthropic import AsyncAnthropic
 from anthropic.types.beta import (
     BetaMessageParam,
@@ -70,6 +77,15 @@ DEFAULT_MODEL: Final = "claude-opus-5-5"
 FALLBACK_BETA: Final = "server-side-fallback-2026-07-01"
 PROMPT_CACHING_BETA: Final = "prompt-caching-2024-07-31"
 MAX_MEMBERS: Final = 15
+LOGGER: Final = logging.getLogger("candata_agent.planner")
+
+_TRY_NARROWER: Final = "Try asking for one figure at a time, or name the table or series."
+NO_PLAN_IN_TURNS: Final = (
+    "no plan could be built from the published series within {turns} attempts. " + _TRY_NARROWER
+)
+REPEATED_REJECTED: Final = (
+    "the planner kept proposing a step that had already been rejected. " + _TRY_NARROWER
+)
 
 
 class StatCanDiscovery(Protocol):
@@ -83,11 +99,63 @@ class StatCanDiscovery(Protocol):
 
 
 class PlanningError(RuntimeError):
-    """Claude did not produce a valid plan or a decline within the turn budget."""
+    """Claude did not produce a valid plan or a decline within the turn budget.
 
-    def __init__(self, message: str, audit: Sequence[ToolCallRecord] = ()) -> None:
+    ``str(error)`` is the technical reason, for logs; ``user_message`` is what the page shows.
+    The token counts are what planning spent before it stopped, so a failed question's cost is
+    still recorded.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        audit: Sequence[ToolCallRecord] = (),
+        *,
+        user_message: str | None = None,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        cache_creation_input_tokens: int = 0,
+        cache_read_input_tokens: int = 0,
+    ) -> None:
         super().__init__(message)
         self.audit = tuple(audit)
+        self.user_message = user_message or message
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.cache_creation_input_tokens = cache_creation_input_tokens
+        self.cache_read_input_tokens = cache_read_input_tokens
+
+
+def describe_planning_failure(error: Exception, *, stage: str = "Planning") -> str:
+    """The plain line shown when planning fails; API details and request IDs go to the log.
+
+    ``stage`` names what failed ("Planning", or "The run" for an error outside the planner).
+    """
+    if isinstance(error, PlanningError):
+        return f"{stage} failed: {error.user_message}"
+    if isinstance(error, anthropic.APIStatusError):
+        LOGGER.warning(
+            "planner API error: %s status=%s request_id=%s: %s",
+            type(error).__name__, error.status_code, error.request_id, error,
+        )  # fmt: skip
+        if isinstance(error, anthropic.RateLimitError) or error.status_code in (500, 503, 529):
+            return f"{stage} failed: the planning service is busy. Try again in a minute."
+        if isinstance(error, anthropic.AuthenticationError | anthropic.PermissionDeniedError):
+            return (
+                f"{stage} failed: the planning service rejected this server's API key. "
+                "Ask whoever runs this page to check it."
+            )
+        if "credit balance" in str(error).casefold():
+            return (
+                f"{stage} failed: the planning service's account is out of credit. "
+                "Ask whoever runs this page to top it up."
+            )
+        return f"{stage} failed: the planning service could not process this request."
+    if isinstance(error, anthropic.APIConnectionError):  # timeouts included
+        LOGGER.warning("planner connection error: %s: %s", type(error).__name__, error)
+        return f"{stage} failed: the planning service could not be reached. Try again in a minute."
+    LOGGER.exception("planner error", exc_info=error)
+    return f"{stage} failed: an internal error stopped it. The details are in the log."
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +221,10 @@ Rules:
   say so in the objective; never treat a change as significant without one.
 - If official data cannot answer the question (the series is not published for that geography,
   period or breakdown), call decline with the reason instead of planning around it.
+- If the question would combine figures for different reference years (for example income
+  from the 2021 Census, which refers to 2020, with a 2025 rent), call decline: name both
+  reference years, and name a same-year official series if there is one (for incomes, the
+  Canadian Income Survey). Do not keep searching for a way to combine them.
 - Finish by calling submit_plan or decline exactly once. If submit_plan returns problems, fix
   them and call it again.
 - The objective, step descriptions and decline reason name series and periods only: never
@@ -222,6 +294,19 @@ class ClaudePlanner:
         session = _Session(resolved=frozenset(r.key for r in resolved))
         confirmed = session.confirmed
         audit: list[ToolCallRecord] = []
+        rejected: set[tuple[str, str]] = set()  # calls already answered with an error
+
+        def failed(reason: str, user_message: str) -> PlanningError:
+            return PlanningError(
+                reason,
+                audit,
+                user_message=user_message,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cache_creation_input_tokens=cache_creation_tokens,
+                cache_read_input_tokens=cache_read_tokens,
+            )
+
         for turn in range(1, self._max_turns + 1):
             messages_with_cache = _with_turn_cache(messages)
             response = await self._client.beta.messages.create(
@@ -239,9 +324,15 @@ class ClaudePlanner:
             cache_creation_tokens += getattr(response.usage, "cache_creation_input_tokens", 0) or 0
             cache_read_tokens += getattr(response.usage, "cache_read_input_tokens", 0) or 0
             if response.stop_reason == "refusal":
-                raise PlanningError("the model declined to plan this request", audit)
+                raise failed(
+                    "the model declined to plan this request",
+                    "the model declined to plan this request.",
+                )
             if response.stop_reason == "max_tokens":
-                raise PlanningError("the planner hit max_tokens before finishing", audit)
+                raise failed(
+                    "the planner hit max_tokens before finishing",
+                    "the plan grew too long to finish. " + _TRY_NARROWER,
+                )
 
             # Append the assistant turn unchanged (thinking blocks included).
             messages.append({"role": "assistant", "content": response.content})
@@ -321,9 +412,24 @@ class ClaudePlanner:
                         cache_read_input_tokens=cache_read_tokens,
                     )
                 results.append(await self._discovery_call(turn, call, session, audit))
+
+            # #79: a call identical to one already rejected gets the same answer again, so
+            # stop rather than spend the remaining turns (GT-09 used all 12).
+            for call, result in zip(calls, results, strict=True):
+                if not result["is_error"]:
+                    continue
+                key = (call.name, json.dumps(call.input, sort_keys=True, default=str))
+                if key in rejected:
+                    raise failed(
+                        f"repeated a rejected {call.name} call on turn {turn}", REPEATED_REJECTED
+                    )
+                rejected.add(key)
             messages.append({"role": "user", "content": results})  # type: ignore[typeddict-item]
 
-        raise PlanningError(f"no valid plan within {self._max_turns} turns", audit)
+        raise failed(
+            f"no valid plan within {self._max_turns} turns",
+            NO_PLAN_IN_TURNS.format(turns=self._max_turns),
+        )
 
     async def _discovery_call(
         self,

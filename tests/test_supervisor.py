@@ -12,7 +12,9 @@ from collections.abc import AsyncGenerator, Sequence
 from pathlib import Path
 from typing import Any, cast
 
+import anthropic
 import httpx
+import httpx2
 import pytest
 import pytest_asyncio
 import respx
@@ -33,11 +35,14 @@ from candata_agent.supervisor import (
 from candata_agent.supervisor.clarification import Resolution
 from candata_agent.supervisor.context import PlanContext
 from candata_agent.supervisor.planner import (
+    NO_PLAN_IN_TURNS,
+    REPEATED_REJECTED,
     SYSTEM_PROMPT,
     ClaudePlanner,
     PlannerResult,
     PlanningError,
     _tool_catalog,  # pyright: ignore[reportPrivateUsage]
+    describe_planning_failure,
 )
 from candata_mcp.connectors.boc_valet import Observation as ValetObservation
 from candata_mcp.connectors.boc_valet import ObservationSet, SeriesDetail
@@ -58,6 +63,10 @@ GT05_QUESTION = (
     "and how does that compare with 2024?"
 )
 GT13_QUESTION = "How many times did the Bank of Canada change its policy rate in 2025?"
+GT09_QUESTION = (
+    "Using median household income from the 2021 Census, what share of income does the 2025 "
+    "average two-bedroom rent in Toronto represent?"
+)
 GT12_QUESTION = (
     "In August 2026, how did shelter prices in Toronto change year over year, compared with "
     "overall consumer prices?"
@@ -528,6 +537,90 @@ async def test_planner_stops_on_refusal_and_on_turn_budget() -> None:
     assert client.messages.requests[1]["messages"][-1]["content"].startswith("Finish by calling")
 
 
+async def test_planner_errors_carry_the_tokens_spent_and_a_plain_message() -> None:
+    chatter = message({"type": "text", "text": "Let me think."}, stop="end_turn")
+    planner, _ = planner_with(chatter, chatter, chatter, max_turns=3)
+    with pytest.raises(PlanningError) as raised:
+        await planner.plan(GT09_QUESTION)
+    assert (raised.value.input_tokens, raised.value.output_tokens) == (3000, 300)
+    assert raised.value.user_message == NO_PLAN_IN_TURNS.format(turns=3)
+
+
+async def test_planner_stops_when_it_repeats_a_rejected_plan() -> None:
+    """#79: the same invalid plan twice ends planning, instead of using every turn."""
+    bad = draft(("fetch_statcan_vector", {"vector_id": "v0", "start": "2024", "end": "2025"}))
+    planner, client = planner_with(
+        message(tool_use("t1", "submit_plan", submit(bad))),
+        message(tool_use("t2", "submit_plan", submit(bad))),
+        message(tool_use("t3", "submit_plan", submit(GT05_DRAFT))),  # never reached
+        max_turns=12,
+    )
+    with pytest.raises(PlanningError, match="repeated a rejected submit_plan call on turn 2") as e:
+        await planner.plan(GT05_QUESTION)
+    assert len(client.messages.requests) == 2
+    assert e.value.user_message == REPEATED_REJECTED
+    assert [r.outcome for r in e.value.audit] == ["rejected", "rejected"]
+
+
+async def test_planner_stops_when_it_repeats_a_rejected_lookup() -> None:
+    lookup = {"table_id": "not-a-table", "coordinate": "23.1.1"}  # fails validation
+    planner, client = planner_with(
+        message(tool_use("t1", "lookup_series", lookup)),
+        message(tool_use("t2", "lookup_series", lookup)),
+        max_turns=12,
+    )
+    with pytest.raises(PlanningError) as raised:
+        await planner.plan(GT05_QUESTION)
+    assert raised.value.user_message == REPEATED_REJECTED
+    assert (raised.value.input_tokens, raised.value.output_tokens) == (2000, 200)
+    assert [r.outcome for r in raised.value.audit] == ["rejected", "rejected"]
+    assert len(client.messages.requests) == 2
+
+
+def _api_error(cls: type[anthropic.APIStatusError], status: int, text: str) -> Exception:
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    response = httpx2.Response(status, request=request, headers={"request-id": "req_0123abc"})
+    return cls(text, response=response, body=None)
+
+
+@pytest.mark.parametrize(
+    ("error", "shown"),
+    [
+        (_api_error(anthropic.RateLimitError, 429, "rate limited"), "is busy"),
+        (_api_error(anthropic.InternalServerError, 529, "overloaded"), "is busy"),
+        (_api_error(anthropic.AuthenticationError, 401, "invalid x-api-key"), "API key"),
+        (
+            _api_error(anthropic.BadRequestError, 400, "Your credit balance is too low"),
+            "out of credit",
+        ),
+        (_api_error(anthropic.BadRequestError, 400, "messages: bad"), "could not process"),
+        (
+            anthropic.APIConnectionError(
+                request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+            ),
+            "could not be reached",
+        ),
+        (ValueError("boom"), "internal error"),
+    ],
+)
+def test_planner_failures_are_shown_without_api_details(
+    error: Exception, shown: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """#79: the page gets one plain line; the request ID only reaches the log."""
+    caplog.set_level("WARNING", logger="candata_agent.planner")
+    line = describe_planning_failure(error)
+    assert line.startswith("Planning failed: ") and shown in line
+    assert "req_0123abc" not in line and "{" not in line
+    if isinstance(error, anthropic.APIStatusError):
+        assert "req_0123abc" in caplog.text
+
+
+def test_prompt_declines_combining_reference_years_for_gt09() -> None:
+    prompt = SYSTEM_PROMPT.format(tool_catalog=_tool_catalog())
+    assert "combine figures for different reference years" in prompt
+    assert "Canadian Income Survey" in prompt
+
+
 # ---------------------------------------------------------------------------------------------
 # Full graph
 # ---------------------------------------------------------------------------------------------
@@ -744,9 +837,18 @@ async def test_retrying_a_failed_question_plans_it_again(saver: AsyncSqliteSaver
 async def test_decline_and_planner_errors_end_the_run_with_a_message(
     saver: AsyncSqliteSaver,
 ) -> None:
+    """#79 / Rule 26: a planning failure shows a plain line, its tokens are still counted, and
+    the next question on the thread plans normally."""
+    failure = PlanningError(
+        "no valid plan within 12 turns",
+        user_message=NO_PLAN_IN_TURNS.format(turns=12),
+        input_tokens=24000,
+        output_tokens=1800,
+    )
     planner = ScriptedPlanner(
         PlannerResult(None, "StatCan does not publish this for Toronto"),
-        PlanningError("no valid plan within 12 turns"),
+        failure,
+        planned(GT05_DRAFT),
     )
     app = build_agent_graph(
         planner=planner, statcan=FakeStatCan(), valet=FakeValet(), checkpointer=saver
@@ -758,8 +860,24 @@ async def test_decline_and_planner_errors_end_the_run_with_a_message(
     assert out["plan"] is None
     assert out["messages"][-1].content == "Declined: StatCan does not publish this for Toronto"
 
-    out = await app.ainvoke({"messages": (user("b"),)}, config)
-    assert out["messages"][-1].content.startswith("Planning failed: PlanningError")
+    out = await app.ainvoke({"messages": (user(GT09_QUESTION),)}, config)
+    assert out["messages"][-1].content == (
+        "Planning failed: no plan could be built from the published series within 12 attempts. "
+        "Try asking for one figure at a time, or name the table or series."
+    )
+    assert "PlanningError" not in out["messages"][-1].content
+    budget = out["token_budget"]
+    assert (budget.prompt_tokens_used, budget.completion_tokens_used) == (24000, 1800)
+
+    out = await app.ainvoke({"messages": (user(GT05_QUESTION),)}, config)
+    assert out["verification"]["passed"] is True
+    assert out["token_budget"].prompt_tokens_used == 25200  # the failed plan stays counted
+    assert planner.questions == ["a", GT09_QUESTION, GT05_QUESTION]
+
+    history = [snapshot async for snapshot in app.aget_state_history(config)]
+    assert len(history) >= 3
+    restored = (await app.aget_state(config)).values
+    assert restored["token_budget"].completion_tokens_used == 2100
 
 
 async def test_forked_thread_continues_with_the_graph(saver: AsyncSqliteSaver) -> None:

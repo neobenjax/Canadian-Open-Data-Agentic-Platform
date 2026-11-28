@@ -53,6 +53,7 @@ from candata_agent.supervisor.clarification import (
 )
 from candata_agent.supervisor.context import PlanContext, build_context
 from candata_agent.supervisor.guardrails import screen_question
+from candata_agent.supervisor.planner import describe_planning_failure
 from candata_agent.supervisor.registry import (
     DATA_ANALYST,
     DATA_FETCHER,
@@ -172,31 +173,23 @@ def make_supervisor_node(planner: Planner) -> Node:
             extra["context"] = context
         try:
             outcome = await planner.plan(question, **extra)
-        except Exception as error:  # planner errors end the run with a visible message
+        except Exception as error:  # planner errors end the run with a plain message (#79)
             trail: tuple[ToolCallRecord, ...] = getattr(error, "audit", ())
             return {
                 "plan": None,
                 "verification": None,
                 "active_interrupt": None,
+                "token_budget": _spent(state.token_budget, error),  # a failed plan still costs
                 "scratchpad": {
                     **fresh,
                     PLANNER_AUDIT: earlier_audit + [r.to_json() for r in trail],
                 },
-                "messages": (_say(f"Planning failed: {type(error).__name__}: {error}"),),
+                "messages": (_say(describe_planning_failure(error)),),
             }
 
         audit: tuple[ToolCallRecord, ...] = getattr(outcome, "audit", ())
-        budget = state.token_budget
-        cache_creation = getattr(outcome, "cache_creation_input_tokens", 0) or 0
-        cache_read = getattr(outcome, "cache_read_input_tokens", 0) or 0
         update: dict[str, Any] = {
-            "token_budget": TokenBudget(
-                max_budget=budget.max_budget,
-                prompt_tokens_used=budget.prompt_tokens_used + outcome.input_tokens,
-                completion_tokens_used=budget.completion_tokens_used + outcome.output_tokens,
-                cache_creation_tokens_used=budget.cache_creation_tokens_used + cache_creation,
-                cache_read_tokens_used=budget.cache_read_tokens_used + cache_read,
-            ),
+            "token_budget": _spent(state.token_budget, outcome),
             # A new question starts a new set of citations to verify, and drops the last report.
             "scratchpad": {**fresh, PLANNER_AUDIT: earlier_audit + [r.to_json() for r in audit]},
             "verification": None,
@@ -420,6 +413,22 @@ def make_input_verifier_node(verifier: CitationVerifier) -> Node:
         }
 
     return citation_verifier
+
+
+def _spent(budget: TokenBudget, source: object) -> TokenBudget:
+    """``budget`` plus the tokens a planner result, or a ``PlanningError``, reports."""
+
+    def tokens(name: str) -> int:
+        return int(getattr(source, name, 0) or 0)
+
+    return TokenBudget(
+        max_budget=budget.max_budget,
+        prompt_tokens_used=budget.prompt_tokens_used + tokens("input_tokens"),
+        completion_tokens_used=budget.completion_tokens_used + tokens("output_tokens"),
+        cache_creation_tokens_used=budget.cache_creation_tokens_used
+        + tokens("cache_creation_input_tokens"),
+        cache_read_tokens_used=budget.cache_read_tokens_used + tokens("cache_read_input_tokens"),
+    )
 
 
 def _finish_step(plan: QueryPlan, step: PlanStep, status: StepStatus, summary: str) -> QueryPlan:
