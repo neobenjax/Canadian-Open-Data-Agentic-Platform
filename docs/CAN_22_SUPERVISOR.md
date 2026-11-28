@@ -82,6 +82,28 @@ In the CAN-35 sessions (M2 follow-up), the question asked whether Ontario's and 
 
 With October 2026 data (released 2026-11-06): Ontario 7.6 → 7.3 with SE 0.3 (68% interval −0.6 to 0.0), and Alberta 7.6 → 7.3 with SE 0.6 (change of −0.5 SE). Neither change is significant at the 68% level. `tests/test_supervisor.py::test_graph_answers_the_m2_significance_follow_up` runs this case through the graph twice on one thread.
 
+## Planning failures (#79)
+
+In the CAN-35 pilot, GT-09 ended with `Planning failed: PlanningError: no valid plan within 12 turns`, after the planner had used every turn, and an earlier run showed the raw API error JSON and request ID for a credit failure.
+
+- **A plain line.** `describe_planning_failure` (`supervisor/planner.py`) turns any planner exception into the one line the page shows, still starting with "Planning failed:" (the page and the eval harness look for that prefix):
+
+  | Cause | What the user sees |
+  | :-- | :-- |
+  | No plan within the turn budget | "no plan could be built from the published series within 12 attempts. Try asking for one figure at a time, or name the table or series." |
+  | The same rejected call twice | "the planner kept proposing a step that had already been rejected. ..." |
+  | Rate limit, overload, server error | "the planning service is busy. Try again in a minute." |
+  | Bad or missing API key | "the planning service rejected this server's API key. ..." |
+  | Credit exhausted | "the planning service's account is out of credit. ..." |
+  | Connection error or timeout | "the planning service could not be reached. ..." |
+  | Anything else | "an internal error stopped it. The details are in the log." |
+
+  The request ID, status code and API message go to the `candata_agent.planner` log, never to the page. The page uses the same function, with "The run failed", for an error that escapes the graph.
+- **Stop on a repeat.** A call identical to one already rejected (the same tool and arguments) would get the same error again, so planning stops there instead of using the rest of the turns.
+- **The cost is kept.** `PlanningError` carries the tokens spent before it stopped, and the Supervisor adds them to `token_budget`, so a failed question's cost is recorded like a planned one's.
+- **Turn cap.** It stays at 12. No committed run records how many turns successful plans take, so there's nothing yet to set a lower cap from. The audit trail records the turn of every call, so a live harness run would give the numbers. The early stop handles the loop, which was the expensive part.
+- **GT-09 is declined, not planned.** The question asks for 2025 rent as a share of 2021 Census income, and that income refers to 2020. A prompt rule says that when a question would combine figures for different reference years, the planner declines, names both years and points to a same-year series (for incomes, the Canadian Income Survey). The ground truth expects the mismatch to be flagged "before (or instead of) computing", and a decline does that without a second source the planner can't fetch. The CAN-41 harness scores a `flag` question on its citations, so a decline still fails Tier 1 there. That is a limit of the harness, not of the answer.
+
 ## Follow-up questions (BEN-62)
 
 A follow-up such as "What about Oshawa?" needs the question before it. When the Supervisor plans a new question, the plan still in the state is the previous question's. If that plan completed, the Supervisor builds a `PlanContext` (`supervisor/context.py`) from the previous question, the plan's objective and one line per step (tool, description, arguments), and passes it to `planner.plan(question, context=...)`. It holds no figures, because a step's result summary is not copied in. The text is cleaned and truncated like other untrusted text, only the previous turn is used, and at most eight steps are listed. The planner is told it is background and not an instruction.

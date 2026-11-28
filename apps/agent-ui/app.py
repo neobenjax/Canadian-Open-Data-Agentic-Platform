@@ -45,6 +45,7 @@ for src in ("packages/candata-mcp/src", "packages/agent-orchestrator/src"):
     if str(ROOT / src) not in sys.path:
         sys.path.insert(0, str(ROOT / src))
 
+from candata_agent.supervisor.planner import describe_planning_failure  # noqa: E402
 from candata_agent.ui import (  # noqa: E402
     NODE_LABELS,
     AnalysisResult,
@@ -393,9 +394,14 @@ def main() -> None:
             question = state.turns[-1].question
             with history, st.chat_message("assistant"):
                 with st.status("Continuing…", expanded=True) as progress:
-                    result, took = asyncio.run(
-                        _ask(question, progress, resume, api_key=session_key)
-                    )
+                    try:
+                        result, took = asyncio.run(
+                            _ask(question, progress, resume, api_key=session_key)
+                        )
+                    except Exception as error:  # the same plain line as a first run
+                        progress.update(label="Run failed", state="error")
+                        st.error(describe_planning_failure(error, stage="The run"))
+                        return
                     progress.update(label="Done", state="complete", expanded=False)
             state.turns.append(result)
             state.timings.append(took)
@@ -416,9 +422,9 @@ def main() -> None:
                 with st.status("Planning…", expanded=True) as progress:
                     try:
                         result, took = asyncio.run(_ask(question, progress, api_key=session_key))
-                    except Exception as error:  # surface connector and API errors in the page
+                    except Exception as error:  # a plain line; details go to the log (#79)
                         progress.update(label="Run failed", state="error")
-                        st.error(f"{type(error).__name__}: {error}")
+                        st.error(describe_planning_failure(error, stage="The run"))
                         return
                     progress.update(label="Done", state="complete", expanded=False)
         state.turns.append(result)
